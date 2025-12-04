@@ -1,0 +1,13 @@
+Type these into terminal to set up Omarchy:
+
+1 - move folder "Omarchy-Setup" to "~/"
+2 - open terminal
+3 - command "chmod +x ~/Omarchy-Setup/master-installation.sh"
+3 - command "~/Omarchy-Setup/master-installation.sh"
+
+How to set up tailscale:
+sudo systemctl enable --now tailscaled   -----> start service and make it start on boot
+sudo tailscale up   -----> connect to tailnet
+sudo tailscale down   -----> disconnect to tailnet
+tailscale ip -4   -----> check tailscale IP
+tailscale status   -----> see status of all machines on tailnet
