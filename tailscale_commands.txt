@@ -5,7 +5,7 @@ tailscale status
 tailscale ip
 sudo tailscale up --exit-node="my-linux-server-name" --exit-node-allow-lan-access=true
 sudo tailscale up --exit-node=100.x.x.x         --------> or use the tailnet ip of the exit node
-sudo tailscale up --exit-node=""         --------> this is to stop going through the exit node
+sudo tailscale set --exit-node=""         --------> this is to stop going through the exit node
 
 
 sudo tailscale up --accept-routes --exit-node-allow-lan-access --exit-node=100.96.181.13 --operator=$USER
