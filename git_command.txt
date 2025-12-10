@@ -1,0 +1,11 @@
+git config --global user.name "Your Name"
+git config --global user.email "your.email@example.com"
+git status
+git config --list
+git config --global credential.helper store
+git add . 
+git add filename.txt anotherfile.js
+git add --all
+git commit -m "Your descriptive commit message here"
+git push origin master
+
