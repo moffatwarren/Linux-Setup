@@ -8,5 +8,5 @@ git add filename.txt anotherfile.js
 git add --all
 git commit -m "Your descriptive commit message here"
 git push origin master
-git push origin master
+git pull origin master
 
