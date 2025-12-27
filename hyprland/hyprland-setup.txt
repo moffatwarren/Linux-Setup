@@ -1,0 +1,4 @@
+sudo dnf install kitty
+sudo dnf copr enable solopasha/hyprland
+sudo dnf install -y hypland waybar
+
