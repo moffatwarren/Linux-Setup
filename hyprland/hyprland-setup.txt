@@ -1,5 +1,0 @@
-sudo dnf install kitty
-sudo dnf copr enable solopasha/hyprland
-sudo dnf install -y kwrite hyprland waybar btop fastfetch fontawesome-fonts-all hyprshot swaync hyprlock hypridle hyprpaper nwg-look
-mkdir ~/.conf/waybar
-

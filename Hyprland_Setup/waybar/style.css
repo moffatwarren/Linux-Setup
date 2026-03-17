@@ -1,0 +1,86 @@
+@import "mocha.css";
+
+#waybar {
+background: @surface0;
+color: @text;
+}
+
+#workspaces {
+border-radius: 15px;
+background-color: @surface0;
+}
+
+#workspaces button {
+color: @lavender;
+}
+
+#workspaces button.active {
+color: @sky;
+}
+
+#workspaces button:hover {
+color: @sapphire;
+}
+
+button {
+    background: transparent;
+}
+
+#custom-music,
+#tray,
+#backlight,
+#clock,
+#battery,
+#pulseaudio,
+#custom-lock,
+#language,
+#cava,
+#network,
+#power-profiles-daemon,
+#custom-tailscale,
+#custom-power {
+border-radius: 15px;
+background-color: @surface0;
+padding: 0.5rem 1rem;
+}
+
+#clock {
+color: @blue;
+}
+
+#battery {
+color: @green;
+}
+
+#battery.charging {
+color: @green;
+}
+
+#battery.warning:not(.charging) {
+color: @red;
+}
+
+#backlight {
+color: @yellow;
+}
+
+#backlight,
+#battery {
+}
+
+#pulseaudio {
+color: @maroon;
+}
+
+
+#language {
+color: @lavender;
+}
+
+#custom-power {
+color: @red;
+}
+
+#workspaces button.urgent {
+color: @red;
+}

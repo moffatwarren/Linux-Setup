@@ -1,0 +1,4 @@
+nmcli dev status
+nmcli connection show --active
+nmcli dev wifi list
+nmcli dev wifi connect <SSID_name> password <password>
