@@ -16,13 +16,13 @@ echo "///////// MOVING FILES ///////////"
 echo "//////////////////////////////////"
 echo ""
 
-\cp -rf ~/Hyprland_Setup/fastfetch ~/.config
-\cp -rf ~/Hyprland_Setup/fish ~/.config
-\cp -rf ~/Hyprland_Setup/hypr ~/.config
-\cp -rf ~/Hyprland_Setup/kitty ~/.config
-\cp -rf ~/Hyprland_Setup/rofi ~/.config
-\cp -rf ~/Hyprland_Setup/swappy ~/.config
-\cp -rf ~/Hyprland_Setup/waybar ~/.config
+\cp -rf ~/Linx-Setup/Hyprland_Setup/fastfetch ~/.config
+\cp -rf ~/Linx-Setup/Hyprland_Setup/fish ~/.config
+\cp -rf ~/Linx-Setup/Hyprland_Setup/hypr ~/.config
+\cp -rf ~/Linx-Setup/Hyprland_Setup/kitty ~/.config
+\cp -rf ~/Linx-Setup/Hyprland_Setup/rofi ~/.config
+\cp -rf ~/Linx-Setup/Hyprland_Setup/swappy ~/.config
+\cp -rf ~/Linx-Setup/Hyprland_Setup/waybar ~/.config
 
 echo ""
 echo "//////////////////////////////////"
