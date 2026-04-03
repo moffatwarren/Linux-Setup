@@ -28,7 +28,7 @@
         "battery#bat2",
     ],
 
-// Modules configuration
+    // Modules configuration
     "hyprland/workspaces": {
         "disable-scroll": true,
         "all-outputs": true,
@@ -71,15 +71,15 @@
     },
 
     "power-profiles-daemon": {
-      "format": "{icon}",
-      "tooltip-format": "Power profile: {profile}\nDriver: {driver}",
-      "tooltip": true,
-      "format-icons": {
-        "default": "",
-        "performance": "",
-        "balanced": "",
-        "power-saver": ""
-      }
+        "format": "{icon}",
+        "tooltip-format": "Power profile: {profile}\nDriver: {driver}",
+        "tooltip": true,
+        "format-icons": {
+            "default": "",
+            "performance": "",
+            "balanced": "",
+            "power-saver": ""
+        }
     },
 
     "network": {
@@ -116,8 +116,8 @@
         "format": "{icon} {volume}%",
         "format-muted": "",
         "format-icons": {
-            "alsa_output.usb-Generic_USB_Audio-00.HiFi__Speaker__sink": "🎧",
-            "alsa_output.usb-Actions_Razer_Nommo_V2_X_000000000000000-01.analog-stereo": "󰓃",
+            "alsa_output.usb-Kingston_HyperX_Amp_000000000001-00.analog-stereo": "🎧",
+            "alsa_output.pci-0000_00_1f.3.analog-stereo": "󰓃",
             "headphone": "",
             "hands-free": "",
             "headset": "",
@@ -133,7 +133,8 @@
 
     "custom/tailscale" : {
         "exec": "~/.config/waybar/scripts/tailscale.sh --status",
-        "on-click": "exec ~/.config/waybar/scripts/tailscale.sh --toggle",
+        "on-double-click": "exec ~/.config/waybar/scripts/tailscale.sh --toggle",
+        "on-click-right": "exec ~/.config/waybar/scripts/tailscale.sh --getFile",
         "exec-on-event": true,
         "format": " Tailscale: {icon} | Exit-node: {text}",
         "format-icons": {

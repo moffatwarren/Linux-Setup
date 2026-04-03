@@ -13,10 +13,14 @@ toggle_status () {
     sleep 5
 }
 
+get_file () {
+    tailscale file get ~/Downloads/
+}
+
 case $1 in
     --status)
         if tailscale_status; then
-            T=${2:-"green"}
+            T=${2:-"lightblue"}
             F=${3:-"red"}
 
             peers=$(tailscale status --json | jq -r --arg T "'$T'" --arg F "'$F'" '.Peer[]? | ("<span color=" + (if .Online then $T else $F end) + ">" + (.DNSName | split(".")[0]) + "</span>")' | tr '\n' '\r')
@@ -35,6 +39,9 @@ case $1 in
     ;;
     --toggle)
         toggle_status
+    ;;
+    --getFile)
+        get_file
     ;;
 esac
 
