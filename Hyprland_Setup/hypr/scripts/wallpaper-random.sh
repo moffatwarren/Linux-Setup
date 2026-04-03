@@ -1,32 +1,26 @@
 #!/bin/bash
 
-# Define the directory containing your wallpapers
+# 1. Define where your wallpapers are stored
 WALLPAPER_DIR="$HOME/Pictures/wallpapers"
 
-# Get a random wallpaper file
-WALLPAPER=$(find "$WALLPAPER_DIR" -type f | shuf -n 1)
-
-# Check if a wallpaper was found
-if [ -z "$WALLPAPER" ]; then
-    echo "Error: No wallpaper file found in $WALLPAPER_DIR"
+# 2. Verify the directory exists
+if [ ! -d "$WALLPAPER_DIR" ]; then
+    notify-send "Wallpaper Error" "Directory does not exist: $WALLPAPER_DIR"
     exit 1
 fi
 
-# Use hyprctl to dynamically set the new wallpaper
+# 3. Find all images and pick one at random
+# -type f ensures we only get files (no sub-folders)
+# shuf -n 1 shuffles the list and picks the top 1 result
+RANDOM_PIC=$(find "$WALLPAPER_DIR" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" \) | shuf -n 1)
 
-# 1. Preload the new wallpaper
-hyprctl hyprpaper preload "$WALLPAPER"
+# 4. Check if we actually found an image
+if [ -z "$RANDOM_PIC" ]; then
+    notify-send "Wallpaper Error" "No images found in $WALLPAPER_DIR"
+    exit 1
+fi
 
-# 2. Set the wallpaper for all monitors (the empty monitor argument acts as a wildcard)
-# You can specify a monitor name (e.g., "DP-1") instead of the comma for a specific monitor
-hyprctl hyprpaper wallpaper ",$WALLPAPER"
-
-sleep 1
-
-# 3. Unload unused wallpapers (optional, helps manage RAM usage)
-hyprctl hyprpaper unload unused
-
-sed -i "s|path = .*|path = $WALLPAPER|g" "$HOME/.config/hypr/hyprlock.conf"
-sed -i "s|path = .*|path = $WALLPAPER|g" "$HOME/.config/hypr/hyprpaper.conf"
-
-echo "Wallpaper changed to $WALLPAPER"
+# 5. Apply it with awww
+# Tip: "--transition-type any" tells swww to pick a random animation effect!
+awww img "$RANDOM_PIC" --transition-type grow --transition-pos 0.5,0.5 --transition-fps 60 --transition-duration 1
+sed -i "s|path = .*|path = $RANDOM_PIC|g" "$HOME/.config/hypr/hyprlock.conf"

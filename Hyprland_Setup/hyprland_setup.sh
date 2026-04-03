@@ -6,7 +6,7 @@ echo "/////// INSTALLING APPS //////////"
 echo "//////////////////////////////////"
 echo ""
 
-sudo pacman -S --noconfirm kitty kwrite hyprland waybar hyprlock hypridle hyprpaper ttf-font-awesome swaync swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look rofi gvfs gvfs-smb samba gwenview nvim
+sudo pacman -S --noconfirm kitty kwrite hyprland waybar hyprlock hypridle awww ttf-font-awesome swaync swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look rofi gvfs gvfs-smb samba gwenview nvim
 paru -S --noconfirm --skipreview pokemon-colorscripts-git
 sudo systemctl enable --now avahi-daemon
 
@@ -32,6 +32,7 @@ echo ""
 
 chmod +x ~/.config/hypr/scripts/launch-waybar.sh
 chmod +x ~/.config/hypr/scripts/wallpaper-random.sh
+chmod +x ~/.config/hypr/scripts/wallpaper-selector.sh
 chmod +x ~/.config/waybar/scripts/audio-output-toggle.sh
 chmod +x ~/.config/waybar/scripts/tailscale.sh
 
