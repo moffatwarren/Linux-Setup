@@ -42,5 +42,6 @@ echo "///////// AUDIO OUTPUT ///////////"
 echo "//////////////////////////////////"
 echo ""
 
+hyprctl monitors all
 pactl list short sinks
 
