@@ -6,8 +6,8 @@ echo "/////// INSTALLING APPS //////////"
 echo "//////////////////////////////////"
 echo ""
 
-sudo pacman -S --noconfirm kitty kwrite hyprland waybar hyprlock hypridle awww ttf-font-awesome swaync swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look rofi gvfs gvfs-smb samba gwenview nvim mpv imv
-paru -S --noconfirm --skipreview pokemon-colorscripts-git
+sudo pacman -S --noconfirm --needed kitty kwrite hyprland waybar hyprlock hypridle awww ttf-font-awesome swaync swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look rofi gvfs gvfs-smb samba gwenview nvim mpv imv
+paru -S --noconfirm --skipreview --needed pokemon-colorscripts-git
 sudo systemctl enable --now avahi-daemon
 
 echo ""
