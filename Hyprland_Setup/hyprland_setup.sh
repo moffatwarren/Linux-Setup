@@ -33,6 +33,7 @@ echo ""
 chmod +x ~/.config/hypr/scripts/launch-waybar.sh
 chmod +x ~/.config/hypr/scripts/wallpaper-random.sh
 chmod +x ~/.config/hypr/scripts/wallpaper-selector.sh
+chmod +x ~/.config/hypr/scripts/volume-notify.sh
 chmod +x ~/.config/waybar/scripts/audio-output-toggle.sh
 chmod +x ~/.config/waybar/scripts/tailscale.sh
 
