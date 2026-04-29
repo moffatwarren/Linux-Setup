@@ -7,7 +7,7 @@ TOGGLE=$HOME/.audio_toggle
 
 if [ ! -e $TOGGLE ]; then
     touch $TOGGLE
-    pactl set-default-sink alsa_output.usb-Kingston_HyperX_Amp_000000000001-00.analog-stereo
+    pactl set-default-sink bluez_output.B4_23_A2_0B_AA_DF.1
     echo "{\"text\":\"$(get_volume)%\",\"class\":\"connected\",\"alt\":\"headphones\", \"tooltip\": \"Using Headphones\"}"
     notify-send "Audio changed to HEADPHONES"
 else

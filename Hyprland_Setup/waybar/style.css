@@ -1,5 +1,11 @@
 @import "mocha.css";
 
+* {
+    font-family: "JetBrainsMono Nerd Font", "Font Awesome 6 Free", sans-serif;
+    font-size: 14px;
+    /* other global properties like border-radius, min-height, etc. might be here */
+}
+
 #waybar {
 background: @surface0;
 color: @text;
@@ -72,9 +78,8 @@ color: @yellow;
 color: @maroon;
 }
 
-
-#language {
-color: @lavender;
+#bluetooth {
+color: @mauve;
 }
 
 #custom-power {
