@@ -206,8 +206,16 @@ hl.windowrule("size 1200 800", "class:^(btop-float)$")
 hl.windowrule("center", "class:^(btop-float)$")
 
 hl.windowrule("float", "class:^(nmtui-floating)$")
-hl.windowrule("size 600 500", "class:^(nmtui-floating$")
+hl.windowrule("size 600 500", "class:^(nmtui-floating)$")
 hl.windowrule("center", "class:^(nmtui-floating)$")
+
+hl.windowrule("float", "class:^(org\.pulseaudio\.pavucontrol)$")
+hl.windowrule("size 800 700", "class:^(org\.pulseaudio\.pavucontrol)$")
+hl.windowrule("center", "class:^(org\.pulseaudio\.pavucontrol)$")
+
+hl.windowrule("float", "class:^(blueman-manager)$")
+hl.windowrule("size 800 700", "class:^(blueman-manager)$")
+hl.windowrule("center", "class:^(blueman-manager)$")
 
 -- Example: Suppress maximize requests on all apps to mimic classic behavior
 hl.windowrule("suppressevent maximize", "class:.*")

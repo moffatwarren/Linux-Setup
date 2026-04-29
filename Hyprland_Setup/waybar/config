@@ -19,6 +19,7 @@
     "modules-right": [
         // "custom/audio",
         "pulseaudio",
+        "bluetooth",
         "custom/tailscale",
         "network",
         //"cpu",
@@ -130,6 +131,32 @@
         },
         "on-click-right": "pavucontrol",
         "on-click": "exec ~/.config/waybar/scripts/audio-output-toggle.sh",
+    },
+
+    "bluetooth": {
+        "format": " {status}",
+        "format-connected": " {device_alias}",
+        "format-connected-battery": " {device_alias} {device_battery_percentage}%",
+        "tooltip-format": "{controller_alias}\t{controller_address}\n\n{num_connections} connected",
+        "tooltip-format-connected": "{controller_alias}\t{controller_address}\n\n{num_connections} connected\n\n{device_enumerate}",
+        "tooltip-format-enumerate-connected": "{device_alias}\t{device_address}",
+        "tooltip-format-enumerate-connected-battery": "{device_alias}\t{device_address}\t{device_battery_percentage}%",
+        "on-click-right": "blueman-manager"
+    },
+
+    "custom/tailscale" : {
+        "exec": "~/.config/waybar/scripts/tailscale.sh --status",
+        "on-double-click": "exec ~/.config/waybar/scripts/tailscale.sh --toggle",
+        "on-click-right": "exec ~/.config/waybar/scripts/tailscale.sh --getFile",
+        "exec-on-event": true,
+        "format": " Tailscale: {icon} | Exit-node: {text}",
+        "format-icons": {
+            "connected": "on",
+            "stopped": "off"
+        },
+        "tooltip": true,
+        "return-type": "json",
+        "interval": 3,
     },
 
     "custom/tailscale" : {
