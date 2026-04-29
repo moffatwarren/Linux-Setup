@@ -210,7 +210,7 @@ hl.windowrule("size 600 500", "class:^(nmtui-floating)$")
 hl.windowrule("center", "class:^(nmtui-floating)$")
 
 hl.windowrule("float", "class:^(org\.pulseaudio\.pavucontrol)$")
-hl.windowrule("size 800 700", "class:^(org\.pulseaudio\.pavucontrol)$")
+hl.windowrule("size 800 1000", "class:^(org\.pulseaudio\.pavucontrol)$")
 hl.windowrule("center", "class:^(org\.pulseaudio\.pavucontrol)$")
 
 hl.windowrule("float", "class:^(blueman-manager)$")
