@@ -30,6 +30,7 @@ echo "/////// ENABLING SCRIPTS /////////"
 echo "//////////////////////////////////"
 echo ""
 
+chmod +x ~/Linux-Setup/Hyprland_Setup/update_dots_local.sh
 chmod +x ~/.config/hypr/scripts/launch-waybar.sh
 chmod +x ~/.config/hypr/scripts/wallpaper-random.sh
 chmod +x ~/.config/hypr/scripts/wallpaper-selector.sh
