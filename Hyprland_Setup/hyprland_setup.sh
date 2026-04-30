@@ -21,7 +21,7 @@ read -p "Do you want get wallpapers? (y/n) " response
 case "$response" in
 [yY] | [yY][eE][sS])
   echo "Getting wallpapers..."
-  \cp -rf ~/Linux-Setup/Hyprland_Setup/wallpapers ~/Pictures
+  \cp -rn ~/Linux-Setup/Hyprland_Setup/wallpapers ~/Pictures
   ;;
 [nN] | [nN][oO])
   echo "Not getting wallpapers..."
