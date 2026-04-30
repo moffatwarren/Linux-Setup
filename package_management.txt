@@ -1,0 +1,9 @@
+To prevent pacman -Syu from immediately upgrading it back to the broken version, you need to edit your configuration file.
+
+Open the config: sudo nano /etc/pacman.conf
+
+Find the [options] section.
+
+Uncomment or add the IgnorePkg line:
+
+IgnorePkg = tzdata     ----> or any package other than tzdata

@@ -22,3 +22,5 @@ esac
 \cp -rf ~/.config/swappy ~/Linux-Setup/Hyprland_Setup
 \cp -rf ~/.config/waybar ~/Linux-Setup/Hyprland_Setup
 \cp ~/.config/fish/config.fish ~/Linux-Setup/Hyprland_Setup/fish
+
+sed -i '/monitor=/c\monitor=,preferred,auto,1' $HOME/Linux-Setup/Hyprland_Setup/hypr/hyprland.conf
