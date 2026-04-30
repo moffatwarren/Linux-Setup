@@ -7,7 +7,7 @@ sudo pacman -S --noconfirm --needed kitty kwrite hyprland waybar hyprlock hyprid
 paru -S --noconfirm --skipreview --needed pokemon-colorscripts-git google-chrome rustdesk-bin
 sudo systemctl enable --now avahi-daemon
 
-echo "//////////////////////////////////"
+echo ""
 echo "///////// MOVING FILES ///////////"
 echo ""
 
