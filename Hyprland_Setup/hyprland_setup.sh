@@ -1,19 +1,14 @@
 #!/bin/bash
 
-echo ""
-echo "//////////////////////////////////"
 echo "/////// INSTALLING APPS //////////"
-echo "//////////////////////////////////"
 echo ""
 
 sudo pacman -S --noconfirm --needed kitty kwrite hyprland waybar hyprlock hypridle awww ttf-font-awesome swaync ttf-jetbrains-mono-nerd swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look rofi gvfs gvfs-smb samba gwenview nvim mpv imv brightnessctl blueman
 paru -S --noconfirm --skipreview --needed pokemon-colorscripts-git google-chrome rustdesk-bin
 sudo systemctl enable --now avahi-daemon
 
-echo ""
 echo "//////////////////////////////////"
 echo "///////// MOVING FILES ///////////"
-echo "//////////////////////////////////"
 echo ""
 
 read -p "Do you want get wallpapers? (y/n) " response
@@ -39,12 +34,6 @@ esac
 \cp -rf ~/Linux-Setup/Hyprland_Setup/swappy ~/.config
 \cp -rf ~/Linux-Setup/Hyprland_Setup/waybar ~/.config
 
-echo ""
-echo "//////////////////////////////////"
-echo "/////// ENABLING SCRIPTS /////////"
-echo "//////////////////////////////////"
-echo ""
-
 chmod +x ~/Linux-Setup/Hyprland_Setup/update_dots_local.sh
 chmod +x ~/.config/hypr/scripts/launch-waybar.sh
 chmod +x ~/.config/hypr/scripts/wallpaper-random.sh
@@ -54,10 +43,23 @@ chmod +x ~/.config/hypr/scripts/brightness-notify.sh
 chmod +x ~/.config/waybar/scripts/audio-output-toggle.sh
 chmod +x ~/.config/waybar/scripts/tailscale.sh
 
+read -p "Do you want to set monitor to 2560x1440@240? (y/n) " response
+
+case "$response" in
+[yY] | [yY][eE][sS])
+  sed -i '/monitor=/c\monitor=,2560x1440@240,auto,1' ~/.config/hypr/hyprland.conf
+  echo "Monitor set to 2560x1440@240"
+  ;;
+[nN] | [nN][oO])
+  echo "Monitor set to preferred"
+  ;;
+*)
+  echo "Invalid input. Monitor set to preferred"
+  ;;
+esac
+
 echo ""
-echo "//////////////////////////////////"
-echo "///////// AUDIO OUTPUT ///////////"
-echo "//////////////////////////////////"
+echo "///////// CHECKING OUTPUT ///////////"
 echo ""
 
 hyprctl monitors all
