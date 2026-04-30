@@ -10,3 +10,8 @@ git commit -m "Your descriptive commit message here"
 git push origin master
 git pull origin master
 
+git diff                                -> if you have not yet run git add
+git diff --staged                       -> after having run git add
+git diff HEAD                           -> all changes in both staged and unstaged
+git diff path/to/your/file.txt
+git diff --staged path/to/your/file.txt
