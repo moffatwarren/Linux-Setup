@@ -243,3 +243,15 @@ hl.window_rule({
   center = true,
   float = true,
 })
+
+hl.window_rule({
+  name = "gnome-text-editor",
+  match = { class = "org.gnome.TextEditor" },
+  opacity = "0.9 0.8",
+})
+
+hl.window_rule({
+  name = "thunar",
+  match = { class = "thunar" },
+  opacity = "0.9 0.8",
+})
