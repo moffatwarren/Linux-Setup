@@ -1,15 +1,12 @@
 configuration {
-    modi: "drun,run,window";
     show-icons: true;
-    terminal: "kitty";
-    drun-display-format: "{name}";
-    location: 0;
-    disable-history: false;
-    hide-scrollbar: true;
-    display-drun: "  Apps";
-    display-run: "  Run";
-    display-window: " 﩯 Windows";
-    sidebar-mode: false;
+
+    display-ssh:    "󰣀 ssh:";
+    display-run:    "󱓞 run:";
+    display-drun:   "󰣖 drun:";
+    display-window: "󱂬 window:";
+    display-combi:  "󰕘 combi:";
+    display-filebrowser: "󰉋 filebrowser:";
 }
 
-@theme "minimal-kiwi-darker"
+@theme "~/.config/rofi/catppuccin-lavrent-mocha.rasi"
