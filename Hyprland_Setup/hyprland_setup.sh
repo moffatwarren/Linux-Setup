@@ -4,8 +4,9 @@ echo "/////// INSTALLING APPS //////////"
 echo ""
 
 sudo pacman -S --noconfirm --needed kitty kwrite hyprland waybar hyprlock hypridle awww ttf-font-awesome swaync ttf-jetbrains-mono-nerd swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look rofi gvfs gvfs-smb samba gwenview nvim mpv imv brightnessctl blueman gnome-text-editor
-paru -S --noconfirm --skipreview --needed pokemon-colorscripts-git google-chrome rustdesk-bin
+paru -S --noconfirm --skipreview --needed pokemon-colorscripts-git google-chrome rustdesk-bin teams-for-linux
 sudo systemctl enable --now avahi-daemon
+sudo ln -s /usr/bin/kitty /usr/bin/xdg-terminal-exec
 gsettings set org.gnome.TextEditor draw-spaces "['space', 'tab', 'trailing']"
 
 echo ""
