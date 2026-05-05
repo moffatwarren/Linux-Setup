@@ -7,3 +7,11 @@ Find the [options] section.
 Uncomment or add the IgnorePkg line:
 
 IgnorePkg = tzdata     ----> or any package other than tzdata
+
+
+
+To go back to a previous version of a package
+
+ls /var/cache/pacman/pkg/ | grep package_name
+
+sudo pacman -U /var/cache/pacman/pkg/package_name-old_version-x86_64.pkg.tar.zst
