@@ -35,6 +35,7 @@ esac
 \cp -rf ~/Linux-Setup/Hyprland_Setup/rofi ~/.config
 \cp -rf ~/Linux-Setup/Hyprland_Setup/swappy ~/.config
 \cp -rf ~/Linux-Setup/Hyprland_Setup/waybar ~/.config
+\cp -rf ~/Linux-Setup/Hyprland_Setup/nvim ~/.config
 
 chmod +x ~/Linux-Setup/Hyprland_Setup/update_dots_local.sh
 chmod +x ~/.config/hypr/scripts/launch-waybar.sh
