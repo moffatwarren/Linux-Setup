@@ -1,0 +1,10 @@
+{
+  "workspace": {
+    "library": [
+      "/usr/share/hyprland/lua/"
+    ]
+  },
+  "diagnostics": {
+    "globals": ["hl"]
+  }
+}

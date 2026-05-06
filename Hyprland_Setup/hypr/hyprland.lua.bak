@@ -49,111 +49,113 @@ hl.env("HYPRCURSOR_SIZE", "24")
 -- ==========================================
 -- In Lua, settings are passed natively via the hl.config table
 hl.config({
-    general = {
-        gaps_in = 2,
-        gaps_out = 5,
-        border_size = 2,
-        
-        -- Hex/RGBA values are passed as strings
-        ["col.active_border"] = "rgba(33ccffee) rgba(00ff99ee) 45deg",
-        ["col.inactive_border"] = "rgba(595959aa)",
+	general = {
+		gaps_in = 2,
+		gaps_out = 5,
+		border_size = 2,
 
-        resize_on_border = false,
-        allow_tearing = false,
-        layout = "dwindle"
-    },
+		-- Hex/RGBA values are passed as strings
+		["col.active_border"] = "rgba(33ccffee) rgba(00ff99ee) 45deg",
+		["col.inactive_border"] = "rgba(595959aa)",
 
-    decoration = {
-        rounding = 5,
-        active_opacity = 1.0,
-        inactive_opacity = 1.0,
+		resize_on_border = false,
+		allow_tearing = false,
+		layout = "dwindle",
+	},
 
-        shadow = {
-            enabled = true,
-            range = 4,
-            render_power = 3,
-            color = "rgba(1a1a1aee)"
-        },
+	decoration = {
+		rounding = 5,
+		active_opacity = 1.0,
+		inactive_opacity = 1.0,
 
-        blur = {
-            enabled = true,
-            size = 3,
-            passes = 1,
-            vibrancy = 0.1696
-        }
-    },
+		shadow = {
+			enabled = true,
+			range = 4,
+			render_power = 3,
+			color = "rgba(1a1a1aee)",
+		},
 
-    animations = {
-        enabled = true,
-        -- You can define advanced animation curves here
-    },
+		blur = {
+			enabled = true,
+			size = 3,
+			passes = 1,
+			vibrancy = 0.1696,
+		},
+	},
 
-    dwindle = {
-        pseudotile = true, -- Master switch for pseudotiling
-        preserve_split = true, -- Keeps split ratio intact when creating new windows
-    },
+	animations = {
+		enabled = true,
+		-- You can define advanced animation curves here
+	},
 
-    master = {
-        new_status = "master",
-    },
+	dwindle = {
+		pseudotile = true, -- Master switch for pseudotiling
+		preserve_split = true, -- Keeps split ratio intact when creating new windows
+	},
 
-    misc = {
-        force_default_wallpaper = 1, -- Set to 0 or 1 to disable the anime mascot
-        disable_hyprland_logo = true,
-    }
+	master = {
+		new_status = "master",
+	},
+
+	misc = {
+		force_default_wallpaper = 1, -- Set to 0 or 1 to disable the anime mascot
+		disable_hyprland_logo = true,
+	},
 })
-
 
 -- ==========================================
 -- 6. INPUT AND GESTURES
 -- ==========================================
 hl.config({
-    input = {
-        kb_layout = "us",
-        kb_variant = "",
-        kb_model = "",
-        kb_options = "",
-        kb_rules = "",
+	input = {
+		kb_layout = "us",
+		kb_variant = "",
+		kb_model = "",
+		kb_options = "",
+		kb_rules = "",
 
-        follow_mouse = 1,
-        sensitivity = 0, -- -1.0 to 1.0. 0 means no modification.
-        accel_profile = "flat",
+		follow_mouse = 1,
+		sensitivity = 0, -- -1.0 to 1.0. 0 means no modification.
+		accel_profile = "flat",
 
-        touchpad = {
-            natural_scroll = false
-        }
-    },
+		touchpad = {
+			natural_scroll = false,
+		},
+	},
 
-    gestures = {
-        workspace_swipe = false,
-    }
+	gestures = {
+		workspace_swipe = false,
+	},
 })
-
 
 -- ==========================================
 -- 7. KEYBINDINGS
 -- ==========================================
 -- Core Applications
-hl.bind(mainMod .. " + RETURN", hl.dsp.exec_cmd(terminal), { bypass = true})
-hl.bind(mainMod .. " + Q", hl.dsp.killactive(), { bypass = true})
-hl.bind(mainMod .. " M", hl.dsp.exit(), { bypass = true})
-hl.bind(mainMod .. " + R", hl.dsp.exec_cmd("~/.config/hypr/scripts/launch-waybar.sh"), { bypass = true})
-hl.bind(mainMod .. " + L", hl.dsp.exec_cmd(hyprlock), { bypass = true})
-hl.bind(mainMod .. " + SHIFT + L", hl.dsp.exec_cmd(hyprlock & sleep 0.5 && systemctl suspend), { bypass = true})
-hl.bind(mainMod .. " + F", hl.dsp.fullscreen(2), { bypass = true})
-hl.bind(mainMod .. " + SHIT + F", hl.dsp.fullscreen(1), { bypass = true})
-hl.bind(mainMod .. " + ALT + SPACE", hl.dsp.togglefloating(), { bypass = true})
+hl.bind(mainMod .. " + RETURN", hl.dsp.exec_cmd(terminal), { bypass = true })
+hl.bind(mainMod .. " + Q", hl.dsp.killactive(), { bypass = true })
+hl.bind(mainMod .. " M", hl.dsp.exit(), { bypass = true })
+hl.bind(mainMod .. " + R", hl.dsp.exec_cmd("~/.config/hypr/scripts/launch-waybar.sh"), { bypass = true })
+hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("hyprlock"), { bypass = true })
+hl.bind(mainMod .. " + SHIFT + L", hl.dsp.exec_cmd("hyprlock & sleep 0.5 && systemctl suspend"), { bypass = true })
+hl.bind(mainMod .. " + F", hl.dsp.fullscreen(2), { bypass = true })
+hl.bind(mainMod .. " + SHIFT + F", hl.dsp.fullscreen(1), { bypass = true })
+hl.bind(mainMod .. " + ALT + SPACE", hl.dsp.togglefloating(), { bypass = true })
 hl.bind(mainMod .. " + J", hl.dsp.togglesplit()) -- dwindle
-hl.bind(mainMod .. " + SPACE", hl.dsp.exec_cmd(menu), { bypass = true})
-hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager), { bypass = true})
-hl.bind(mainMod .. " + B", hl.dsp.exec_cmd(browser), { bypass = true})
-hl.bind(mainMod .. " + S", hl.dsp.exec_cmd("grim -g "$(slurp)" - | swappy -f -"), { bypass = true})
-hl.bind(mainMod .. " + O", hl.dsp.exec_cmd("~/.config/waybar/scripts/audio-output-toggle.sh"), { bypass = true})
-hl.bind(mainMod .. " + W", hl.dsp.exec_cmd("~/.config/hypr/scripts/wallpaper-selector.sh"), { bypass = true})
-hl.bind(mainMod .. " + SHIFT + W", hl.dsp.exec_cmd("~/.config/hypr/scripts/wallpaper-random.sh"), { bypass = true})
-hl.bind(mainMod .. " + V", hl.dsp.exec_cmd("liphist list | rofi -dmenu -display-columns 2 | cliphist decode | wl-copy"), { bypass = true})
-hl.bind(mainMod .. " + T", hl.dsp.exec_cmd(terminal .. " --class btop-float -e btop"), { bypass = true})
-hl.bind(mainMod .. " + G", hl.dsp.exec_cmd(browser .. ' --app="https://gemini.google.com/app"'), { bypass = true})
+hl.bind(mainMod .. " + SPACE", hl.dsp.exec_cmd(menu), { bypass = true })
+hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager), { bypass = true })
+hl.bind(mainMod .. " + B", hl.dsp.exec_cmd(browser), { bypass = true })
+hl.bind(mainMod .. " + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | swappy -f -'), { bypass = true })
+hl.bind(mainMod .. " + O", hl.dsp.exec_cmd("~/.config/waybar/scripts/audio-output-toggle.sh"), { bypass = true })
+hl.bind(mainMod .. " + W", hl.dsp.exec_cmd("~/.config/hypr/scripts/wallpaper-selector.sh"), { bypass = true })
+hl.bind(mainMod .. " + SHIFT + W", hl.dsp.exec_cmd("~/.config/hypr/scripts/wallpaper-random.sh"), { bypass = true })
+hl.bind(
+	mainMod .. " + V",
+	hl.dsp.exec_cmd("cliphist list | rofi -dmenu -display-columns 2 | cliphist decode | wl-copy"),
+	{ bypass = true }
+)
+hl.bind(mainMod .. " + T", hl.dsp.exec_cmd(terminal .. " --class btop-float -e btop"), { bypass = true })
+hl.bind(mainMod .. " + G", hl.dsp.exec_cmd(browser .. ' --app="https://gemini.google.com/app"'), { bypass = true })
 
 -- Move window focus using arrow keys
 hl.bind(mainMod .. " + left", hl.dsp.movefocus("l"))
@@ -163,27 +165,42 @@ hl.bind(mainMod .. " + down", hl.dsp.movefocus("d"))
 
 -- Workspaces 1-9 (Using a Lua loop to keep the config clean!)
 for i = 1, 9 do
-    -- Switch to workspace
-    hl.bind(mainMod .. " + " .. tostring(i), hl.dsp.workspace(tostring(i)), { bypass = true})
-    -- Move active window to workspace
-    hl.bind(mainMod .. " + SHIFT + " .. tostring(i), hl.dsp.movetoworkspace(tostring(i)), { bypass = true})
+	-- Switch to workspace
+	hl.bind(mainMod .. " + " .. tostring(i), hl.dsp.workspace(tostring(i)), { bypass = true })
+	-- Move active window to workspace
+	hl.bind(mainMod .. " + SHIFT + " .. tostring(i), hl.dsp.movetoworkspace(tostring(i)), { bypass = true })
 end
 
-
 -- Scroll through existing workspaces with mouse scroll
-hl.bind(mainMod .. " + mouse_down", hl.dsp.workspace("e+1"), { bypass = true})
-hl.bind(mainMod .. " + mouse_up", hl.dsp.workspace("e-1"), { bypass = true})
+hl.bind(mainMod .. " + mouse_down", hl.dsp.workspace("e+1"), { bypass = true })
+hl.bind(mainMod .. " + mouse_up", hl.dsp.workspace("e-1"), { bypass = true })
 
 -- Move/resize windows with main mod + mouse drag
 hl.bind(mainMod .. " + mouse:272", hl.dsp.movewindow())
 hl.bind(mainMod .. " + mouse:273", hl.dsp.resizewindow())
 
 -- Media & Volume Controls (Using the options table for repeat behavior)
-hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("~/.config/hypr/scripts/volume-notify.sh up"), { bypass = true, repeating = true })
-hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("~/.config/hypr/scripts/volume-notify.sh down"), { bypass = true, repeating = true })
+hl.bind(
+	"XF86AudioRaiseVolume",
+	hl.dsp.exec_cmd("~/.config/hypr/scripts/volume-notify.sh up"),
+	{ bypass = true, repeating = true }
+)
+hl.bind(
+	"XF86AudioLowerVolume",
+	hl.dsp.exec_cmd("~/.config/hypr/scripts/volume-notify.sh down"),
+	{ bypass = true, repeating = true }
+)
 hl.bind("XF86AudioMute", hl.dsp.exec_cmd("~/.config/hypr/scripts/volume-notify.sh mute"), { bypass = true })
-hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("~/.config/hypr/scripts/brightness-notify.sh up"), { bypass = true, repeating = true })
-hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("~/.config/hypr/scripts/brightness-notify.sh down"), { bypass = true, repeating = true })
+hl.bind(
+	"XF86MonBrightnessUp",
+	hl.dsp.exec_cmd("~/.config/hypr/scripts/brightness-notify.sh up"),
+	{ bypass = true, repeating = true }
+)
+hl.bind(
+	"XF86MonBrightnessDown",
+	hl.dsp.exec_cmd("~/.config/hypr/scripts/brightness-notify.sh down"),
+	{ bypass = true, repeating = true }
+)
 hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl next"), { bypass = true })
 hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), { bypass = true })
 hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl play-pause"), { bypass = true })
@@ -194,66 +211,73 @@ hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { bypass = true 
 -- ==========================================
 --Suppress maximize requests on all apps to mimic classic behavior
 hl.window_rule({
-  name = "suppressevent-maximize",
-  match = { class = ".*" },
-  suppress_event = "maximize",
+	name = "suppressevent-maximize",
+	match = { class = ".*" },
+	suppress_event = "maximize",
 })
 
 -- Window specific rules
 hl.window_rule({
-  name = "google-chrome",
-  match = { class = "google-chrome-stable" },
-  blur = false,
+	name = "google-chrome",
+	match = { class = "google-chrome-stable" },
+	blur = false,
 })
 
 hl.window_rule({
-  name = "float-pavucontrol",
-  match = { class = "org.pulseaudio.pavucontrol" },
-  size = "800 1000",
-  center = true,
-  float = true,
+	name = "float-pavucontrol",
+	match = { class = "org.pulseaudio.pavucontrol" },
+	size = "800 1000",
+	center = true,
+	float = true,
 })
 
 hl.window_rule({
-  name = "btop-terminal-rule",
-  match = { class = "btop-float" },
-  size = "1200 800",
-  center = true,
-  float = true,
+	name = "btop-terminal-rule",
+	match = { class = "btop-float" },
+	size = "1200 800",
+	center = true,
+	float = true,
 })
 
 hl.window_rule({
-  name = "float-nmtui",
-  match = { class = "nmtui-floating" },
-  size = "600 500",
-  center = true,
-  float = true,
+	name = "float-nmtui",
+	match = { class = "nmtui-floating" },
+	size = "600 500",
+	center = true,
+	float = true,
 })
 
 hl.window_rule({
-  name = "float-blueman",
-  match = { class = "blueman-manager" },
-  size = "800 700",
-  center = true,
-  float = true,
+	name = "float-blueman",
+	match = { class = "blueman-manager" },
+	size = "800 700",
+	center = true,
+	float = true,
 })
 
 hl.window_rule({
-  name = "float-imv",
-  match = { class = "imv" },
-  size = "(monitor_w*0.5) (monitor_h*0.5)",
-  center = true,
-  float = true,
+	name = "float-imv",
+	match = { class = "imv" },
+	size = "(monitor_w*0.5) (monitor_h*0.5)",
+	center = true,
+	float = true,
 })
 
 hl.window_rule({
-  name = "gnome-text-editor",
-  match = { class = "org.gnome.TextEditor" },
-  opacity = "0.9 0.8",
+	name = "gnome-text-editor",
+	match = { class = "org.gnome.TextEditor" },
+	opacity = "0.9 0.8",
 })
 
 hl.window_rule({
-  name = "thunar",
-  match = { class = "thunar" },
-  opacity = "0.9 0.8",
+	name = "thunar",
+	match = { class = "thunar" },
+	opacity = "0.9 0.8",
+})
+
+hl.window_rule({
+	name = "chrome-picture-in-picture",
+	match = { title = "^(Picture in picture)$" },
+	float = true,
+	pin = true,
 })
