@@ -257,6 +257,14 @@ hl.window_rule({
 })
 
 hl.window_rule({
+	name = "kcalc",
+	match = { class = "org.kde.kcalc" },
+	size = "500 700",
+	center = true,
+	float = true,
+})
+
+hl.window_rule({
 	name = "float-imv",
 	match = { class = "imv" },
 	size = "(monitor_w*0.5) (monitor_h*0.5)",
