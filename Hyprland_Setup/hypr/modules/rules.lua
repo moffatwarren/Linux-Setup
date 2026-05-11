@@ -77,3 +77,10 @@ hl.window_rule({
 	float = true,
 	pin = true,
 })
+
+hl.window_rule({
+	name = "rustdesk",
+	match = { class = "rustdesk" },
+	no_shortcuts_inhibit = true,
+})
+
