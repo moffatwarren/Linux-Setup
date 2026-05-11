@@ -50,7 +50,7 @@ read -p "Do you want to set monitor to 2560x1440@240? (y/n) " response
 
 case "$response" in
 [yY] | [yY][eE][sS])
-  sed -i '/monitor=/c\  mode = "2560x1440@240",' ~/.config/hypr/modules/monitors.lua
+  sed -i '/mode/c\  mode = "2560x1440@240",' ~/.config/hypr/modules/monitors.lua
   echo "Monitor set to 2560x1440@240"
   ;;
 [nN] | [nN][oO])

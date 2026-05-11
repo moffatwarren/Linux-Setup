@@ -61,7 +61,11 @@ hl.bind(
 	hl.dsp.exec_cmd("~/.config/hypr/scripts/volume-notify.sh down"),
 	{ bypass = true, repeating = true, locked = true }
 )
-hl.bind("XF86AudioMute", hl.dsp.exec_cmd("~/.config/hypr/scripts/volume-notify.sh mute"), { bypass = true, locked = true })
+hl.bind(
+	"XF86AudioMute",
+	hl.dsp.exec_cmd("~/.config/hypr/scripts/volume-notify.sh mute"),
+	{ bypass = true, locked = true }
+)
 hl.bind(
 	"XF86MonBrightnessUp",
 	hl.dsp.exec_cmd("~/.config/hypr/scripts/brightness-notify.sh up"),
