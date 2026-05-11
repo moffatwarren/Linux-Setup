@@ -24,4 +24,4 @@ esac
 \cp -rf ~/.config/nvim ~/Linux-Setup/Hyprland_Setup
 \cp ~/.config/fish/config.fish ~/Linux-Setup/Hyprland_Setup/fish
 
-sed -i '/monitor=/c\monitor=,preferred,auto,1' $HOME/Linux-Setup/Hyprland_Setup/hypr/hyprland.conf
+sed -i '/mode/c\  mode = "preferred",' $HOME/Linux-Setup/Hyprland_Setup/hypr/modules/monitors.lua

@@ -4,7 +4,7 @@ echo "/////// INSTALLING APPS //////////"
 echo ""
 
 sudo pacman -S --noconfirm --needed kitty kwrite hyprland waybar hyprlock hypridle awww ttf-font-awesome swaync ttf-jetbrains-mono-nerd swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look rofi gvfs gvfs-smb samba gwenview nvim mpv imv brightnessctl blueman gnome-text-editor kcalc
-paru -S --noconfirm --skipreview --needed pokemon-colorscripts-git google-chrome rustdesk-bin teams-for-linux
+paru -S --noconfirm --skipreview --needed pokemon-colorscripts-git google-chrome rustdesk-bin teams-for-linux vscodium
 sudo systemctl enable --now avahi-daemon
 sudo ln -s /usr/bin/kitty /usr/bin/xdg-terminal-exec
 gsettings set org.gnome.TextEditor draw-spaces "['space', 'tab', 'trailing']"
@@ -50,7 +50,7 @@ read -p "Do you want to set monitor to 2560x1440@240? (y/n) " response
 
 case "$response" in
 [yY] | [yY][eE][sS])
-  sed -i '/monitor=/c\monitor=,2560x1440@240,auto,1' ~/.config/hypr/hyprland.conf
+  sed -i '/monitor=/c\  mode = "2560x1440@240",' ~/.config/hypr/modules/monitors.lua
   echo "Monitor set to 2560x1440@240"
   ;;
 [nN] | [nN][oO])

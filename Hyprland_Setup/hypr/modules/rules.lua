@@ -8,7 +8,7 @@ hl.window_rule({
 hl.window_rule({
 	name = "google-chrome",
 	match = { class = "google-chrome-stable" },
-	blur = false,
+	no_blur = true,
 })
 
 hl.window_rule({

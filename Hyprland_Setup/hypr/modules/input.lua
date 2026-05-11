@@ -15,8 +15,10 @@ hl.config({
 			scroll_factor = 0.8,
 		},
 	},
+})
 
-	gestures = {
-		workspace_swipe = false,
-	},
+hl.gesture({
+    fingers = 3,
+    direction = "horizontal",
+    action = "workspace"
 })
