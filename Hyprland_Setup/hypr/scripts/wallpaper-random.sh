@@ -5,8 +5,8 @@ WALLPAPER_DIR="$HOME/Pictures/wallpapers"
 
 # 2. Verify the directory exists
 if [ ! -d "$WALLPAPER_DIR" ]; then
-    notify-send "Wallpaper Error" "Directory does not exist: $WALLPAPER_DIR"
-    exit 1
+  notify-send "Wallpaper Error" "Directory does not exist: $WALLPAPER_DIR"
+  exit 1
 fi
 
 # 3. Find all images and pick one at random
@@ -16,8 +16,8 @@ RANDOM_PIC=$(find "$WALLPAPER_DIR" -type f \( -iname "*.jpg" -o -iname "*.jpeg" 
 
 # 4. Check if we actually found an image
 if [ -z "$RANDOM_PIC" ]; then
-    notify-send "Wallpaper Error" "No images found in $WALLPAPER_DIR"
-    exit 1
+  notify-send "Wallpaper Error" "No images found in $WALLPAPER_DIR"
+  exit 1
 fi
 
 # 5. Apply it with awww
