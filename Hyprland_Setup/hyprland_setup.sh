@@ -4,8 +4,8 @@ echo "/////// INSTALLING APPS //////////"
 echo ""
 
 sudo pacman -S --noconfirm --needed kitty kwrite hyprland waybar hyprlock hypridle awww ttf-font-awesome swaync
-sudo pacman -S ttf-jetbrains-mono-nerd swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look rofi gvfs
-sudo pacman -S gvfs-smb samba gwenview nvim mpv imv brightnessctl blueman gnome-text-editor kcalc swayimg
+sudo pacman -S --noconfirm --needed ttf-jetbrains-mono-nerd swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look rofi
+sudo pacman -S --noconfirm --needed gvfs gvfs-smb samba gwenview nvim mpv imv brightnessctl blueman gnome-text-editor kcalc swayimg
 paru -S --noconfirm --skipreview --needed pokemon-colorscripts-git google-chrome rustdesk-bin teams-for-linux vscodium
 sudo systemctl enable --now avahi-daemon
 sudo ln -s /usr/bin/kitty /usr/bin/xdg-terminal-exec
@@ -47,21 +47,6 @@ chmod +x ~/.config/hypr/scripts/volume-notify.sh
 chmod +x ~/.config/hypr/scripts/brightness-notify.sh
 chmod +x ~/.config/waybar/scripts/audio-output-toggle.sh
 chmod +x ~/.config/waybar/scripts/tailscale.sh
-
-read -p "Do you want to set monitor to 2560x1440@240? (y/n) " response
-
-case "$response" in
-[yY] | [yY][eE][sS])
-  sed -i '/mode/c\  mode = "2560x1440@240",' ~/.config/hypr/modules/monitors.lua
-  echo "Monitor set to 2560x1440@240"
-  ;;
-[nN] | [nN][oO])
-  echo "Monitor set to preferred"
-  ;;
-*)
-  echo "Invalid input. Monitor set to preferred"
-  ;;
-esac
 
 echo ""
 echo "///////// CHECKING OUTPUT ///////////"

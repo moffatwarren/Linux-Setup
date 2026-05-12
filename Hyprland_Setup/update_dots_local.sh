@@ -23,5 +23,3 @@ esac
 \cp -rf ~/.config/waybar ~/Linux-Setup/Hyprland_Setup
 \cp -rf ~/.config/nvim ~/Linux-Setup/Hyprland_Setup
 \cp ~/.config/fish/config.fish ~/Linux-Setup/Hyprland_Setup/fish
-
-sed -i '/mode/c\  mode = "preferred",' $HOME/Linux-Setup/Hyprland_Setup/hypr/modules/monitors.lua
