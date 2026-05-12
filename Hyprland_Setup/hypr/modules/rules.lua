@@ -52,8 +52,8 @@ hl.window_rule({
 })
 
 hl.window_rule({
-	name = "float-imv",
-	match = { class = "imv" },
+	name = "float-swayimg",
+	match = { class = "swayimg" },
 	size = "(monitor_w*0.5) (monitor_h*0.5)",
 	center = true,
 	float = true,
@@ -83,4 +83,3 @@ hl.window_rule({
 	match = { class = "rustdesk" },
 	no_shortcuts_inhibit = true,
 })
-
