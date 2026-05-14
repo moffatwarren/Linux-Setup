@@ -3,6 +3,7 @@ local terminal = "kitty"
 local fileManager = "thunar"
 local menu = "rofi -show drun"
 local browser = "google-chrome-stable"
+local mainMonitor = "eDP-1"
 
 hl.bind(mainMod .. " + RETURN", hl.dsp.exec_cmd(terminal), { bypass = true })
 hl.bind(mainMod .. " + Q", hl.dsp.window.close(), { bypass = true })
@@ -42,6 +43,8 @@ for i = 1, 10 do
 	hl.bind(mainMod .. " + SHIFT + " .. key, hl.dsp.window.move({ workspace = i }), { bypass = true })
 end
 
+hl.bind(mainMod .. " + SHIFT + mouse:272", hl.dsp.window.move({ monitor = "+1" }))
+
 -- Scroll through existing workspaces with mouse scroll
 hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e-1" }), { bypass = true })
 hl.bind(mainMod .. " + mouse_up", hl.dsp.focus({ workspace = "e+1" }), { bypass = true })
@@ -80,3 +83,43 @@ hl.bind("XF86AudioNext", hl.dsp.exec_cmd("playerctl next"), { bypass = true, loc
 hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), { bypass = true, locked = true })
 hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl play-pause"), { bypass = true, locked = true })
 hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { bypass = true, locked = true })
+
+-- local function move_all_workspaces(target_monitor)
+-- 	for i = 1, 4 do
+-- 		hl.dispatch(hl.dsp.workspace.move({ workspace = tostring(i), monitor = target_monitor }))
+-- 	end
+-- end
+
+-- local function handle_new_monitor(monitor_name)
+-- 	if not monitor_name then
+-- 		return
+-- 	end
+-- 	local new_monitor = monitor_name.name
+--
+-- 	hl.timer(function()
+-- 		move_all_workspaces(new_monitor)
+-- 	end, { timeout = 500, type = "oneshot" })
+-- end
+--
+-- local function handle_remove_monitor(monitor_name)
+-- 	if not monitor_name then
+-- 		return
+-- 	end
+--
+-- 	move_all_workspaces(mainMonitor)
+-- end
+
+-- hl.on("monitor.added", handle_new_monitor)
+-- hl.on("monitor.removed", handle_remove_monitor)
+
+local function turn_off_monitor()
+	hl.monitor({ output = mainMonitor, disabled = true })
+end
+
+local function turn_on_monitor()
+	hl.monitor({ output = mainMonitor, mode = "highrr", position = "auto", scale = "1" })
+	hl.dispatch(hl.dsp.exec_cmd("hyprctl reload"))
+end
+
+hl.bind("switch:on:Lid Switch", turn_off_monitor, { locked = true })
+hl.bind("switch:off:Lid Switch", turn_on_monitor, { locked = true })
