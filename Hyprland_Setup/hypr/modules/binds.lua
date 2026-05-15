@@ -3,7 +3,7 @@ local terminal = "kitty"
 local fileManager = "thunar"
 local menu = "rofi -show drun"
 local browser = "google-chrome-stable"
-local mainMonitor = "eDP-1"
+local mainMonitor = "DP-2"
 
 hl.bind(mainMod .. " + RETURN", hl.dsp.exec_cmd(terminal), { bypass = true })
 hl.bind(mainMod .. " + Q", hl.dsp.window.close(), { bypass = true })
