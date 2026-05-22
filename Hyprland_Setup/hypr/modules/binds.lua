@@ -1,14 +1,17 @@
+package.path = package.path .. ";/home/warren/.config/hypr/modules/?.lua"
+local wallpaper_utils = require("utils.wallpaper_utils")
+local monitor_utils = require("utils.monitor_utils")
+
 local mainMod = "SUPER"
 local terminal = "kitty"
 local fileManager = "thunar"
 local menu = "rofi -show drun"
 local browser = "google-chrome-stable"
-local mainMonitor = "DP-2"
 
 hl.bind(mainMod .. " + RETURN", hl.dsp.exec_cmd(terminal), { bypass = true })
 hl.bind(mainMod .. " + Q", hl.dsp.window.close(), { bypass = true })
 hl.bind(mainMod .. " + M", hl.dsp.exit(), { bypass = true })
-hl.bind(mainMod .. " + R", hl.dsp.exec_cmd("~/.config/hypr/scripts/launch-waybar.sh"), { bypass = true })
+hl.bind(mainMod .. " + R", hl.dsp.exec_cmd("killall waybar && waybar &"), { bypass = true })
 hl.bind(mainMod .. " + L", hl.dsp.exec_cmd("hyprlock"), { bypass = true })
 hl.bind(mainMod .. " + SHIFT + L", hl.dsp.exec_cmd("hyprlock & sleep 0.5 && systemctl suspend"), { bypass = true })
 hl.bind(mainMod .. " + F", hl.dsp.window.fullscreen({ mode = "fullscreen" }), { bypass = true })
@@ -20,8 +23,9 @@ hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager), { bypass = true })
 hl.bind(mainMod .. " + B", hl.dsp.exec_cmd(browser), { bypass = true })
 hl.bind(mainMod .. " + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | swappy -f -'), { bypass = true })
 hl.bind(mainMod .. " + O", hl.dsp.exec_cmd("~/.config/waybar/scripts/audio-output-toggle.sh"), { bypass = true })
+--hl.bind(mainMod .. " + W", wallpaper_utils.select, { bypass = true })
 hl.bind(mainMod .. " + W", hl.dsp.exec_cmd("~/.config/hypr/scripts/wallpaper-selector.sh"), { bypass = true })
-hl.bind(mainMod .. " + SHIFT + W", hl.dsp.exec_cmd("~/.config/hypr/scripts/wallpaper-random.sh"), { bypass = true })
+hl.bind(mainMod .. " + SHIFT + W", wallpaper_utils.set_random, { bypass = true })
 hl.bind(
 	mainMod .. " + V",
 	hl.dsp.exec_cmd("cliphist list | rofi -dmenu -display-columns 2 | cliphist decode | wl-copy"),
@@ -84,42 +88,8 @@ hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), { bypass = tr
 hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl play-pause"), { bypass = true, locked = true })
 hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { bypass = true, locked = true })
 
--- local function move_all_workspaces(target_monitor)
--- 	for i = 1, 4 do
--- 		hl.dispatch(hl.dsp.workspace.move({ workspace = tostring(i), monitor = target_monitor }))
--- 	end
--- end
-
--- local function handle_new_monitor(monitor_name)
--- 	if not monitor_name then
--- 		return
--- 	end
--- 	local new_monitor = monitor_name.name
---
--- 	hl.timer(function()
--- 		move_all_workspaces(new_monitor)
--- 	end, { timeout = 500, type = "oneshot" })
--- end
---
--- local function handle_remove_monitor(monitor_name)
--- 	if not monitor_name then
--- 		return
--- 	end
---
--- 	move_all_workspaces(mainMonitor)
--- end
+hl.bind("switch:on:Lid Switch", monitor_utils.turn_off_monitor, { locked = true })
+hl.bind("switch:off:Lid Switch", monitor_utils.turn_on_monitor, { locked = true })
 
 -- hl.on("monitor.added", handle_new_monitor)
 -- hl.on("monitor.removed", handle_remove_monitor)
-
-local function turn_off_monitor()
-	hl.monitor({ output = mainMonitor, disabled = true })
-end
-
-local function turn_on_monitor()
-	hl.monitor({ output = mainMonitor, mode = "highrr", position = "auto", scale = "1" })
-	hl.dispatch(hl.dsp.exec_cmd("hyprctl reload"))
-end
-
-hl.bind("switch:on:Lid Switch", turn_off_monitor, { locked = true })
-hl.bind("switch:off:Lid Switch", turn_on_monitor, { locked = true })
