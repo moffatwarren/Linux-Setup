@@ -1,2 +1,3 @@
 hyprctl monitors
+hyprctl devices
 sleep 3 && hyprctl activewindow     ----> get class: of active window
