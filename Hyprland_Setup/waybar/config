@@ -12,7 +12,8 @@
     ],
 
     "modules-center": [
-        "clock"
+        "custom/weather",
+        "clock",
     ],
 
     "modules-right": [
@@ -146,5 +147,13 @@
         "tooltip": true,
         "return-type": "json",
         "interval": 3,
+    },
+
+    "custom/weather": {
+        "format": "{}",
+        "tooltip": true,
+        "interval": 600, // Updates every 10 minutes (600 seconds)
+        "exec": "~/.config/waybar/scripts/weather.sh",
+        "return-type": "json"
     },
 }]
