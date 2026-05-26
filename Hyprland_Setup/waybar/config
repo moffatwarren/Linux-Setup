@@ -4,7 +4,7 @@
     "layer": "top", // Waybar at top layer
     "height": 30, // Waybar height (to be removed for auto height)
     "spacing": 12, // Gaps between modules (4px)
-    // "output": "DP-2",
+    // "output": "eDP-1",
 
     "modules-left": [
         "hyprland/workspaces",

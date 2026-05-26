@@ -1,5 +1,5 @@
 local monitor_utils = {}
-local mainMonitor = "DP-2"
+local mainMonitor = "eDP-1"
 
 function monitor_utils.turn_off_monitor()
 	hl.monitor({ output = mainMonitor, disabled = true })
@@ -36,3 +36,4 @@ end
 -- end
 
 return monitor_utils
+
