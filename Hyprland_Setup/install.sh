@@ -21,7 +21,7 @@ read -p "Do you want get wallpapers? (y/n) " response
 case "$response" in
 [yY] | [yY][eE][sS])
   echo "Getting wallpapers..."
-  \cp -rn ~/Linux-Setup/Hyprland_Setup/wallpapers ~/Pictures
+  \cp -rn ~/Linux-Setup/wallpapers ~/Pictures
   ;;
 [nN] | [nN][oO])
   echo "Not getting wallpapers..."
@@ -40,10 +40,8 @@ esac
 \cp -rf ~/Linux-Setup/Hyprland_Setup/waybar ~/.config
 \cp -rf ~/Linux-Setup/Hyprland_Setup/nvim ~/.config
 
-chmod +x ~/Linux-Setup/Hyprland_Setup/install_all.sh
-chmod +x ~/Linux-Setup/Hyprland_Setup/install_config.sh
-chmod +x ~/Linux-Setup/Hyprland_Setup/update_wallpapers.sh
-chmod +x ~/.config/hypr/scripts/launch-waybar.sh
+chmod +x ~/Linux-Setup/Hyprland_Setup/install.sh
+chmod +x ~/Linux-Setup/Hyprland_Setup/update_git.sh
 chmod +x ~/.config/hypr/scripts/wallpaper-random.sh
 chmod +x ~/.config/hypr/scripts/wallpaper-selector.sh
 chmod +x ~/.config/hypr/scripts/volume-notify.sh
