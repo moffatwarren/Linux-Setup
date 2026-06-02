@@ -60,6 +60,14 @@ hl.window_rule({
 })
 
 hl.window_rule({
+	name = "float-localsend",
+	match = { class = "localsend" },
+	size = "(monitor_w*0.5) (monitor_h*0.5)",
+	center = true,
+	float = true,
+})
+
+hl.window_rule({
 	name = "gnome-text-editor",
 	match = { class = "org.gnome.TextEditor" },
 	opacity = "0.9 0.8",

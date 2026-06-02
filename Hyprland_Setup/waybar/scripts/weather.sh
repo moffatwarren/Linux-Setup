@@ -14,4 +14,4 @@ TEMP=$(echo "$DATA" | cut -d'|' -f2 | xargs)
 DESC=$(echo "$DATA" | cut -d'|' -f3 | xargs)
 LOC=$(echo "$DATA" | cut -d'|' -f4 | xargs)
 
-echo "{\"text\": \"$ICON $TEMP\", \"tooltip\": \"$DESC $LOC\"}"
+echo "{\"text\": \"$ICON $TEMP\", \"tooltip\": \"$DESC  - $LOC\"}"
