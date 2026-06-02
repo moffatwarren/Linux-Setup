@@ -1,14 +1,19 @@
 #!/bin/sh
 
 # pactl list short sinks
-SPEAKER_SINK="alsa_output.usb-KTMicro_KT_USB_Audio_2021-06-07-0000-0000-0000--00.analog-stereo"
-HEADPHONE_SINK="alsa_output.pci-0000_00_1f.3.analog-stereo"
+SPEAKER_SINK="alsa_output.pci-0000_07_00.6.HiFi__Speaker__sink"
+HEADPHONE_SINK="alsa_output.pci-0000_07_00.6.HiFi__Headphones__sink"
+DONGLE_SINK="alsa_output.usb-KTMicro_KT_USB_Audio_2021-06-07-0000-0000-0000--00.analog-stereo"
 BLUETOOTH_SINK="bluez_output.B4_23_A2_0B_AA_DF.1"
 CURRENT_SINK=$(pactl get-default-sink)
 
 get_volume() {
   wpctl get-volume @DEFAULT_AUDIO_SINK@ | awk '{print int($2 * 100)}'
 }
+
+if pactl list short sinks | grep -F -q "$DONGLE_SINK"; then
+  SPEAKER_SINK="$DONGLE_SINK"
+fi
 
 if [ "$CURRENT_SINK" = "$SPEAKER_SINK" ]; then
   if pactl list short sinks | grep -F -q "$HEADPHONE_SINK"; then

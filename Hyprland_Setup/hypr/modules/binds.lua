@@ -33,6 +33,8 @@ hl.bind(
 )
 hl.bind(mainMod .. " + T", hl.dsp.exec_cmd(terminal .. " --class btop-float -e btop"), { bypass = true })
 hl.bind(mainMod .. " + G", hl.dsp.exec_cmd(browser .. ' --app="https://gemini.google.com/app"'), { bypass = true })
+hl.bind(mainMod .. " + SHIFT + Z", monitor_utils.turn_off_monitor, { locked = true })
+hl.bind(mainMod .. " + SHIFT + X", monitor_utils.turn_on_monitor, { locked = true })
 
 -- Move window focus using arrow keys
 hl.bind(mainMod .. " + left", hl.dsp.focus({ direction = "left" }))
@@ -91,5 +93,5 @@ hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { bypass = true,
 hl.bind("switch:on:Lid Switch", monitor_utils.turn_off_monitor, { locked = true })
 hl.bind("switch:off:Lid Switch", monitor_utils.turn_on_monitor, { locked = true })
 
--- hl.on("monitor.added", handle_new_monitor)
--- hl.on("monitor.removed", handle_remove_monitor)
+hl.on("monitor.added", monitor_utils.handle_new_monitor)
+hl.on("monitor.removed", monitor_utils.handle_remove_monitor)

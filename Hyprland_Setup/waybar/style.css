@@ -22,6 +22,7 @@ color: @lavender;
 
 #workspaces button.active {
 color: @sky;
+background-color: @lavender;
 }
 
 #workspaces button:hover {
