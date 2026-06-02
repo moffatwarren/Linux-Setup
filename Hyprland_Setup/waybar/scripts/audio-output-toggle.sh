@@ -1,8 +1,8 @@
 #!/bin/sh
 
 # pactl list short sinks
-SPEAKER_SINK="alsa_output.pci-0000_00_1f.3.analog-stereo"
-HEADPHONE_SINK="alsa_output.usb-Kingston_HyperX_Amp_000000000001-00.analog-stereo"
+SPEAKER_SINK="alsa_output.usb-KTMicro_KT_USB_Audio_2021-06-07-0000-0000-0000--00.analog-stereo"
+HEADPHONE_SINK="alsa_output.pci-0000_00_1f.3.analog-stereo"
 BLUETOOTH_SINK="bluez_output.B4_23_A2_0B_AA_DF.1"
 CURRENT_SINK=$(pactl get-default-sink)
 
