@@ -33,8 +33,7 @@ hl.bind(
 )
 hl.bind(mainMod .. " + T", hl.dsp.exec_cmd(terminal .. " --class btop-float -e btop"), { bypass = true })
 hl.bind(mainMod .. " + G", hl.dsp.exec_cmd(browser .. ' --app="https://gemini.google.com/app"'), { bypass = true })
-hl.bind(mainMod .. " + SHIFT + Z", monitor_utils.turn_off_monitor, { locked = true })
-hl.bind(mainMod .. " + SHIFT + X", monitor_utils.turn_on_monitor, { locked = true })
+hl.bind(mainMod .. " + SHIFT + Z", monitor_utils.toggle_monitor_on_off, { locked = true })
 
 -- Move window focus using arrow keys
 hl.bind(mainMod .. " + left", hl.dsp.focus({ direction = "left" }))
@@ -95,3 +94,4 @@ hl.bind("switch:off:Lid Switch", monitor_utils.turn_on_monitor, { locked = true 
 
 hl.on("monitor.added", monitor_utils.handle_new_monitor)
 hl.on("monitor.removed", monitor_utils.handle_remove_monitor)
+

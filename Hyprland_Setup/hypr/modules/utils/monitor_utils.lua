@@ -1,13 +1,16 @@
 local monitor_utils = {}
 local mainMonitor = "eDP-1"
+local is_main_monitor_on = true
 
 function monitor_utils.turn_off_monitor()
 	hl.monitor({ output = mainMonitor, disabled = true })
+	is_main_monitor_on = false
 end
 
 function monitor_utils.turn_on_monitor()
 	hl.monitor({ output = mainMonitor, mode = "highrr", position = "auto", scale = "1" })
 	hl.dispatch(hl.dsp.exec_cmd("hyprctl reload"))
+	is_main_monitor_on = true
 end
 
 function monitor_utils.move_all_workspaces(target_monitor)
@@ -37,5 +40,14 @@ function monitor_utils.handle_remove_monitor(monitor_name)
 	end
 end
 
-return monitor_utils
+function monitor_utils.toggle_monitor_on_off()
 
+
+	if is_main_monitor_on then
+		monitor_utils.turn_off_monitor()
+	else
+		monitor_utils.turn_on_monitor()
+	end
+end
+
+return monitor_utils
