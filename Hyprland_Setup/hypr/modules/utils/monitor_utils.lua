@@ -1,14 +1,14 @@
+local config = require("modules.config")
 local monitor_utils = {}
-local mainMonitor = "eDP-1"
 local is_main_monitor_on = true
 
 function monitor_utils.turn_off_monitor()
-	hl.monitor({ output = mainMonitor, disabled = true })
+	hl.monitor({ output = config.mainMonitor, disabled = true })
 	is_main_monitor_on = false
 end
 
 function monitor_utils.turn_on_monitor()
-	hl.monitor({ output = mainMonitor, mode = "highrr", position = "auto", scale = "1" })
+	hl.monitor({ output = config.mainMonitor, mode = "highrr", position = "auto", scale = "1" })
 	hl.dispatch(hl.dsp.exec_cmd("hyprctl reload"))
 	is_main_monitor_on = true
 end
@@ -35,7 +35,7 @@ function monitor_utils.handle_remove_monitor(monitor_name)
 	if not monitor_name then
 		return
 	end
-	if monitor_name.name ~= mainMonitor then
+	if monitor_name.name ~= config.mainMonitor then
 		monitor_utils.turn_on_monitor()
 	end
 end
