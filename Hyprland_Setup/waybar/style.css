@@ -21,7 +21,7 @@ color: @lavender;
 }
 
 #workspaces button.active {
-color: @sky;
+color: @crust;
 background-color: @lavender;
 }
 
