@@ -17,10 +17,10 @@ send_notification() {
 
   # The 'x-canonical-private-synchronous' hint tells SwayNC to replace the existing notification
   if [ "$mute" == "yes" ]; then
-    notify-send -h string:x-canonical-private-synchronous:audio-volume \
+    notify-send -a "volume" -h string:x-canonical-private-synchronous:audio-volume \
       -u low -i audio-volume-muted "Volume Muted"
   else
-    notify-send -h string:x-canonical-private-synchronous:audio-volume \
+    notify-send -a "volume" -h string:x-canonical-private-synchronous:audio-volume \
       -h int:value:"$volume" \
       -u low -i audio-volume-high "Volume: ${volume}%"
   fi
