@@ -1,0 +1,25 @@
+/* Custom variables to make all notification fonts and icons smaller */
+:root {
+  --font-size-body: 11px;
+  --font-size-summary: 12px;
+  --notification-icon-size: 25px;
+}
+
+.notification {
+  /* Lowering these values will shrink the popup */
+  min-width: 170px;
+  margin: 4px;
+  padding: 8px;
+}
+
+/* Make volume and brightness notifications even smaller */
+.notification.volume,
+.notification.brightness {
+  min-width: 170px;
+  padding: 4px 6px;
+}
+
+.notification.volume .notification-content .image,
+.notification.brightness .notification-content .image {
+  -gtk-icon-size: 24px;
+}

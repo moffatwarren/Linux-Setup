@@ -39,6 +39,7 @@ esac
 \cp -rf ~/Linux-Setup/Hyprland_Setup/swappy ~/.config
 \cp -rf ~/Linux-Setup/Hyprland_Setup/waybar ~/.config
 \cp -rf ~/Linux-Setup/Hyprland_Setup/nvim ~/.config
+\cp -rf ~/Linux-Setup/Hyprland_Setup/swaync ~/.config
 
 chmod +x ~/Linux-Setup/Hyprland_Setup/install.sh
 chmod +x ~/Linux-Setup/Hyprland_Setup/update.sh
