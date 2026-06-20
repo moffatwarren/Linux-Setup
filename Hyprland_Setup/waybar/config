@@ -19,6 +19,7 @@
         "pulseaudio",
         "bluetooth",
         "custom/tailscale",
+        "custom/pia",
         "network",
         //"cpu",
         //"memory",
@@ -146,6 +147,22 @@
         "tooltip": true,
         "return-type": "json",
         "interval": 3,
+    },
+
+    "custom/pia": {
+        "exec": "~/.config/waybar/scripts/pia.sh --status",
+        "on-double-click": "exec ~/.config/waybar/scripts/pia.sh --toggle",
+        "exec-on-event": true,
+        "format": "󰆧 PIA: {icon}",
+        "format-icons": {
+            "connected": "Connected",
+            "connecting": "Connecting...",
+            "disconnecting": "Disconnecting...",
+            "disconnected": "Disconnected"
+        },
+        "tooltip": true,
+        "return-type": "json",
+        "interval": 3
     },
 
     "custom/weather": {

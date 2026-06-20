@@ -45,6 +45,7 @@ button {
 #network,
 #power-profiles-daemon,
 #custom-tailscale,
+#custom-pia,
 #custom-power {
 border-radius: 15px;
 background-color: @surface0;
@@ -89,4 +90,18 @@ color: @red;
 
 #workspaces button.urgent {
 color: @red;
+}
+
+#custom-pia.connected {
+color: @green;
+}
+
+#custom-pia.connecting,
+#custom-pia.reconnecting {
+color: @yellow;
+}
+
+#custom-pia.disconnected,
+#custom-pia.disconnecting {
+color: @subtext0;
 }
