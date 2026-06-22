@@ -16,6 +16,7 @@ hl.bind(config.mainMod .. " + SPACE", hl.dsp.exec_cmd(config.menu), { bypass = t
 hl.bind(config.mainMod .. " + E", hl.dsp.exec_cmd(config.fileManager), { bypass = true })
 hl.bind(config.mainMod .. " + B", hl.dsp.exec_cmd(config.browser), { bypass = true })
 hl.bind(config.mainMod .. " + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | swappy -f -'), { bypass = true })
+hl.bind(config.mainMod .. " + ALT + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | tesseract stdin stdout | wl-copy'), { bypass = true })
 hl.bind(config.mainMod .. " + O", hl.dsp.exec_cmd("~/.config/waybar/scripts/audio-output-toggle.sh"), { bypass = true })
 --hl.bind(config.mainMod .. " + W", wallpaper_utils.select, { bypass = true })
 hl.bind(config.mainMod .. " + W", hl.dsp.exec_cmd("~/.config/hypr/scripts/wallpaper-selector.sh"), { bypass = true })
