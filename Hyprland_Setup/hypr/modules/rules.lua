@@ -81,7 +81,7 @@ hl.window_rule({
 
 hl.window_rule({
 	name = "chrome-picture-in-picture",
-	match = { title = "^(Picture in picture)$" },
+	match = { title = "^(Picture-in-picture)$" },
 	float = true,
 	pin = true,
 })
