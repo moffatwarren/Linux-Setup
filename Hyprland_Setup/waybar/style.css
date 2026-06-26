@@ -82,10 +82,6 @@ color: @red;
 color: @yellow;
 }
 
-#backlight,
-#battery {
-}
-
 #pulseaudio {
 color: @maroon;
 }

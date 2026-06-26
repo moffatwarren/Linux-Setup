@@ -1,10 +1,12 @@
 {
   "workspace": {
     "library": [
-      "/usr/share/hypr/stubs"
+      "/usr/share/hypr/stubs",
+      "/usr/share/nvim/runtime",
+      "/home/warren/.local/share/nvim/lazy"
     ]
   },
   "diagnostics": {
-    "globals": ["hl"]
+    "globals": ["hl", "vim"]
   }
 }
