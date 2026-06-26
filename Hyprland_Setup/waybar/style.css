@@ -135,5 +135,5 @@ color: @subtext0;
 #album-art {
     margin-left: 4px;
     margin-right: 4px;
-    border-radius: 4px;
+    border-radius: 50%;
 }

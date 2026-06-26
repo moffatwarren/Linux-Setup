@@ -45,20 +45,39 @@ case "$1" in
             exit 0
         fi
 
-        if [[ "$art_url" == file://* ]]; then
-            echo "${art_url#file://}"
-            exit 0
-        elif [[ "$art_url" == http://* || "$art_url" == https://* ]]; then
-            cache_dir="/tmp/waybar-media"
-            mkdir -p "$cache_dir"
-            url_hash=$(echo -n "$art_url" | md5sum | cut -d' ' -f1)
-            cache_file="$cache_dir/$url_hash.png"
-            if [ ! -f "$cache_file" ]; then
-                curl -s --connect-timeout 1 --max-time 2 "$art_url" -o "$cache_file"
+        cache_dir="/tmp/waybar-media"
+        mkdir -p "$cache_dir"
+        url_hash=$(echo -n "$art_url" | md5sum | cut -d' ' -f1)
+        cache_file="$cache_dir/$url_hash.png"
+
+        if [ ! -f "$cache_file" ]; then
+            if [[ "$art_url" == file://* ]]; then
+                local_path="${art_url#file://}"
+                if [ -f "$local_path" ]; then
+                    if command -v convert &> /dev/null; then
+                        convert "$local_path" -gravity center -resize 100x100^ -extent 100x100 \( -size 100x100 xc:black -fill white -draw "circle 50 50 50 1" -alpha copy \) -compose copyopacity -composite "$cache_file"
+                    else
+                        cp "$local_path" "$cache_file"
+                    fi
+                fi
+            elif [[ "$art_url" == http://* || "$art_url" == https://* ]]; then
+                temp_art="/tmp/raw_art_$url_hash"
+                curl -s --connect-timeout 1 --max-time 2 "$art_url" -o "$temp_art"
+                if [ -f "$temp_art" ]; then
+                    if command -v convert &> /dev/null; then
+                        convert "$temp_art" -gravity center -resize 100x100^ -extent 100x100 \( -size 100x100 xc:black -fill white -draw "circle 50 50 50 1" -alpha copy \) -compose copyopacity -composite "$cache_file"
+                    else
+                        mv "$temp_art" "$cache_file"
+                    fi
+                    [ -f "$temp_art" ] && rm "$temp_art"
+                fi
             fi
-            echo "$cache_file"
-            exit 0
         fi
+
+        if [ -f "$cache_file" ]; then
+            echo "$cache_file"
+        fi
+        exit 0
         ;;
     "prev")
         echo "󰒮"
