@@ -3,8 +3,10 @@
     // "position": "bottom", // Waybar position (top|bottom|left|right)
     "layer": "top", // Waybar at top layer
     "height": 24, // Waybar height (to be removed for auto height)
-    "spacing": 12, // Gaps between modules (4px)
+    "spacing": 2, // Gaps between modules (4px)
     "margin-top": 2,
+    "margin-left": 2,
+    "margin-right": 2,
 
     "modules-left": [
         "hyprland/workspaces",
@@ -66,7 +68,8 @@
     "clock": {
         //"timezone": "America/Vancouver",
         "format": "{:%I:%M %p  %d-%b-%Y}",
-        "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>"
+        "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
+        "on-double-click": "google-chrome-stable --app=https://calendar.google.com"
     },
 
     "cpu": {
