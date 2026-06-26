@@ -2,17 +2,23 @@
 {
     // "position": "bottom", // Waybar position (top|bottom|left|right)
     "layer": "top", // Waybar at top layer
-    "height": 30, // Waybar height (to be removed for auto height)
+    "height": 24, // Waybar height (to be removed for auto height)
     "spacing": 12, // Gaps between modules (4px)
+    "margin-top": 2,
 
     "modules-left": [
         "hyprland/workspaces",
-        "hyprland/window"
+        "custom/media-prev",
+        "custom/media-play-pause",
+        "custom/media-next",
+        "image#album-art",
+        "custom/media-title"
+        //"hyprland/window"
     ],
 
     "modules-center": [
         "custom/weather",
-        "clock",
+        "clock"
     ],
 
     "modules-right": [
@@ -174,4 +180,38 @@
         "on-double-click": "pkill -RTMIN+8 waybar",
         "signal": 8
     },
+
+    "custom/media-prev": {
+        "format": "{}",
+        "on-click": "~/.config/waybar/scripts/media.sh prev-action",
+        "exec": "~/.config/waybar/scripts/media.sh prev",
+        "interval": 2,
+        "tooltip": false
+    },
+    "custom/media-play-pause": {
+        "format": "{}",
+        "on-click": "~/.config/waybar/scripts/media.sh play-pause-toggle",
+        "exec": "~/.config/waybar/scripts/media.sh play-pause",
+        "interval": 2,
+        "tooltip": false
+    },
+    "custom/media-next": {
+        "format": "{}",
+        "on-click": "~/.config/waybar/scripts/media.sh next-action",
+        "exec": "~/.config/waybar/scripts/media.sh next",
+        "interval": 2,
+        "tooltip": false
+    },
+    "custom/media-title": {
+        "format": "{}",
+        "exec": "~/.config/waybar/scripts/media.sh title",
+        "interval": 2,
+        "tooltip": false
+    },
+    "image#album-art": {
+        "exec": "~/.config/waybar/scripts/media.sh art",
+        "size": 20,
+        "interval": 2
+    }
 }
+

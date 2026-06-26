@@ -20,3 +20,4 @@ chmod +x ~/.config/waybar/scripts/audio-output-toggle.sh
 chmod +x ~/.config/waybar/scripts/tailscale.sh
 chmod +x ~/.config/waybar/scripts/weather.sh
 chmod +x ~/.config/waybar/scripts/pia.sh
+chmod +x ~/.config/waybar/scripts/media.sh
