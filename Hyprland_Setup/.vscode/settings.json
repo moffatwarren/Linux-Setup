@@ -3,6 +3,8 @@
     "/usr/share/hypr/stubs"
   ],
   "Lua.diagnostics.globals": [
-    "hl"
-  ]
+    "hl",
+    "vim"
+  ],
+  "css.validate": false
 }
