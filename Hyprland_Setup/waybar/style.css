@@ -7,26 +7,34 @@
 }
 
 #waybar {
-background: @surface0;
+/* background: @surface0; */
+background: transparent;
 color: @text;
 }
 
 #workspaces {
-border-radius: 15px;
-background-color: @surface0;
+border-radius: 25px;
+background-color: alpha(@surface0, 0.85);
 }
 
 #workspaces button {
-color: @lavender;
+    color: @lavender;
+    border-radius: 50%;
+    min-width: 22px;
+    min-height: 22px;
+    padding: 0;
+    margin: 4px;
 }
 
 #workspaces button.active {
-color: @crust;
-background-color: @lavender;
+    color: @crust;
+    background-color: @lavender;
+    border-radius: 50%;
 }
 
 #workspaces button:hover {
-color: @sapphire;
+    color: @sapphire;
+    border-radius: 50%;
 }
 
 button {
@@ -46,10 +54,12 @@ button {
 #power-profiles-daemon,
 #custom-tailscale,
 #custom-pia,
+#custom-weather,
+#bluetooth,
 #custom-power {
 border-radius: 15px;
-background-color: @surface0;
-padding: 0.5rem 1rem;
+background-color: alpha(@surface0, 0.85);
+padding: 0.2rem 1rem;
 }
 
 #clock {
@@ -104,4 +114,26 @@ color: @yellow;
 #custom-pia.disconnected,
 #custom-pia.disconnecting {
 color: @subtext0;
+}
+
+#custom-media-prev,
+#custom-media-play-pause,
+#custom-media-next {
+    color: @lavender;
+    border-radius: 15px;
+    background-color: alpha(@surface0, 0.85);
+    padding: 0.2rem 0.8rem;
+}
+
+#custom-media-title {
+    color: @text;
+    border-radius: 15px;
+    background-color: alpha(@surface0, 0.85);
+    padding: 0.2rem 1rem;
+}
+
+#album-art {
+    margin-left: 4px;
+    margin-right: 4px;
+    border-radius: 4px;
 }

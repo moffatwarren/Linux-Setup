@@ -5,9 +5,9 @@ echo ""
 
 sudo pacman -S --noconfirm --needed kitty kwrite hyprland waybar hyprlock hypridle awww ttf-font-awesome swaync
 sudo pacman -S --noconfirm --needed ttf-jetbrains-mono-nerd swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look rofi
-sudo pacman -S --noconfirm --needed gvfs gvfs-smb samba gwenview nvim mpv imv brightnessctl blueman gnome-text-editor kcalc swayimg
+sudo pacman -S --noconfirm --needed gvfs gvfs-smb samba gwenview nvim mpv imv brightnessctl playerctl blueman gnome-text-editor kcalc swayimg
 sudo pacman -S --noconfirm --needed thunar-archive-plugin xarchiver unzip net-tools localsend spotify-launcher
-sudo pacman -S --noconfirm --needed tesseract tesseract-data-eng
+sudo pacman -S --noconfirm --needed tesseract tesseract-data-eng speedtest-cli
 paru -S --noconfirm --skipreview --needed pokemon-colorscripts-git google-chrome rustdesk-bin teams-for-linux vscodium
 sudo systemctl enable --now avahi-daemon
 sudo ln -s /usr/bin/kitty /usr/bin/xdg-terminal-exec
@@ -52,6 +52,7 @@ chmod +x ~/.config/waybar/scripts/audio-output-toggle.sh
 chmod +x ~/.config/waybar/scripts/tailscale.sh
 chmod +x ~/.config/waybar/scripts/weather.sh
 chmod +x ~/.config/waybar/scripts/pia.sh
+chmod +x ~/.config/waybar/scripts/media.sh
 
 echo ""
 echo "///////// CHECKING OUTPUT ///////////"
