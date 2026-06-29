@@ -2,12 +2,18 @@
 
 # Check if playerctl is installed
 if ! command -v playerctl &> /dev/null; then
+    if [ "$1" = "art" ]; then
+        echo "/tmp/waybar-media/non-existent.png"
+    fi
     exit 0
 fi
 
 # Get the list of all running players
 players=$(playerctl -l 2>/dev/null)
 if [ -z "$players" ]; then
+    if [ "$1" = "art" ]; then
+        echo "/tmp/waybar-media/non-existent.png"
+    fi
     exit 0
 fi
 
@@ -33,6 +39,9 @@ fi
 
 # If no active player found, exit
 if [ -z "$active_player" ]; then
+    if [ "$1" = "art" ]; then
+        echo "/tmp/waybar-media/non-existent.png"
+    fi
     exit 0
 fi
 
@@ -42,6 +51,7 @@ case "$1" in
     "art")
         art_url=$(playerctl -p "$active_player" metadata mpris:artUrl 2>/dev/null)
         if [ -z "$art_url" ]; then
+            echo "/tmp/waybar-media/non-existent.png"
             exit 0
         fi
 
@@ -76,6 +86,8 @@ case "$1" in
 
         if [ -f "$cache_file" ]; then
             echo "$cache_file"
+        else
+            echo "/tmp/waybar-media/non-existent.png"
         fi
         exit 0
         ;;
