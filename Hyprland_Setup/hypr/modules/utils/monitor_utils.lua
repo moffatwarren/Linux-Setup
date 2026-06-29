@@ -19,11 +19,11 @@ function monitor_utils.move_all_workspaces(target_monitor)
 	end
 end
 
-function monitor_utils.handle_new_monitor(monitor_name)
-	if not monitor_name then
+function monitor_utils.handle_new_monitor(monitor)
+	if not monitor then
 		return
 	end
-	-- local new_monitor = monitor_name.name
+	-- local new_monitor = monitor.name
 
 	-- hl.timer(function()
 	-- 	monitor_utils.move_all_workspaces(new_monitor)
@@ -31,11 +31,11 @@ function monitor_utils.handle_new_monitor(monitor_name)
 	hl.dsp.exec_cmd("killall waybar && waybar &")
 end
 
-function monitor_utils.handle_remove_monitor(monitor_name)
-	if not monitor_name then
+function monitor_utils.handle_remove_monitor(monitor)
+	if not monitor then
 		return
 	end
-	if monitor_name.name ~= config.mainMonitor then
+	if monitor.name ~= config.mainMonitor then
 		monitor_utils.turn_on_monitor()
 	end
 end

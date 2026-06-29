@@ -133,3 +133,12 @@ color: @subtext0;
     margin-right: 4px;
     border-radius: 50%;
 }
+
+#album-art.empty {
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+}
+
+
