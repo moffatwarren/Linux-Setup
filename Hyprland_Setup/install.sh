@@ -7,7 +7,7 @@ sudo pacman -S --noconfirm --needed kitty kwrite hyprland waybar hyprlock hyprid
 sudo pacman -S --noconfirm --needed ttf-jetbrains-mono-nerd swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look rofi
 sudo pacman -S --noconfirm --needed gvfs gvfs-smb samba gwenview nvim mpv imv brightnessctl playerctl blueman gnome-text-editor kcalc swayimg imagemagick
 sudo pacman -S --noconfirm --needed thunar-archive-plugin xarchiver unzip net-tools localsend spotify-launcher
-sudo pacman -S --noconfirm --needed tesseract tesseract-data-eng speedtest-cli
+sudo pacman -S --noconfirm --needed tesseract tesseract-data-eng speedtest-cli paru
 paru -S --noconfirm --skipreview --needed pokemon-colorscripts-git google-chrome rustdesk-bin teams-for-linux vscodium
 sudo systemctl enable --now avahi-daemon
 sudo ln -s /usr/bin/kitty /usr/bin/xdg-terminal-exec
