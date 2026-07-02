@@ -1,6 +1,6 @@
 local config = {}
 
-config.mainMonitor = "eDP-1"
+config.mainMonitor = "DP-2"
 config.mainMod = "SUPER"
 config.terminal = "kitty"
 config.fileManager = "thunar"
