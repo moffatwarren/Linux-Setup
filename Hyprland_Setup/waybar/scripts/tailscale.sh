@@ -33,7 +33,7 @@ case $1 in
     fi
 
   else
-    echo "{\"text\":\"\",\"class\":\"stopped\",\"alt\":\"stopped\", \"tooltip\": \"The VPN is not active.\"}"
+    echo "{\"text\":\"\",\"class\":\"stopped\",\"alt\":\"stopped\", \"tooltip\": \"Tailscale not active.\"}"
   fi
   ;;
 --toggle)
