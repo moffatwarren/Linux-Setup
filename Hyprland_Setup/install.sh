@@ -90,12 +90,6 @@ if [ "$first_install" = false ]; then
             live_main_monitor=$(grep -E '^\s*config\.mainMonitor\s*=' "$HOME/.config/hypr/modules/config.lua")
         fi
     fi
-    
-    read -p "Do you want to get wallpapers? (y/N)" resp_wallpapers
-    if [[ "$resp_wallpapers" =~ ^[Yy]$ ]]; then
-    echo "Getting wallpapers..."
-    \cp -rn ~/Linux-Setup/wallpapers ~/Pictures
-    fi
 fi
 
 \cp -rf ~/Linux-Setup/Hyprland_Setup/fastfetch ~/.config
@@ -225,3 +219,9 @@ chmod +x ~/.config/waybar/scripts/tailscale.sh
 chmod +x ~/.config/waybar/scripts/weather.sh
 chmod +x ~/.config/waybar/scripts/pia.sh
 chmod +x ~/.config/waybar/scripts/media.sh
+
+read -p "Do you want to get wallpapers? (y/N)" resp_wallpapers
+if [[ "$resp_wallpapers" =~ ^[Yy]$ ]]; then
+echo "Getting wallpapers..."
+\cp -rn ~/Linux-Setup/wallpapers ~/Pictures
+fi
