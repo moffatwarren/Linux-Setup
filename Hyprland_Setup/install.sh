@@ -209,7 +209,6 @@ if [ "$first_install" = false ]; then
 fi
 
 chmod +x ~/Linux-Setup/Hyprland_Setup/install.sh
-chmod +x ~/Linux-Setup/Hyprland_Setup/update.sh
 chmod +x ~/.config/hypr/scripts/wallpaper-random.sh
 chmod +x ~/.config/hypr/scripts/wallpaper-selector.sh
 chmod +x ~/.config/hypr/scripts/volume-notify.sh
