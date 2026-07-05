@@ -6,3 +6,11 @@ cd ~/Downloads
 sh pia-linux-*.run
 
 login to pia with credentials and then the waybar pia module will work
+
+Or do it via the aur package:
+
+paru -Syu piavpn-bin
+sudo systemctl enable --now piavpn.service
+sudo systemctl start piavpn.service
+sudo systemctl status piavpn.service
+
