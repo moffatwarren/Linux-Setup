@@ -2,19 +2,19 @@
 
 * {
     font-family: "JetBrainsMono Nerd Font", "Font Awesome 6 Free", sans-serif;
-    font-size: 14px;
+    font-size: 12px;
     /* other global properties like border-radius, min-height, etc. might be here */
 }
 
 #waybar {
-/* background: @surface0; */
-background: transparent;
-color: @text;
+    /* background: @surface0; */
+    background: transparent;
+    color: @text;
 }
 
 #workspaces {
-border-radius: 25px;
-background-color: alpha(@surface0, 0.85);
+    border-radius: 25px;
+    background-color: alpha(@surface0, 0.85);
 }
 
 #workspaces button {
@@ -57,59 +57,59 @@ button {
 #custom-weather,
 #bluetooth,
 #custom-power {
-border-radius: 15px;
-background-color: alpha(@surface0, 0.85);
-padding: 0.2rem 1rem;
+    border-radius: 15px;
+    background-color: alpha(@surface0, 0.85);
+    padding: 0.2rem 1rem;
 }
 
 #clock {
-color: @blue;
+    color: @blue;
 }
 
 #battery {
-color: @green;
+    color: @green;
 }
 
 #battery.charging {
-color: @green;
+    color: @green;
 }
 
 #battery.warning:not(.charging) {
-color: @red;
+    color: @red;
 }
 
 #backlight {
-color: @yellow;
+    color: @yellow;
 }
 
 #pulseaudio {
-color: @maroon;
+    color: @maroon;
 }
 
 #bluetooth {
-color: @mauve;
+    color: @mauve;
 }
 
 #custom-power {
-color: @red;
+    color: @red;
 }
 
 #workspaces button.urgent {
-color: @red;
+    color: @red;
 }
 
 #custom-pia.connected {
-color: @green;
+    color: @green;
 }
 
 #custom-pia.connecting,
 #custom-pia.reconnecting {
-color: @yellow;
+    color: @yellow;
 }
 
 #custom-pia.disconnected,
 #custom-pia.disconnecting {
-color: @subtext0;
+    color: @subtext0;
 }
 
 #custom-media-prev,
@@ -140,5 +140,3 @@ color: @subtext0;
     border: none;
     background: transparent;
 }
-
-
