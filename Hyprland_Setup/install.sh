@@ -10,20 +10,22 @@ paru -S --noconfirm --skipreview --needed pokemon-colorscripts-git google-chrome
 first_install=true
 
 read -p "Is this the first install (y/N): " resp_install
-if [[ ! "$resp_audio" =~ ^[Yy]$ ]]; then
-    first_install=false
-fi
 
-if [ "$first_install" = false ]; then
+if [[ ! "$resp_install" =~ ^[Yy]$ ]]; then
+    first_install=false
+else
     sudo systemctl enable --now avahi-daemon
     sudo ln -s /usr/bin/kitty /usr/bin/xdg-terminal-exec
     gsettings set org.gnome.TextEditor draw-spaces "['space', 'tab', 'trailing']"
-    
+fi
+
+if [ "$first_install" = false ]; then
     overwrite_audio=true
     overwrite_config=true
     
     if [ -f "$HOME/.config/waybar/scripts/audio-output-toggle.sh" ] || [ -f "$HOME/.config/waybar/config" ]; then
         read -p "Overwrite audio sink values? (y/N): " resp_audio
+
         if [[ ! "$resp_audio" =~ ^[Yy]$ ]]; then
             overwrite_audio=false
             overwrite_config=false
@@ -83,10 +85,9 @@ if [ "$first_install" = false ]; then
     
     overwrite_monitor=true
     if [ -f "$HOME/.config/hypr/modules/config.lua" ]; then
-        read -p "Overwrite config.mainMonitor in hypr/modules/config.lua? (y/N): " resp_monitor
+        read -p "Overwrite mainMonitor value? (y/N): " resp_monitor
         if [[ ! "$resp_monitor" =~ ^[Yy]$ ]]; then
             overwrite_monitor=false
-            # Extract live value
             live_main_monitor=$(grep -E '^\s*config\.mainMonitor\s*=' "$HOME/.config/hypr/modules/config.lua")
         fi
     fi
