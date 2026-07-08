@@ -5,7 +5,7 @@ sudo pacman -S --noconfirm --needed ttf-jetbrains-mono-nerd swappy btop fastfetc
 sudo pacman -S --noconfirm --needed gvfs gvfs-smb samba gwenview nvim mpv imv brightnessctl playerctl blueman gnome-text-editor kcalc swayimg imagemagick
 sudo pacman -S --noconfirm --needed thunar-archive-plugin xarchiver unzip net-tools localsend spotify-launcher
 sudo pacman -S --noconfirm --needed tesseract tesseract-data-eng speedtest-cli paru
-paru -S --noconfirm --skipreview --needed pokemon-colorscripts-git rustdesk-bin teams-for-linux vscodium-bin
+paru -S --noconfirm --skipreview --needed pokemon-colorscripts-git google-chrome rustdesk-bin teams-for-linux vscodium-bin
 
 first_install=true
 
