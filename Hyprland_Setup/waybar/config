@@ -69,7 +69,7 @@
         //"timezone": "America/Vancouver",
         "format": "{:%I:%M %p  %d-%b-%Y}",
         "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
-        "on-double-click": "google-chrome-stable --app=https://calendar.google.com"
+        "on-double-click": "brave-origin --app=https://calendar.google.com"
     },
 
     "cpu": {
