@@ -95,7 +95,7 @@ hl.window_rule({
 hl.window_rule({
 	name = "float-terminal-weathr",
 	match = { class = "weathr-float" },
-	size = "(monitor_w*0.3) (monitor_h*0.3)",
+	size = "1000 600",
 	center = true,
 	float = true,
 })
