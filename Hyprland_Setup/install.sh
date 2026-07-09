@@ -5,40 +5,40 @@ sudo pacman -S --noconfirm --needed ttf-jetbrains-mono-nerd swappy btop fastfetc
 sudo pacman -S --noconfirm --needed gvfs gvfs-smb samba gwenview nvim mpv imv brightnessctl playerctl blueman gnome-text-editor kcalc swayimg imagemagick
 sudo pacman -S --noconfirm --needed thunar-archive-plugin xarchiver unzip net-tools localsend spotify-launcher
 sudo pacman -S --noconfirm --needed tesseract tesseract-data-eng speedtest-cli brave-origin-bin paru
-paru -S --noconfirm --skipreview --needed pokemon-colorscripts-git rustdesk-bin teams-for-linux vscodium-bin weathr-bin 
+paru -S --noconfirm --skipreview --needed pokemon-colorscripts-git rustdesk-bin teams-for-linux vscodium-bin weathr-bin
 
 first_install=true
 
 read -p "Is this the first install (y/N): " resp_install
 
 if [[ ! "$resp_install" =~ ^[Yy]$ ]]; then
-    first_install=false
+  first_install=false
 else
-    sudo systemctl enable --now avahi-daemon
-    sudo ln -s /usr/bin/kitty /usr/bin/xdg-terminal-exec
-    gsettings set org.gnome.TextEditor draw-spaces "['space', 'tab', 'trailing']"
+  sudo systemctl enable --now avahi-daemon
+  sudo ln -s /usr/bin/kitty /usr/bin/xdg-terminal-exec
+  gsettings set org.gnome.TextEditor draw-spaces "['space', 'tab', 'trailing']"
 fi
 
 if [ "$first_install" = false ]; then
-    overwrite_audio=true
-    overwrite_config=true
-    
-    if [ -f "$HOME/.config/waybar/scripts/audio-output-toggle.sh" ] || [ -f "$HOME/.config/waybar/config" ]; then
-        read -p "Overwrite audio sink values? (y/N): " resp_audio
+  overwrite_audio=true
+  overwrite_config=true
 
-        if [[ ! "$resp_audio" =~ ^[Yy]$ ]]; then
-            overwrite_audio=false
-            overwrite_config=false
-            
-            # Extract live audio-output-toggle sink values if the file exists
-            if [ -f "$HOME/.config/waybar/scripts/audio-output-toggle.sh" ]; then
-                live_headphone=$(grep -E '^\s*HEADPHONE_SINK\s*=' "$HOME/.config/waybar/scripts/audio-output-toggle.sh")
-                live_speaker=$(grep -E '^\s*SPEAKER_SINK\s*=' "$HOME/.config/waybar/scripts/audio-output-toggle.sh")
-            fi
-            
-            # Extract live format-icons block if the config file exists
-            if [ -f "$HOME/.config/waybar/config" ]; then
-                live_icons=$(python3 -c '
+  if [ -f "$HOME/.config/waybar/scripts/audio-output-toggle.sh" ] || [ -f "$HOME/.config/waybar/config" ]; then
+    read -p "Overwrite audio sink values? (y/N): " resp_audio
+
+    if [[ ! "$resp_audio" =~ ^[Yy]$ ]]; then
+      overwrite_audio=false
+      overwrite_config=false
+
+      # Extract live audio-output-toggle sink values if the file exists
+      if [ -f "$HOME/.config/waybar/scripts/audio-output-toggle.sh" ]; then
+        live_headphone=$(grep -E '^\s*HEADPHONE_SINK\s*=' "$HOME/.config/waybar/scripts/audio-output-toggle.sh")
+        live_speaker=$(grep -E '^\s*SPEAKER_SINK\s*=' "$HOME/.config/waybar/scripts/audio-output-toggle.sh")
+      fi
+
+      # Extract live format-icons block if the config file exists
+      if [ -f "$HOME/.config/waybar/config" ]; then
+        live_icons=$(python3 -c '
     import re, sys
     try:
         with open(sys.argv[1], "r", encoding="utf-8") as f:
@@ -79,18 +79,18 @@ if [ "$first_install" = false ]; then
     except Exception as e:
         sys.stderr.write(str(e))
     ' "$HOME/.config/waybar/config")
-            fi
-        fi
+      fi
     fi
-    
-    overwrite_monitor=true
-    if [ -f "$HOME/.config/hypr/modules/config.lua" ]; then
-        read -p "Overwrite mainMonitor value? (y/N): " resp_monitor
-        if [[ ! "$resp_monitor" =~ ^[Yy]$ ]]; then
-            overwrite_monitor=false
-            live_main_monitor=$(grep -E '^\s*config\.mainMonitor\s*=' "$HOME/.config/hypr/modules/config.lua")
-        fi
+  fi
+
+  overwrite_monitor=true
+  if [ -f "$HOME/.config/hypr/modules/config.lua" ]; then
+    read -p "Overwrite mainMonitor value? (y/N): " resp_monitor
+    if [[ ! "$resp_monitor" =~ ^[Yy]$ ]]; then
+      overwrite_monitor=false
+      live_main_monitor=$(grep -E '^\s*config\.mainMonitor\s*=' "$HOME/.config/hypr/modules/config.lua")
     fi
+  fi
 fi
 
 \cp -rf ~/Linux-Setup/Hyprland_Setup/fastfetch ~/.config
@@ -105,9 +105,9 @@ fi
 \cp -rf ~/Linux-Setup/Hyprland_Setup/weathr ~/.config
 
 if [ "$first_install" = false ]; then
-    # Restore live audio sink values if requested
-    if [ "$overwrite_audio" = false ]; then
-        python3 -c '
+  # Restore live audio sink values if requested
+  if [ "$overwrite_audio" = false ]; then
+    python3 -c '
     import sys, re
     file_path = sys.argv[1]
     hp_line = sys.argv[2]
@@ -131,11 +131,11 @@ if [ "$first_install" = false ]; then
     except Exception as e:
         sys.stderr.write(str(e))
     ' "$HOME/.config/waybar/scripts/audio-output-toggle.sh" "$live_headphone" "$live_speaker"
-    fi
-    
-    # Restore live waybar config format-icons if requested
-    if [ "$overwrite_config" = false ] && [ -n "$live_icons" ]; then
-        python3 -c '
+  fi
+
+  # Restore live waybar config format-icons if requested
+  if [ "$overwrite_config" = false ] && [ -n "$live_icons" ]; then
+    python3 -c '
     import sys, re
     file_path = sys.argv[1]
     live_icons_str = sys.argv[2]
@@ -182,11 +182,11 @@ if [ "$first_install" = false ]; then
     except Exception as e:
         sys.stderr.write(str(e))
     ' "$HOME/.config/waybar/config" "$live_icons"
-    fi
-    
-    # Restore live config.mainMonitor value if requested
-    if [ "$overwrite_monitor" = false ] && [ -n "$live_main_monitor" ]; then
-        python3 -c '
+  fi
+
+  # Restore live config.mainMonitor value if requested
+  if [ "$overwrite_monitor" = false ] && [ -n "$live_main_monitor" ]; then
+    python3 -c '
     import sys, re
     file_path = sys.argv[1]
     monitor_line = sys.argv[2]
@@ -207,7 +207,7 @@ if [ "$first_install" = false ]; then
     except Exception as e:
         sys.stderr.write(str(e))
     ' "$HOME/.config/hypr/modules/config.lua" "$live_main_monitor"
-    fi
+  fi
 fi
 
 chmod +x ~/Linux-Setup/Hyprland_Setup/install.sh
@@ -223,6 +223,6 @@ chmod +x ~/.config/waybar/scripts/media.sh
 
 read -p "Do you want to get wallpapers? (y/N)" resp_wallpapers
 if [[ "$resp_wallpapers" =~ ^[Yy]$ ]]; then
-echo "Getting wallpapers..."
-\cp -rn ~/Linux-Setup/wallpapers ~/Pictures
+  echo "Getting wallpapers..."
+  \cp -rn ~/Linux-Setup/wallpapers ~/Pictures
 fi
