@@ -91,3 +91,11 @@ hl.window_rule({
 	match = { class = "rustdesk" },
 	no_shortcuts_inhibit = true,
 })
+
+hl.window_rule({
+	name = "float-terminal-weathr",
+	match = { class = "weathr-float" },
+	size = "(monitor_w*0.3) (monitor_h*0.3)",
+	center = true,
+	float = true,
+})
