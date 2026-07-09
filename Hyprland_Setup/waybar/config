@@ -178,9 +178,10 @@
         "format": "{}",
         "tooltip": true,
         "interval": 600, // Updates every 10 minutes (600 seconds)
-        "exec": "~/.config/waybar/scripts/weather.sh",
+        "exec": "~/.config/waybar/scripts/weather.sh --update",
         "return-type": "json",
         "on-double-click": "pkill -RTMIN+8 waybar",
+        "on-click-right": "exec ~/.config/waybar/scripts/weather.sh --openWeather",
         "signal": 8
     },
 

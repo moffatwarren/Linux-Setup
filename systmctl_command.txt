@@ -1,0 +1,23 @@
+### 1. List All Currently Running Services
+
+  systemctl list-units --type=service --state=running
+
+### 2. List All Loaded Services (Active & Inactive)
+
+  systemctl list-units --type=service
+
+### 3. Check the Status of a Specific Service
+
+  systemctl status piavpn.service
+
+### 4. List Services Configured to Start on Boot
+
+  systemctl list-unit-files --type=service --state=enabled
+
+### 5. Check Running User-Level Services
+
+  systemctl --user list-units --type=service --state=running
+
+### 6. View Failed Services
+
+  systemctl --failed
