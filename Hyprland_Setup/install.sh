@@ -4,8 +4,8 @@ sudo pacman -S --noconfirm --needed kitty kwrite hyprland waybar hyprlock hyprid
 sudo pacman -S --noconfirm --needed ttf-jetbrains-mono-nerd swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look rofi
 sudo pacman -S --noconfirm --needed gvfs gvfs-smb samba gwenview nvim mpv imv brightnessctl playerctl blueman gnome-text-editor kcalc swayimg imagemagick
 sudo pacman -S --noconfirm --needed thunar-archive-plugin xarchiver unzip net-tools localsend spotify-launcher
-sudo pacman -S --noconfirm --needed tesseract tesseract-data-eng speedtest-cli brave-origin-bin weathr-bin paru
-paru -S --noconfirm --skipreview --needed pokemon-colorscripts-git rustdesk-bin teams-for-linux vscodium-bin
+sudo pacman -S --noconfirm --needed tesseract tesseract-data-eng speedtest-cli brave-origin-bin paru
+paru -S --noconfirm --skipreview --needed pokemon-colorscripts-git rustdesk-bin teams-for-linux vscodium-bin weathr-bin 
 
 first_install=true
 
