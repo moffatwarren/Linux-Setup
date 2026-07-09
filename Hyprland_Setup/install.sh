@@ -102,6 +102,7 @@ fi
 \cp -rf ~/Linux-Setup/Hyprland_Setup/waybar ~/.config
 \cp -rf ~/Linux-Setup/Hyprland_Setup/nvim ~/.config
 \cp -rf ~/Linux-Setup/Hyprland_Setup/swaync ~/.config
+\cp -rf ~/Linux-Setup/Hyprland_Setup/weathr ~/.config
 
 if [ "$first_install" = false ]; then
     # Restore live audio sink values if requested
