@@ -196,7 +196,7 @@
         "format": "{}",
         "on-click": "~/.config/waybar/scripts/media.sh play-pause-toggle",
         "exec": "~/.config/waybar/scripts/media.sh play-pause",
-        "interbluez_output.B4_23_A2_0B_AA_DF.1val": 2,
+        "interval": 2,
         "tooltip": false
     },
     "custom/media-next": {
