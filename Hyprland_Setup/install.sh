@@ -34,6 +34,7 @@ if [ "$first_install" = false ]; then
             if [ -f "$HOME/.config/waybar/scripts/audio-output-toggle.sh" ]; then
                 live_headphone=$(grep -E '^\s*HEADPHONE_SINK\s*=' "$HOME/.config/waybar/scripts/audio-output-toggle.sh")
                 live_speaker=$(grep -E '^\s*SPEAKER_SINK\s*=' "$HOME/.config/waybar/scripts/audio-output-toggle.sh")
+                live_bluetooth=$(grep -E '^\s*BLUETOOTH_SINK\s*=' "$HOME/.config/waybar/scripts/audio-output-toggle.sh")
             fi
             
             # Extract live format-icons block if the config file exists
@@ -130,7 +131,7 @@ if [ "$first_install" = false ]; then
             f.writelines(new_lines)
     except Exception as e:
         sys.stderr.write(str(e))
-    ' "$HOME/.config/waybar/scripts/audio-output-toggle.sh" "$live_headphone" "$live_speaker"
+    ' "$HOME/.config/waybar/scripts/audio-output-toggle.sh" "$live_headphone" "$live_speaker" "$live_bluetooth"
     fi
     
     # Restore live waybar config format-icons if requested
