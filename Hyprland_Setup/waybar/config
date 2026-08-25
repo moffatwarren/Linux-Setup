@@ -9,18 +9,18 @@
     "margin-right": 2,
 
     "modules-left": [
-        "hyprland/workspaces",
-        "custom/media-prev",
-        "custom/media-play-pause",
-        "custom/media-next",
+        "clock",
+        "custom/weather",
         "image#album-art",
         "custom/media-title"
         //"hyprland/window"
     ],
 
     "modules-center": [
-        "custom/weather",
-        "clock"
+        "hyprland/workspaces"
+        // "custom/media-prev",
+        // "custom/media-play-pause",
+        // "custom/media-next",
     ],
 
     "modules-right": [
@@ -33,7 +33,7 @@
         //"memory",
         "power-profiles-daemon",
         "battery",
-        "battery#bat2",
+        "battery#bat2"
     ],
 
 // Modules configuration
