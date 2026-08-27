@@ -104,6 +104,8 @@ fi
 \cp -rf ~/Linux-Setup/Hyprland_Setup/nvim ~/.config
 \cp -rf ~/Linux-Setup/Hyprland_Setup/swaync ~/.config
 \cp -rf ~/Linux-Setup/Hyprland_Setup/weathr ~/.config
+sudo \cp -rf ~/Linux-Setup/Hyprland_Setup/voidsddm /usr/share/sddm/themes
+sudo \cp -rf ~/Linux-Setup/Hyprland_Setup/sddm.conf.d /etc
 
 if [ "$first_install" = false ]; then
     # Restore live audio sink values if requested
