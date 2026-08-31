@@ -62,5 +62,11 @@ Pill {
     }
     labelColor: active ? Theme.text : Theme.red
 
-    onRightClicked: Quickshell.execDetached(["kitty", "--class", "nmtui-floating", "-e", "nmtui"])
+    // Right-click opens the wifi picker; nmtui is still reachable from inside it.
+    onRightClicked: wifiMenu.open = !wifiMenu.open
+
+    WifiMenu {
+        id: wifiMenu
+        anchorItem: root
+    }
 }

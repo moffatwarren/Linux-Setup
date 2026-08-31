@@ -101,6 +101,18 @@ tailscale modules (a title plus `{ text, detail, accent }` rows). It replaced th
 QtQuick `ToolTip`s, which ignored the palette. Modules drive it with
 `requested: root.hovered`, using the `hovered` alias `Pill.qml` exposes.
 
+`WifiMenu.qml` is the right-click dropdown on the network module: a scrollable-free
+list of nearby SSIDs (deduplicated per SSID, strongest first, capped at 8), each with a
+four-bar signal meter, a lock for secured networks and a "saved" marker for known ones.
+Left-click a row to connect (`connect()`, or `connectWithPsk()` behind an inline
+password field for a secured network never joined before), right-click a saved row to
+`forget()` it. The header toggles `Networking.wifiEnabled`, and an "Open nmtui…" footer
+keeps the old escape hatch. Scanning is driven by a `Binding` on the device's
+`scannerEnabled` tied to whether the menu is open, so it only scans while visible.
+
+The signal meter is drawn with rectangles rather than a nerd font glyph — no private-use
+codepoint to get wrong, and it scales with the strength value (which is 0..1, not 0-100).
+
 `TailscalePill.qml` specialises `ScriptPill` because it needs both halves of waybar's
 format (`Tailscale: {icon} | Exit-node: {text}`) and reads its peer list from
 `tailscale status --json` directly, rather than from the script's tooltip.
