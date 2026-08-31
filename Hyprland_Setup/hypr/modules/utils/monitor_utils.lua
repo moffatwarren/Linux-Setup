@@ -28,7 +28,7 @@ function monitor_utils.handle_new_monitor(monitor)
 	-- hl.timer(function()
 	-- 	monitor_utils.move_all_workspaces(new_monitor)
 	-- end, { timeout = 500, type = "oneshot" })
-	hl.dsp.exec_cmd("killall waybar && waybar &")
+	hl.dsp.exec_cmd("killall " .. (config.bar or "waybar") .. " && " .. (config.bar or "waybar") .. " &")
 end
 
 function monitor_utils.handle_remove_monitor(monitor)
