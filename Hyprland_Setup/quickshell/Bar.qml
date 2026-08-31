@@ -36,9 +36,9 @@ PanelWindow {
 
         // weather.sh --update, 10 minute refresh (waybar interval: 600)
         ScriptPill {
-            command: "~/.config/waybar/scripts/weather.sh --update"
+            command: "~/.config/hypr/scripts/weather.sh --update"
             intervalMs: 600000
-            rightClickCommand: "~/.config/waybar/scripts/weather.sh --openWeather"
+            rightClickCommand: "~/.config/hypr/scripts/weather.sh --openWeather"
         }
 
         MediaGroup {}
@@ -66,7 +66,7 @@ PanelWindow {
 
         // pia.sh --status
         ScriptPill {
-            command: "~/.config/waybar/scripts/pia.sh --status"
+            command: "~/.config/hypr/scripts/pia.sh --status"
             // waybar coloured #custom-pia by class; red for disconnected as requested.
             altColors: ({
                 "connected":     Theme.green,
@@ -76,7 +76,7 @@ PanelWindow {
                 "error":         Theme.red
             })
             prefix: "\udb80\udda7 PIA: "
-            doubleClickCommand: "~/.config/waybar/scripts/pia.sh --toggle"
+            doubleClickCommand: "~/.config/hypr/scripts/pia.sh --toggle"
         }
 
         NetworkPill {}

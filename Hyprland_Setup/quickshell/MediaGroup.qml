@@ -5,6 +5,8 @@ import QtQuick.Effects
 
 // waybar: "image#album-art" + "custom/media-title", both driven by media.sh on
 // a 2 second poll. MPRIS is event-driven, so the polling (and the script) go away.
+//
+// Click either the art or the title to play/pause, double-click either to skip.
 Row {
     id: root
 
@@ -21,6 +23,32 @@ Row {
     readonly property string artUrl: player && player.trackArtUrl ? String(player.trackArtUrl) : ""
 
     visible: title.length > 0
+
+    // QML delivers `clicked` before `doubleClicked`, so acting on a click
+    // immediately would toggle playback on the way to skipping a track. Hold
+    // the single-click action until the double-click window has passed.
+    Timer {
+        id: pendingClick
+        interval: 250
+        onTriggered: root.togglePlay()
+    }
+
+    function togglePlay() {
+        if (player && player.canTogglePlaying) player.togglePlaying();
+    }
+
+    function nextTrack() {
+        if (player && player.canGoNext) player.next();
+    }
+
+    function handleClick() {
+        pendingClick.restart();
+    }
+
+    function handleDoubleClick() {
+        pendingClick.stop();
+        nextTrack();
+    }
 
     Item {
         width: artUrl.length > 0 ? Theme.pillHeight : 0
@@ -53,11 +81,19 @@ Row {
             maskEnabled: true
             maskSource: mask
         }
+
+        // Declared after MultiEffect so it sits on top and receives the clicks.
+        MouseArea {
+            anchors.fill: parent
+            onClicked: root.handleClick()
+            onDoubleClicked: root.handleDoubleClick()
+        }
     }
 
     Pill {
         anchors.verticalCenter: parent.verticalCenter
         label: root.artist.length > 0 ? root.artist + " - " + root.title : root.title
-        onClicked: if (root.player && root.player.canTogglePlaying) root.player.togglePlaying()
+        onClicked: root.handleClick()
+        onDoubleClicked: root.handleDoubleClick()
     }
 }

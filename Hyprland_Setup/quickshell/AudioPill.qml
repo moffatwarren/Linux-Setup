@@ -42,7 +42,7 @@ Pill {
         id: roles
         running: true
         command: ["bash", "-lc",
-                  "grep -E '^(HEADPHONE|BLUETOOTH)_SINK=' ~/.config/waybar/scripts/audio-output-toggle.sh || true"]
+                  "grep -E '^(HEADPHONE|BLUETOOTH)_SINK=' ~/.config/hypr/scripts/audio-output-toggle.sh || true"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const lines = text.split("\n");
@@ -66,8 +66,7 @@ Pill {
     label: sink ? (muted ? icon : icon + " " + Math.round(volume * 100) + "%") : ""
     labelColor: Theme.maroon
 
-    // Same toggle script waybar used, so both bars behave identically.
-    onClicked: Quickshell.execDetached(["bash", "-lc", "~/.config/waybar/scripts/audio-output-toggle.sh"])
+    onClicked: Quickshell.execDetached(["bash", "-lc", "~/.config/hypr/scripts/audio-output-toggle.sh"])
     onRightClicked: Quickshell.execDetached(["pavucontrol"])
     onScrolled: delta => {
         if (!audio) return;

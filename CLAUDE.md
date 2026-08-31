@@ -52,15 +52,15 @@ copying, `install.sh` captures the live values; after copying, it writes them ba
 "<path under ~/.config>|<regex>|<prompt group>|<handler>"
 ```
 
-- **handler `line`** — the whole line matching `<regex>` is captured and restored.
-- **handler `icons`** — the `"pulseaudio"` → `"format-icons"` block (regex field unused).
+- **handler `line`** — the whole line matching `<regex>` is captured and restored. It is
+  the only handler; the `icons` one died with the waybar config it parsed.
 - **prompt group** — one y/N prompt per group, asked only if a file in that group exists
-  live. Groups: `audio` (sinks + volume icons), `machine` (monitor + bar choice).
+  live. Groups: `audio` (sinks), `machine` (monitor + bar choice).
 - Fields split on `|`, so **a regex must not contain a literal `|`**.
 
 Currently preserved: `BUILT_IN_SINK`, `HEADPHONE_SINK`, `SPEAKER_SINK`, `BLUETOOTH_SINK`
-in `waybar/scripts/audio-output-toggle.sh`; the `format-icons` block in `waybar/config`;
-`config.mainMonitor` and `config.bar` in `hypr/modules/config.lua`.
+in `hypr/scripts/audio-output-toggle.sh`; `config.mainMonitor` and `config.bar` in
+`hypr/modules/config.lua`.
 
 **Add any new hardware-specific value to `PRESERVE`**, or it is clobbered every run.
 
@@ -69,31 +69,32 @@ Two hazards when adding patterns:
 - `replace_line.py` rewrites **every** matching line. `BUILT_IN_SINK` is assigned twice
   in `audio-output-toggle.sh` (top level, and indented inside the toggle logic), so its
   pattern is anchored to column 0 (`^BUILT_IN_SINK`). Anchor carefully.
-- The restore helpers live in `install_lib/`:
-  `waybar_format_icons.py get|set <file> [value]` (brace-matched block) and
+- The restore helper lives in `install_lib/`:
   `replace_line.py <file> <pattern> <replacement> …` (empty replacement = skip).
 
-## Bar selection (waybar / quickshell)
+## The bar (quickshell)
 
-`config.bar` in `hypr/modules/config.lua` chooses which bar launches. It is read by
-`autostart.lua`, the `SUPER+R` restart bind in `binds.lua`, and the monitor-hotplug
-restart in `utils/monitor_utils.lua` (all fall back to `"waybar"` if unset).
+**waybar has been removed** — its config, CSS and package are gone, and `quickshell` is
+the only bar. Its four helper scripts were still load-bearing, so they moved to
+`hypr/scripts/` (a bar-neutral home that is already deployed and already gets the
+`chmod +x` sweep): `audio-output-toggle.sh`, `tailscale.sh`, `pia.sh`, `weather.sh`.
+`media.sh` was deleted outright — MPRIS replaced it. The waybar config, its CSS and the
+old script paths are recoverable from commit `45cf455` if a codepoint or format string
+is ever needed.
 
-Both bars' configs deploy regardless, so `Hyprland_Setup/quickshell/` can be built up
-incrementally while waybar stays the daily driver — flip `config.bar` when it reaches
-parity. `config.bar` is in `PRESERVE`, so the choice survives updates.
+`config.bar` in `hypr/modules/config.lua` still selects which bar launches, read by
+`autostart.lua`, the `SUPER+R` bind in `binds.lua`, and the monitor-hotplug restart in
+`utils/monitor_utils.lua` (all now fall back to `"quickshell"`). It is in `PRESERVE`, so
+the choice survives updates — keeping it means swapping bars later is still a one-liner.
 
-`Hyprland_Setup/quickshell/` is a full port of the waybar config, at parity. One file
-per module: `Bar.qml` lays out left/center/right to match waybar's `modules-*`, `Pill.qml`
-is the shared rounded-module background, and `Theme.qml` is a `pragma Singleton` holding
-the Catppuccin Mocha palette from `waybar/mocha.css`.
+`Hyprland_Setup/quickshell/` has one file per module: `Bar.qml` lays out left/center/right,
+`Pill.qml` is the shared rounded-module background, and `Theme.qml` is a `pragma Singleton`
+holding the Catppuccin Mocha palette.
 
-`tailscale.sh`, `pia.sh` and `weather.sh` are reused as-is via `ScriptPill.qml`, which
-runs them with `Process` and parses the same waybar-style JSON they already print — so
-that logic is not duplicated between the two bars. Audio/battery/network/bluetooth/
-workspaces/media use Quickshell's native services instead, which removes waybar's
-2-and-3-second polling (`media.sh` in particular is unused by quickshell — MPRIS is
-event-driven).
+`tailscale.sh`, `pia.sh` and `weather.sh` are driven by `ScriptPill.qml`, which runs them
+with `Process` and parses the waybar-style JSON they still print. Audio/battery/network/
+bluetooth/workspaces/media use Quickshell's native services instead, so the bar is
+event-driven rather than polling.
 
 `ListPopup.qml` is the Catppuccin hover panel used by the bluetooth, battery and
 tailscale modules (a title plus `{ text, detail, accent }` rows). It replaced the stock
@@ -115,8 +116,9 @@ Six things to know before editing the QML:
 
 - **Nerd font icons must be written as `\uXXXX` escapes.** The glyphs are private-use
   codepoints; pasting them literally silently produces empty strings, which makes the
-  pill vanish (`Pill` hides itself when its label is empty). Copy codepoints out of
-  `waybar/config` rather than retyping the character.
+  pill vanish (`Pill` hides itself when its label is empty). Take codepoints from an
+  existing module or from `git show 45cf455^:Hyprland_Setup/waybar/config`, rather than
+  retyping the character.
 - **Quickshell services are lazy.** `Hyprland.workspaces`, `Networking.devices` and
   `Bluetooth.devices` stay empty until something actually binds to them; the modules
   hold a property referencing the service for this reason. Pipewire additionally needs
@@ -124,7 +126,7 @@ Six things to know before editing the QML:
 - **`NetworkDevice.address` is the MAC, not the IP** — no IP is exposed anywhere on the
   device, so `NetworkPill` shells out to `ip -4 -br addr` when the active device changes.
 - `AudioPill` reads which sink is headphones/bluetooth out of
-  `waybar/scripts/audio-output-toggle.sh` rather than guessing from the sink name.
+  `hypr/scripts/audio-output-toggle.sh` rather than guessing from the sink name.
   Inferring it does not work: on this machine the headphones are the PCI analog jack
   and the speakers are USB, and other machines invert that.
 - **`ScriptPill` must escape control characters before `JSON.parse`.** `tailscale.sh`
@@ -135,8 +137,12 @@ Six things to know before editing the QML:
   property that is already true at construction, which is why `ListPopup` gates
   visibility through a bound `delayPassed` flag.
 
-Not carried over (both were waybar conveniences, not modules): the clock's `{calendar}`
-tooltip is a plain date, and `format-alt` click-to-cycle is not implemented.
+Not carried over from waybar: the clock's `{calendar}` tooltip is a plain date, and
+`format-alt` click-to-cycle is not implemented.
+
+Media: click the album art or the title to play/pause, double-click either to skip.
+`clicked` arrives before `doubleClicked`, so the single-click action is held in a 250 ms
+timer that a double-click cancels — otherwise every skip would also toggle playback.
 
 ## install.sh conventions
 

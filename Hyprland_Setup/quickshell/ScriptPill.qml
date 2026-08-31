@@ -2,7 +2,7 @@ import Quickshell
 import Quickshell.Io
 import QtQuick
 
-// Generic wrapper around the existing waybar helper scripts, which already
+// Generic wrapper around the shell helper scripts, which already
 // print waybar-style JSON: {"text":…,"alt":…,"class":…}
 // Used for tailscale.sh, pia.sh and weather.sh so their logic is not duplicated.
 Pill {

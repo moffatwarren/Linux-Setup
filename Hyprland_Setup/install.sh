@@ -11,10 +11,10 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 # Add a new app config by adding its directory name here. A name with no
 # matching directory is skipped with a warning rather than aborting.
 # ---------------------------------------------------------------------------
-CONFIGS=(fastfetch fish hypr kitty nvim quickshell rofi swappy swaync waybar weathr)
+CONFIGS=(fastfetch fish hypr kitty nvim quickshell rofi swappy swaync weathr)
 
 PACMAN_PKGS=(
-    kitty hyprland waybar quickshell hyprlock hypridle awww ttf-font-awesome swaync
+    kitty hyprland quickshell hyprlock hypridle awww ttf-font-awesome swaync
     ttf-jetbrains-mono-nerd swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look rofi
     gvfs gvfs-smb samba nvim mpv imv brightnessctl playerctl blueman gnome-text-editor swayimg imagemagick
     thunar-archive-plugin xarchiver unzip net-tools localsend spotify-launcher
@@ -30,25 +30,23 @@ PARU_PKGS=(pokemon-colorscripts-git rustdesk-bin teams-for-linux vscodium-bin we
 # ---------------------------------------------------------------------------
 # Machine-specific values preserved across an update.
 #   <path under ~/.config> | <regex> | <prompt group> | <handler>
-# Handlers: "line"  = whole line matching <regex> is captured and restored.
-#           "icons" = the "pulseaudio" -> "format-icons" block (<regex> unused).
+# Handler: "line" = whole line matching <regex> is captured and restored.
 # Fields split on "|", so a regex must not contain a literal "|".
 #
 # NOTE: "line" restores EVERY matching line. BUILT_IN_SINK is also assigned
 # indented inside the toggle logic, so it is anchored to column 0.
 # ---------------------------------------------------------------------------
 PRESERVE=(
-    "waybar/scripts/audio-output-toggle.sh|^BUILT_IN_SINK\s*=|audio|line"
-    "waybar/scripts/audio-output-toggle.sh|^\s*HEADPHONE_SINK\s*=|audio|line"
-    "waybar/scripts/audio-output-toggle.sh|^\s*SPEAKER_SINK\s*=|audio|line"
-    "waybar/scripts/audio-output-toggle.sh|^\s*BLUETOOTH_SINK\s*=|audio|line"
-    "waybar/config|-|audio|icons"
+    "hypr/scripts/audio-output-toggle.sh|^BUILT_IN_SINK\s*=|audio|line"
+    "hypr/scripts/audio-output-toggle.sh|^\s*HEADPHONE_SINK\s*=|audio|line"
+    "hypr/scripts/audio-output-toggle.sh|^\s*SPEAKER_SINK\s*=|audio|line"
+    "hypr/scripts/audio-output-toggle.sh|^\s*BLUETOOTH_SINK\s*=|audio|line"
     "hypr/modules/config.lua|^\s*config\.mainMonitor\s*=|machine|line"
     "hypr/modules/config.lua|^\s*config\.bar\s*=|machine|line"
 )
 
 declare -A GROUP_PROMPT=(
-    [audio]="Overwrite audio sink values and volume icons?"
+    [audio]="Overwrite audio sink values?"
     [machine]="Overwrite monitor and bar selection?"
 )
 
@@ -116,10 +114,7 @@ capture_preserved() {
         if [ ! -f "$live" ]; then
             continue
         fi
-        case "$handler" in
-            line)  PRESERVED["$rel|$regex"]="$(grep -E "$regex" "$live" || true)" ;;
-            icons) PRESERVED["$rel|$regex"]="$(python3 "$SCRIPT_DIR/install_lib/waybar_format_icons.py" get "$live")" ;;
-        esac
+        PRESERVED["$rel|$regex"]="$(grep -E "$regex" "$live" || true)"
     done
 }
 
@@ -141,11 +136,7 @@ restore_preserved() {
             if [ -z "${PRESERVED[$key]:-}" ]; then
                 continue
             fi
-            case "$handler" in
-                line)  args+=("$regex" "${PRESERVED[$key]}") ;;
-                icons) python3 "$SCRIPT_DIR/install_lib/waybar_format_icons.py" \
-                           set "$HOME/.config/$rel" "${PRESERVED[$key]}" ;;
-            esac
+            args+=("$regex" "${PRESERVED[$key]}")
         done
         if [ "${#args[@]}" -gt 0 ]; then
             python3 "$SCRIPT_DIR/install_lib/replace_line.py" "$HOME/.config/$rel" "${args[@]}"
@@ -215,7 +206,7 @@ first_install_extras() {
     if [[ "$reply" =~ ^[Yy]$ ]]; then
         sudo pacman -S --noconfirm --needed tailscale
         sudo systemctl enable --now tailscaled
-        # --operator=$USER is what lets waybar/scripts/tailscale.sh run without sudo
+        # --operator=$USER is what lets hypr/scripts/tailscale.sh run without sudo
         echo "    Authenticate with:"
         echo "      sudo tailscale up --accept-routes --exit-node-allow-lan-access --operator=$USER"
     fi
