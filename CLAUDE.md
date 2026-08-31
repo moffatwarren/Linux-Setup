@@ -137,6 +137,10 @@ Six things to know before editing the QML:
   `PwObjectTracker` for live volume/mute updates.
 - **`NetworkDevice.address` is the MAC, not the IP** — no IP is exposed anywhere on the
   device, so `NetworkPill` shells out to `ip -4 -br addr` when the active device changes.
+  Networking exposes no byte counters either, so the hover panel's up/down rates come
+  from `/sys/class/net/<iface>/statistics/{rx,tx}_bytes`, sampled once a second with
+  `FileView` (no process spawn) and differenced. The baseline resets on an interface
+  change so the first sample cannot report a bogus spike.
 - `AudioPill` reads which sink is headphones/bluetooth out of
   `hypr/scripts/audio-output-toggle.sh` rather than guessing from the sink name.
   Inferring it does not work: on this machine the headphones are the PCI analog jack

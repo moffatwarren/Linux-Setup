@@ -24,6 +24,44 @@ Pill {
 
     property string ipAddress: ""
 
+    // --- throughput ---------------------------------------------------------
+    // Quickshell's Networking exposes no byte counters, so rates come from the
+    // kernel's own totals in sysfs. FileView reads them without spawning a
+    // process, which matters for a once-a-second sample.
+    property real rxRate: 0     // bytes/sec
+    property real txRate: 0
+    property real lastRx: -1
+    property real lastTx: -1
+
+    readonly property string ifacePath: active ? "/sys/class/net/" + active.name + "/statistics/" : ""
+
+    function humanRate(bytesPerSec) {
+        if (bytesPerSec < 1024) return Math.round(bytesPerSec) + " B/s";
+        if (bytesPerSec < 1024 * 1024) return (bytesPerSec / 1024).toFixed(1) + " KiB/s";
+        return (bytesPerSec / (1024 * 1024)).toFixed(2) + " MiB/s";
+    }
+
+    FileView { id: rxFile; path: root.ifacePath.length > 0 ? root.ifacePath + "rx_bytes" : ""; blockLoading: true }
+    FileView { id: txFile; path: root.ifacePath.length > 0 ? root.ifacePath + "tx_bytes" : ""; blockLoading: true }
+
+    Timer {
+        interval: 1000
+        running: root.ifacePath.length > 0
+        repeat: true
+        onTriggered: {
+            rxFile.reload();
+            txFile.reload();
+            const r = parseFloat(rxFile.text());
+            const t = parseFloat(txFile.text());
+            if (isNaN(r) || isNaN(t)) return;
+            // First sample after start or an interface change has no baseline.
+            if (root.lastRx >= 0 && r >= root.lastRx) root.rxRate = r - root.lastRx;
+            if (root.lastTx >= 0 && t >= root.lastTx) root.txRate = t - root.lastTx;
+            root.lastRx = r;
+            root.lastTx = t;
+        }
+    }
+
     function refreshIp() {
         if (!active) {
             ipAddress = "";
@@ -33,7 +71,13 @@ Pill {
         ipProc.running = true;
     }
 
-    onActiveChanged: refreshIp()
+    onActiveChanged: {
+        refreshIp();
+        lastRx = -1;
+        lastTx = -1;
+        rxRate = 0;
+        txRate = 0;
+    }
     Component.onCompleted: refreshIp()
 
     Process {
@@ -68,5 +112,22 @@ Pill {
     WifiMenu {
         id: wifiMenu
         anchorItem: root
+    }
+
+    ListPopup {
+        anchorItem: root
+        requested: root.hovered && !wifiMenu.open
+        title: root.active ? String(root.active.name) : "Network"
+        emptyText: root.active ? "" : "No active connection"
+        rows: {
+            if (!root.active) return [];
+            const out = [
+                { text: "\u2193 Download", detail: root.humanRate(root.rxRate), accent: Theme.green },
+                { text: "\u2191 Upload",   detail: root.humanRate(root.txRate), accent: Theme.sapphire }
+            ];
+            if (root.ipAddress.length > 0) out.push({ text: "IP", detail: root.ipAddress });
+            out.push({ text: "MAC", detail: String(root.active.address) });
+            return out;
+        }
     }
 }
