@@ -1,5 +1,5 @@
 local config = require("modules.config")
-local bar = config.bar or "waybar"
+local bar = config.bar or "quickshell"
 
  hl.on("hyprland.start", function ()
     hl.exec_cmd(bar .. " & awww-daemon & swaync & hypridle")

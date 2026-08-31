@@ -15,11 +15,11 @@ ScriptPill {
 
     readonly property bool connected: rawAlt === "connected"
 
-    command: "~/.config/waybar/scripts/tailscale.sh --status"
+    command: "~/.config/hypr/scripts/tailscale.sh --status"
     altText: ({ "connected": "on", "stopped": "off" })
     altColors: ({ "connected": Theme.green, "stopped": Theme.red })
-    doubleClickCommand: "~/.config/waybar/scripts/tailscale.sh --toggle"
-    rightClickCommand: "~/.config/waybar/scripts/tailscale.sh --getFile"
+    doubleClickCommand: "~/.config/hypr/scripts/tailscale.sh --toggle"
+    rightClickCommand: "~/.config/hypr/scripts/tailscale.sh --getFile"
 
     label: {
         if (iconText.length === 0) return "";

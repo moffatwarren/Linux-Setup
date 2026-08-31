@@ -1,7 +1,7 @@
 local config = {}
 
 config.mainMonitor = "DP-1"
--- Status bar to launch: "waybar" or "quickshell"
+-- Status bar to launch (the command name of the bar)
 config.bar = "quickshell"
 config.mainMod = "SUPER"
 config.terminal = "kitty"
