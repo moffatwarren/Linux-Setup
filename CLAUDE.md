@@ -7,79 +7,167 @@ truth**; the live system is a deployed copy of it.
 
 ```
 Linux-Setup/Hyprland_Setup/<app>/   ──[ install.sh ]──>   ~/.config/<app>/
+                                    <──[ install.sh --pull ]──
 ```
 
-`Hyprland_Setup/install.sh` is the **only** entry point. It installs packages, copies
-this repo's configs over the live ones, and re-applies machine-specific values. It
-handles both first-time install and routine updates — there is no separate
-`update.sh` (it was folded into `install.sh` in commit `4adec1a`; `README.md` still
-references it and is stale).
+`Hyprland_Setup/install.sh` is the **only** entry point. It handles first-time install
+and routine updates — there is no separate `update.sh` (folded in at commit `4adec1a`).
 
-**Always edit configs here, in `Hyprland_Setup/<app>/` — never in `~/.config/<app>/`.**
-`install.sh` copies repo → live with `cp -rf`, so any edit made directly in `~/.config`
-is silently destroyed the next time it runs. Changes are not live until `install.sh` is
-run.
+```
+./install.sh          # install packages + deploy repo configs to the live system
+./install.sh --pull   # copy live configs back into the repo, for review + commit
+./install.sh --help
+```
 
-### Where each directory lands
+**Edit configs here, in `Hyprland_Setup/<app>/` — not in `~/.config/<app>/`.** Deploy
+uses `cp -rf`, so live edits are destroyed on the next run. If you *have* made live
+edits, `--pull` brings them back before you lose them. Changes are not live until
+`install.sh` runs.
 
-| Repo path | Deployed to |
+## Adding things — everything is a list at the top of install.sh
+
+| To add | Edit |
 |---|---|
-| `Hyprland_Setup/{fastfetch,fish,hypr,kitty,rofi,swappy,waybar,nvim,swaync,weathr}` | `~/.config/` |
-| `Hyprland_Setup/voidsddm` | `/usr/share/sddm/themes` (sudo) |
-| `Hyprland_Setup/sddm.conf.d` | `/etc` (sudo) |
-| `wallpapers/` | `~/Pictures/` (opt-in prompt, `cp -rn`, never overwrites) |
+| An app config | `CONFIGS=(…)` — add the directory name, create `Hyprland_Setup/<name>/` |
+| A repo package | `PACMAN_PKGS=(…)` |
+| An AUR package | `PARU_PKGS=(…)` |
+| A preserved machine value | `PRESERVE=(…)` — see below |
 
-`Hyprland_Setup/install_lib/` holds Python helpers used *by* `install.sh` and is
-deliberately **not** deployed — don't add a copy line for it.
+A name in `CONFIGS` with no matching directory is skipped with a warning, not a fatal
+error. `install_lib/` holds Python helpers used *by* `install.sh` and is deliberately
+**not** deployed.
 
-Adding a new app config means creating `Hyprland_Setup/<app>/` **and** adding a matching
-`cp` line to `install.sh`; it is not picked up automatically.
+Non-`~/.config` destinations are still explicit in `deploy_configs()`:
+`voidsddm` → `/usr/share/sddm/themes`, `sddm.conf.d` → `/etc` (both sudo). Wallpapers
+go to `~/Pictures` via an opt-in prompt using `cp -rn` (never overwrites).
 
 ## Machine-specific values (the subtle part)
 
-Some deployed files contain values true only for this specific hardware. Blindly
-overwriting them breaks audio/display on a machine whose hardware differs from whatever
-was last committed. `install.sh` therefore prompts before overwriting, and when the
-answer is "no" it captures the live value *before* the copy and writes it back *after*:
+Some deployed files hold values true only for this hardware. Overwriting them breaks
+audio/display on a machine whose hardware differs from what was last committed. Before
+copying, `install.sh` captures the live values; after copying, it writes them back. The
+`PRESERVE` table drives this entirely:
 
-| File | Preserved |
-|---|---|
-| `waybar/scripts/audio-output-toggle.sh` | `BUILT_IN_SINK`, `HEADPHONE_SINK`, `SPEAKER_SINK`, `BLUETOOTH_SINK` |
-| `waybar/config` | the `"pulseaudio"` → `"format-icons"` block |
-| `hypr/modules/config.lua` | `config.mainMonitor` |
+```
+"<path under ~/.config>|<regex>|<prompt group>|<handler>"
+```
 
-**If you add another hardware-specific value to any config, add it to this
-capture/restore list too**, or it will be clobbered on every run.
+- **handler `line`** — the whole line matching `<regex>` is captured and restored.
+- **handler `icons`** — the `"pulseaudio"` → `"format-icons"` block (regex field unused).
+- **prompt group** — one y/N prompt per group, asked only if a file in that group exists
+  live. Groups: `audio` (sinks + volume icons), `machine` (monitor + bar choice).
+- Fields split on `|`, so **a regex must not contain a literal `|`**.
 
-The restore is done by two helpers, so the brace-matching and line-rewriting logic
-exists once each:
+Currently preserved: `BUILT_IN_SINK`, `HEADPHONE_SINK`, `SPEAKER_SINK`, `BLUETOOTH_SINK`
+in `waybar/scripts/audio-output-toggle.sh`; the `format-icons` block in `waybar/config`;
+`config.mainMonitor` and `config.bar` in `hypr/modules/config.lua`.
 
-- `install_lib/waybar_format_icons.py get|set <file> [value]` — brace-matched extract/
-  replace of the `format-icons` block inside the `"pulseaudio"` object.
-- `install_lib/replace_line.py <file> <pattern> <replacement> [<pattern> <replacement>…]`
-  — replaces whole lines matching a regex. An empty replacement is skipped.
+**Add any new hardware-specific value to `PRESERVE`**, or it is clobbered every run.
 
-Caution: `replace_line.py` rewrites **every** matching line. `BUILT_IN_SINK` is assigned
-twice in `audio-output-toggle.sh` (once at top level, once indented inside the toggle
-logic), so its pattern is anchored to column 0 (`^BUILT_IN_SINK`) to avoid corrupting
-the indented reassignment. Anchor carefully when adding patterns.
+Two hazards when adding patterns:
+
+- `replace_line.py` rewrites **every** matching line. `BUILT_IN_SINK` is assigned twice
+  in `audio-output-toggle.sh` (top level, and indented inside the toggle logic), so its
+  pattern is anchored to column 0 (`^BUILT_IN_SINK`). Anchor carefully.
+- The restore helpers live in `install_lib/`:
+  `waybar_format_icons.py get|set <file> [value]` (brace-matched block) and
+  `replace_line.py <file> <pattern> <replacement> …` (empty replacement = skip).
+
+## Bar selection (waybar / quickshell)
+
+`config.bar` in `hypr/modules/config.lua` chooses which bar launches. It is read by
+`autostart.lua`, the `SUPER+R` restart bind in `binds.lua`, and the monitor-hotplug
+restart in `utils/monitor_utils.lua` (all fall back to `"waybar"` if unset).
+
+Both bars' configs deploy regardless, so `Hyprland_Setup/quickshell/` can be built up
+incrementally while waybar stays the daily driver — flip `config.bar` when it reaches
+parity. `config.bar` is in `PRESERVE`, so the choice survives updates.
+
+`Hyprland_Setup/quickshell/` is a full port of the waybar config, at parity. One file
+per module: `Bar.qml` lays out left/center/right to match waybar's `modules-*`, `Pill.qml`
+is the shared rounded-module background, and `Theme.qml` is a `pragma Singleton` holding
+the Catppuccin Mocha palette from `waybar/mocha.css`.
+
+`tailscale.sh`, `pia.sh` and `weather.sh` are reused as-is via `ScriptPill.qml`, which
+runs them with `Process` and parses the same waybar-style JSON they already print — so
+that logic is not duplicated between the two bars. Audio/battery/network/bluetooth/
+workspaces/media use Quickshell's native services instead, which removes waybar's
+2-and-3-second polling (`media.sh` in particular is unused by quickshell — MPRIS is
+event-driven).
+
+`ListPopup.qml` is the Catppuccin hover panel used by the bluetooth, battery and
+tailscale modules (a title plus `{ text, detail, accent }` rows). It replaced the stock
+QtQuick `ToolTip`s, which ignored the palette. Modules drive it with
+`requested: root.hovered`, using the `hovered` alias `Pill.qml` exposes.
+
+`TailscalePill.qml` specialises `ScriptPill` because it needs both halves of waybar's
+format (`Tailscale: {icon} | Exit-node: {text}`) and reads its peer list from
+`tailscale status --json` directly, rather than from the script's tooltip.
+
+`ScriptPill.altColors` maps the script's `alt` field to a Catppuccin colour for the
+**state word only** (green connected / yellow connecting / red disconnected), leaving
+the `Tailscale:` and `PIA:` prefixes neutral — the equivalent of waybar colouring
+`#custom-pia` by its class. It works by switching `Pill.richText` on and wrapping the
+word in `<font color>`, so the palette in `Theme.qml` is stored as **strings**: QML
+converts them to `color` on assignment, and they can also be interpolated into markup.
+
+Six things to know before editing the QML:
+
+- **Nerd font icons must be written as `\uXXXX` escapes.** The glyphs are private-use
+  codepoints; pasting them literally silently produces empty strings, which makes the
+  pill vanish (`Pill` hides itself when its label is empty). Copy codepoints out of
+  `waybar/config` rather than retyping the character.
+- **Quickshell services are lazy.** `Hyprland.workspaces`, `Networking.devices` and
+  `Bluetooth.devices` stay empty until something actually binds to them; the modules
+  hold a property referencing the service for this reason. Pipewire additionally needs
+  `PwObjectTracker` for live volume/mute updates.
+- **`NetworkDevice.address` is the MAC, not the IP** — no IP is exposed anywhere on the
+  device, so `NetworkPill` shells out to `ip -4 -br addr` when the active device changes.
+- `AudioPill` reads which sink is headphones/bluetooth out of
+  `waybar/scripts/audio-output-toggle.sh` rather than guessing from the sink name.
+  Inferring it does not work: on this machine the headphones are the PCI analog jack
+  and the speakers are USB, and other machines invert that.
+- **`ScriptPill` must escape control characters before `JSON.parse`.** `tailscale.sh`
+  joins its peer list with raw carriage returns, which are illegal inside a JSON string;
+  parsing them threw and blanked the module the instant tailscale came up. It also keeps
+  the last good value on a parse error rather than clearing.
+- **Bind `visible`, don't set it from `onXChanged`.** A handler never fires for a
+  property that is already true at construction, which is why `ListPopup` gates
+  visibility through a bound `delayPassed` flag.
+
+Not carried over (both were waybar conveniences, not modules): the clock's `{calendar}`
+tooltip is a plain date, and `format-alt` click-to-cycle is not implemented.
 
 ## install.sh conventions
 
-- Runs under `set -euo pipefail` — any failure aborts rather than half-deploying. `grep`
+- Runs under `set -euo pipefail` — failures abort rather than half-deploying. `grep`
   calls that may legitimately match nothing need `|| true`; conditionally-set variables
   need `${var:-}`.
-- Paths resolve from `$SCRIPT_DIR`/`$REPO_ROOT`, not a hardcoded `~/Linux-Setup`, so the
-  repo works cloned anywhere.
-- Package installs are one `pacman` transaction plus one `paru` transaction. One bad
+- **Never call `read -p` inside a `while read … < <(…)` loop** — the loop redirects
+  stdin and the prompt silently consumes the loop's data instead of user input. This
+  already caused a real bug; `prompt_preserve_groups` uses `mapfile` into an array for
+  exactly this reason.
+- Paths resolve from `$SCRIPT_DIR`/`$REPO_ROOT`, never a hardcoded `~/Linux-Setup`, so
+  the repo works cloned anywhere.
+- Packages install as one `pacman` transaction plus one `paru` transaction. One bad
   package name fails the whole transaction.
-- Scripts under `hypr/scripts/` and `waybar/scripts/` are made executable by a `find`
-  sweep — new `.sh` files are picked up automatically, no per-file `chmod` to add.
-  (Several are committed mode 644, which is why the sweep exists.)
-- Because `read` prompts run under `set -e`, the script must be run interactively.
+- `*.sh` under any deployed `<app>/scripts/` is made executable by a `find` sweep — new
+  scripts need no per-file `chmod`. (Several are committed mode 644, hence the sweep.)
+- Prompts mean the script must be run interactively.
+
+## First-install extras
+
+Behind the "first install" prompt, each individually optional: avahi-daemon, the
+`xdg-terminal-exec` → kitty symlink, gnome-text-editor whitespace, global git identity,
+Tailscale (Arch package + `tailscaled`, rather than the upstream `curl | sh`), and PIA
+(`piavpn-bin` + service). The interactive tails — `tailscale up` browser auth, PIA app
+login — are printed as instructions, since they can't be automated.
 
 ## Not code
 
-The top-level `*.txt` files (`package_management.txt`, `git_command.txt`, `nmcli.txt`,
-`tailscale_commands.txt`, etc.) are personal command-reference notes. Editing them has
-no effect on the live system.
+The top-level `*.txt` files are personal command references. The automatable parts of
+`tailscale_commands.txt` and `pia_install.txt` are now in `install.sh`; the rest
+(`git_command.txt`, `hypctl_commands.txt`, `nmcli.txt`, `systmctl_command.txt`,
+`write_iso_commands.txt`, and the troubleshooting half of `package_management.txt`) are
+lookup notes and deliberately stay manual. `README.md` is stale — it still references
+the removed `update.sh`.
