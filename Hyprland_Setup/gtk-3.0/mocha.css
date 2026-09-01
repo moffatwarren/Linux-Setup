@@ -17,8 +17,9 @@
 
 /* --- libadwaita names ---------------------------------------------------- */
 
-/* Accent is `blue`, matching the bar: CalendarPopup's today disc, swaync's
-   normal-urgency stripe, and the wallpaper picker's selection all use it. */
+/* Accent is `blue`, matching the bar: CalendarPopup's today disc, the
+   normal-urgency stripe on a notification, and the wallpaper picker's
+   selection all use it. */
 @define-color accent_color            #89b4fa;
 @define-color accent_bg_color         #89b4fa;
 @define-color accent_fg_color         #11111b;

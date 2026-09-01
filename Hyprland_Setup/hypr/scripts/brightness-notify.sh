@@ -4,8 +4,12 @@
 send_notification() {
   BRIGHTNESS=$(brightnessctl -m | awk -F, '{print $4}' | tr -d '%')
 
-  # -u low so it gets the same compact OSD styling as the volume popup; see
-  # swaync/style.css. The symbolic icon is flat line art the stylesheet recolours.
+  # The x-canonical-private-synchronous hint is what marks this as an OSD rather
+  # than a message: quickshell/NotificationService.qml uses it to replace the
+  # previous popup instead of stacking one, and to keep the reading out of the
+  # notification list. -u low picks the compact card. The icon NAME still
+  # matters -- NotificationToasts.qml matches "brightness" in it to choose the
+  # glyph it draws -- but the icon file itself is no longer rendered.
   notify-send -a "brightness" -e -u low \
     -h int:value:"$BRIGHTNESS" \
     -h string:x-canonical-private-synchronous:brightness \

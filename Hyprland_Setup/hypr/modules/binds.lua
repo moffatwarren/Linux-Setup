@@ -23,7 +23,8 @@ hl.bind(config.mainMod .. " + O", hl.dsp.exec_cmd("~/.config/hypr/scripts/audio-
 hl.bind(config.mainMod .. " + W", hl.dsp.exec_cmd("qs ipc call wallpaper toggle"), { bypass = true })
 hl.bind(config.mainMod .. " + SHIFT + W", hl.dsp.exec_cmd("~/.config/hypr/scripts/wallpaper-random.sh"), { bypass = true })
 hl.bind(config.mainMod .. " + V", hl.dsp.exec_cmd("qs ipc call clipboard toggle"), { bypass = true })
-hl.bind(config.mainMod .. " + N", hl.dsp.exec_cmd("swaync-client -t -sw"), { bypass = true })
+hl.bind(config.mainMod .. " + N", hl.dsp.exec_cmd("qs ipc call notifications toggle"), { bypass = true })
+hl.bind(config.mainMod .. " + SHIFT + N", hl.dsp.exec_cmd("qs ipc call notifications dnd"), { bypass = true })
 hl.bind(config.mainMod .. " + T", hl.dsp.exec_cmd(config.terminal .. " --class btop-float -e btop"), { bypass = true })
 hl.bind(config.mainMod .. " + G", hl.dsp.exec_cmd(config.browser .. ' --app="https://gemini.google.com/app"'),
 	{ bypass = true })

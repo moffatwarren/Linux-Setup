@@ -7,6 +7,7 @@
 // ~/.config/hypr/scripts/, so their logic lives in one place.
 
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Io
 
 ShellRoot {
@@ -16,6 +17,13 @@ ShellRoot {
 
         Bar {}
     }
+
+    // The notification popups. Quickshell is the notification daemon now (see
+    // NotificationService.qml) -- swaync is gone, so if this is not here nothing
+    // draws a notification at all, volume and brightness OSDs included.
+    // Deliberately NOT a Variants over screens: it follows the focused monitor
+    // by itself, and one window per screen would pop every notification twice.
+    NotificationToasts {}
 
     // The three full-screen overlays -- SUPER+W wallpaper picker, SUPER+SPACE
     // app launcher, SUPER+V clipboard history. They ride along in the bar
@@ -74,9 +82,33 @@ ShellRoot {
         function close(): void { clipboardMenu.item?.close(); }
     }
 
+    // SUPER+N, in place of `swaync-client -t`. The menu belongs to a bar module
+    // rather than to a window of its own, so this opens the one on the monitor
+    // you are actually looking at; NotificationService.menuMonitor is what keeps
+    // the other monitors' copies shut.
+    IpcHandler {
+        target: "notifications"
+
+        function toggle(): void {
+            const monitor = Hyprland.focusedMonitor ? String(Hyprland.focusedMonitor.name) : "";
+            // Only clear the overlays on the way OPEN. closeOverlays() also
+            // shuts this menu, so calling it first unconditionally would make
+            // every press re-open the menu it had just closed.
+            if (NotificationService.menuMonitor !== monitor) closeOverlays("");
+            NotificationService.toggleMenu(monitor);
+        }
+
+        function close(): void { NotificationService.closeMenu(); }
+        function dnd(): void { NotificationService.toggleDnd(); }
+        function clear(): void { NotificationService.clearAll(); }
+    }
+
     function closeOverlays(except: string): void {
         if (except !== "wallpaper") wallpaperPicker.item?.close();
         if (except !== "launcher") appLauncher.item?.close();
         if (except !== "clipboard") clipboardMenu.item?.close();
+        // The notification menu grabs the keyboard too, so it has to go the same
+        // way -- an overlay opened over it would be typing into a dead surface.
+        NotificationService.closeMenu();
     }
 }
