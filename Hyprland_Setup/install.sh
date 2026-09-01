@@ -43,12 +43,11 @@ PRESERVE=(
     "hypr/scripts/audio-output-toggle.sh|^\s*SPEAKER_SINK\s*=|audio|line"
     "hypr/scripts/audio-output-toggle.sh|^\s*BLUETOOTH_SINK\s*=|audio|line"
     "hypr/modules/config.lua|^\s*config\.mainMonitor\s*=|machine|line"
-    "hypr/modules/config.lua|^\s*config\.bar\s*=|machine|line"
 )
 
 declare -A GROUP_PROMPT=(
     [audio]="Overwrite audio sink values?"
-    [machine]="Overwrite monitor and bar selection?"
+    [machine]="Overwrite monitor selection?"
 )
 
 # Groups kept without asking: on anything but a first install the live value
@@ -294,8 +293,8 @@ pull_configs() {
     cat <<EOF
 
 Pulled. Note this ADDS and OVERWRITES files but never deletes, and it brings
-machine-specific values (audio sinks, mainMonitor, bar choice) into the repo.
-Review before committing:
+machine-specific values (audio sinks, mainMonitor, hyprlock wallpaper) into the
+repo. Review before committing:
 
     git -C $REPO_ROOT status
     git -C $REPO_ROOT diff
