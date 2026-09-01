@@ -19,10 +19,12 @@ PanelWindow {
         left: true
         right: true
     }
+    // left/right match hyprland's gaps_out (look.lua) so the bar's ends line up
+    // with the outer edge of a tiled window's border.
     margins {
         top: 2
-        left: 2
-        right: 2
+        left: 5
+        right: 5
     }
     implicitHeight: 30
     color: "transparent"
