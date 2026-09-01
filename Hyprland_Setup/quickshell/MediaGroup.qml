@@ -6,7 +6,9 @@ import QtQuick.Effects
 // waybar: "image#album-art" + "custom/media-title", both driven by media.sh on
 // a 2 second poll. MPRIS is event-driven, so the polling (and the script) go away.
 //
-// Click either the art or the title to play/pause, double-click either to skip.
+// Click either the art or the title to open MediaMenu -- previous, play/pause,
+// next -- rather than binding playback to a click and a skip to a double-click,
+// which made every skip toggle playback on its way through.
 Row {
     id: root
 
@@ -24,30 +26,14 @@ Row {
 
     visible: title.length > 0
 
-    // QML delivers `clicked` before `doubleClicked`, so acting on a click
-    // immediately would toggle playback on the way to skipping a track. Hold
-    // the single-click action until the double-click window has passed.
-    Timer {
-        id: pendingClick
-        interval: 250
-        onTriggered: root.togglePlay()
-    }
+    function toggleMenu() { mediaMenu.open = !mediaMenu.open; }
 
-    function togglePlay() {
-        if (player && player.canTogglePlaying) player.togglePlaying();
-    }
-
-    function nextTrack() {
-        if (player && player.canGoNext) player.next();
-    }
-
-    function handleClick() {
-        pendingClick.restart();
-    }
-
-    function handleDoubleClick() {
-        pendingClick.stop();
-        nextTrack();
+    // Anchored to the whole module, so the menu is centred under art + title
+    // however wide the track name happens to be.
+    MediaMenu {
+        id: mediaMenu
+        anchorItem: root
+        player: root.player
     }
 
     Item {
@@ -85,15 +71,13 @@ Row {
         // Declared after MultiEffect so it sits on top and receives the clicks.
         MouseArea {
             anchors.fill: parent
-            onClicked: root.handleClick()
-            onDoubleClicked: root.handleDoubleClick()
+            onClicked: root.toggleMenu()
         }
     }
 
     Pill {
         anchors.verticalCenter: parent.verticalCenter
         label: root.artist.length > 0 ? root.artist + " - " + root.title : root.title
-        onClicked: root.handleClick()
-        onDoubleClicked: root.handleDoubleClick()
+        onClicked: root.toggleMenu()
     }
 }

@@ -317,9 +317,17 @@ Six things to know before editing the QML:
 Not carried over from waybar: the clock's `{calendar}` tooltip is a plain date, and
 `format-alt` click-to-cycle is not implemented.
 
-Media: click the album art or the title to play/pause, double-click either to skip.
-`clicked` arrives before `doubleClicked`, so the single-click action is held in a 250 ms
-timer that a double-click cancels — otherwise every skip would also toggle playback.
+Media: clicking either the album art or the title opens `MediaMenu.qml` — the cover at
+a size worth looking at (the full content width, masked to a rounded square by the same
+`MultiEffect` the 22px pill circle uses, and `sourceSize`d to the width it is drawn at)
+above previous / play/pause / next, in the same `base`-inside-`surface1` frame as
+`PowerMenu`/`BluetoothMenu`, dismissed by Escape or a click outside via
+`HyprlandFocusGrab`. It replaced click-to-toggle plus double-click-to-skip: `clicked`
+arrives before `doubleClicked`, so the single click had to sit in a 250 ms timer and
+every skip toggled playback on its way through. A button is
+greyed to `overlay0` and inert when the player says it `canGoPrevious`/`canGoNext`/
+`canTogglePlaying` is false, and the menu closes itself when `player` goes null — the module
+hides when nothing is playing, and a menu left open would hang off an invisible anchor.
 
 ## The overlays — launcher, clipboard, wallpapers (SUPER+SPACE / V / W)
 
