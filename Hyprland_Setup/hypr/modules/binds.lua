@@ -23,7 +23,7 @@ hl.bind(config.mainMod .. " + W", hl.dsp.exec_cmd("~/.config/hypr/scripts/wallpa
 hl.bind(config.mainMod .. " + SHIFT + W", wallpaper_utils.set_random, { bypass = true })
 hl.bind(
 	config.mainMod .. " + V",
-	hl.dsp.exec_cmd("cliphist list | rofi -dmenu -display-columns 2 | cliphist decode | wl-copy"),
+	hl.dsp.exec_cmd("~/.config/hypr/scripts/clipboard-menu.sh"),
 	{ bypass = true }
 )
 hl.bind(config.mainMod .. " + T", hl.dsp.exec_cmd(config.terminal .. " --class btop-float -e btop"), { bypass = true })
