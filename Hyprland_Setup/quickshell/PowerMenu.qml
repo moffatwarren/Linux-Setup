@@ -6,6 +6,11 @@ import QtQuick.Layouts
 // Drop-down for the power button. Commands match the equivalent keybinds in
 // hypr/modules/binds.lua -- notably Sleep locks before suspending, the way
 // SUPER+SHIFT+L already does, rather than suspending an unlocked session.
+//
+// Log out goes through the Lua dispatcher. This Hyprland uses the Lua config
+// plugin, so `hyprctl dispatch` takes a Lua expression, not a bare dispatcher
+// name -- `hyprctl dispatch exit` parses as an undefined identifier, errors,
+// and silently does nothing. `hl.dsp.exit()` is what SUPER+M binds to.
 PopupWindow {
     id: root
 
@@ -15,7 +20,7 @@ PopupWindow {
     readonly property var actions: [
         { label: "Lock",     glyph: "\uf023", accent: Theme.sapphire, command: "hyprlock" },
         { label: "Sleep",    glyph: "\uf186", accent: Theme.blue,     command: "hyprlock & sleep 0.5 && systemctl suspend" },
-        { label: "Log out",  glyph: "\uf08b", accent: Theme.mauve,    command: "hyprctl dispatch exit" },
+        { label: "Log out",  glyph: "\uf08b", accent: Theme.mauve,    command: "hyprctl dispatch 'hl.dsp.exit()'" },
         { label: "Restart",  glyph: "\uf021", accent: Theme.peach,    command: "systemctl reboot" },
         { label: "Shutdown", glyph: "\uf011", accent: Theme.red,      command: "systemctl poweroff" }
     ]
