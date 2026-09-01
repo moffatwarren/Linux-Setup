@@ -117,6 +117,17 @@ QtQuick `ToolTip`s, which ignored the palette. Modules drive it with
 `maxDetailWidth` elides the right-hand column, for rows whose detail is a device name
 long enough to stretch the panel across the screen (`AudioPill` needs it).
 
+`CalendarPopup.qml` is the clock's hover panel: the current month as a grid, today
+picked out with a filled blue disc, with the leading and trailing days of the
+neighbouring months dimmed so every week is complete. It borrows `ListPopup`'s frame,
+anchoring and 300 ms open delay rather than reusing it — a month is a grid, and
+`ListPopup` only stacks rows. Whole weeks that fall entirely outside the month are
+dropped, so a short month leaves no blank row. `ClockPill` feeds it a **midnight-
+truncated** date: `SystemClock` ticks every second, and a `date` property only signals
+a change when the value differs, so the grid rebuilds once a day instead of once a
+second. It is display-only — no month navigation, since a hover panel is dismissed by
+moving the pointer to reach the arrows.
+
 `WifiMenu.qml` is the right-click dropdown on the network module: a scrollable-free
 list of nearby SSIDs (deduplicated per SSID, strongest first, capped at 8), each with a
 four-bar signal meter, a lock for secured networks and a "saved" marker for known ones.
