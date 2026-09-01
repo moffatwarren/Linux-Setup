@@ -23,7 +23,7 @@ Pill {
 
     ListPopup {
         anchorItem: root
-        requested: root.hovered
+        requested: root.hovered && !btMenu.open
         title: root.adapter ? String(root.adapter.name) : "Bluetooth"
         emptyText: root.adapter && root.adapter.enabled ? "No paired devices" : "Adapter off"
         rows: Bluetooth.devices.values.map(d => ({
@@ -35,5 +35,11 @@ Pill {
         }))
     }
 
-    onRightClicked: Quickshell.execDetached(["blueman-manager"])
+    // Right-click opens the device picker; blueman is reachable from inside it.
+    onRightClicked: btMenu.open = !btMenu.open
+
+    BluetoothMenu {
+        id: btMenu
+        anchorItem: root
+    }
 }

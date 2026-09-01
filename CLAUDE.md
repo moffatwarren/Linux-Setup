@@ -113,6 +113,18 @@ keeps the old escape hatch. Scanning is driven by a `Binding` on the device's
 The signal meter is drawn with rectangles rather than a nerd font glyph — no private-use
 codepoint to get wrong, and it scales with the strength value (which is 0..1, not 0-100).
 
+`BluetoothMenu.qml` is the right-click dropdown on the bluetooth module, built to match
+`WifiMenu`: paired devices first (click to connect/disconnect, right-click to forget),
+then a "Nearby" section of discovered devices (click to pair). The header toggles the
+adapter and shows a scanning indicator, and "Open blueman…" remains as the escape hatch.
+Discovery is scoped to the menu being open via a `Binding` on the adapter's `discovering`,
+so the radio is not scanning all day.
+
+Devices whose name is a bare MAC are filtered out — they are BLE beacons and there are
+usually a dozen of them. The row glyph is picked from the device's freedesktop `icon`
+(`input-gaming` → gamepad, `audio-*` → headphones, `phone` → phone), falling back to the
+bluetooth glyph.
+
 `PiaPill.qml` specialises `ScriptPill` the same way: `pia.sh` still drives the state and
 the label, while a `piactl` call fills a hover panel with where the tunnel exits.
 `piactl get region` reports the *selected* region, which is usually `auto` and so says
