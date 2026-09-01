@@ -55,15 +55,14 @@ copying, `install.sh` captures the live values; after copying, it writes them ba
 - **handler `line`** — the whole line matching `<regex>` is captured and restored. It is
   the only handler; the `icons` one died with the waybar config it parsed.
 - **prompt group** — one y/N prompt per group, asked only if a file in that group exists
-  live. Groups: `audio` (sinks), `machine` (monitor + bar choice), `wallpaper` (hyprlock
-  background).
+  live. Groups: `audio` (sinks), `machine` (monitor), `wallpaper` (hyprlock background).
 - A group listed in `NO_PROMPT_GROUPS` is never asked about — the live value simply wins
   on any run that is not a first install. `wallpaper` is there because the lock screen
   background is a personal choice, not something the repo should ship over.
 - Fields split on `|`, so **a regex must not contain a literal `|`**.
 
 Currently preserved: `BUILT_IN_SINK`, `HEADPHONE_SINK`, `SPEAKER_SINK`, `BLUETOOTH_SINK`
-in `hypr/scripts/audio-output-toggle.sh`; `config.mainMonitor` and `config.bar` in
+in `hypr/scripts/audio-output-toggle.sh`; `config.mainMonitor` in
 `hypr/modules/config.lua`; the `path =` line of `hypr/hyprlock.conf` (its only one, in
 the `background` block).
 
@@ -97,8 +96,10 @@ is ever needed.
 
 `config.bar` in `hypr/modules/config.lua` still selects which bar launches, read by
 `autostart.lua`, the `SUPER+R` bind in `binds.lua`, and the monitor-hotplug restart in
-`utils/monitor_utils.lua` (all now fall back to `"quickshell"`). It is in `PRESERVE`, so
-the choice survives updates — keeping it means swapping bars later is still a one-liner.
+`utils/monitor_utils.lua` (all now fall back to `"quickshell"`). Keeping it means swapping
+bars later is still a one-liner, but it is **not** in `PRESERVE`: with waybar gone there
+is only one value it can hold, so preserving it only made the `machine` prompt claim to
+ask about a choice that no longer exists.
 
 `Hyprland_Setup/quickshell/` has one file per module: `Bar.qml` lays out left/center/right,
 `Pill.qml` is the shared rounded-module background, and `Theme.qml` is a `pragma Singleton`
