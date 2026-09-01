@@ -32,10 +32,25 @@ edits, `--pull` brings them back before you lose them. Changes are not live unti
 | A repo package | `PACMAN_PKGS=(…)` |
 | An AUR package | `PARU_PKGS=(…)` |
 | A preserved machine value | `PRESERVE=(…)` — see below |
+| A **retired** config path | `ORPHANS=(…)` — see below |
 
 A name in `CONFIGS` with no matching directory is skipped with a warning, not a fatal
 error. `install_lib/` holds Python helpers used *by* `install.sh` and is deliberately
 **not** deployed.
+
+**Deleting something from the repo does not delete it from the machine.**
+`deploy_configs` copies with `cp -rf`, which adds and overwrites but never removes, so a
+dropped config lives on under `~/.config` looking exactly as live as the rest. Whenever
+you retire a deployed file or directory, add its `~/.config`-relative path to `ORPHANS`;
+`remove_orphans()` runs straight after the deploy and `rm -rf`s each one. Two guards in
+that loop matter: an empty entry is skipped (it would expand to `~/.config` itself), and a
+path the repo *still ships* is skipped with a note — without which a stale entry would
+silently delete what `deploy_configs` wrote one step earlier and the config would just stop
+existing. Beyond that, entries are removed unconditionally, so list only paths this repo
+put there.
+Currently retired: `rofi`, `hypr/scripts/clipboard-menu.sh`,
+`hypr/scripts/wallpaper-selector.sh`, `hypr/modules/utils/wallpaper_utils.lua` and the two
+`noctalia.css`. `ORPHANS` never uninstalls a *package* — `install.sh` only ever installs.
 
 Non-`~/.config` destinations are still explicit in `deploy_configs()`:
 `voidsddm` → `/usr/share/sddm/themes`, `sddm.conf.d` → `/etc` (both sudo). Wallpapers
@@ -306,63 +321,155 @@ Media: click the album art or the title to play/pause, double-click either to sk
 `clicked` arrives before `doubleClicked`, so the single-click action is held in a 250 ms
 timer that a double-click cancels — otherwise every skip would also toggle playback.
 
-## The wallpaper picker (SUPER+W)
+## The overlays — launcher, clipboard, wallpapers (SUPER+SPACE / V / W)
 
-**rofi no longer picks wallpapers.** `hypr/scripts/wallpaper-selector.sh` (a
-`rofi -dmenu -show-icons` grid) is gone, and so is `hypr/modules/utils/wallpaper_utils.lua`,
-whose `set_random` duplicated the apply logic in Lua and ran `io.popen`/`os.execute`
-synchronously on Hyprland's config thread. rofi itself stays — it is still `config.menu`
-(SUPER+SPACE) and `clipboard-menu.sh`.
+**rofi is gone from the repo entirely** — `Hyprland_Setup/rofi/`, the `rofi`
+entry in `CONFIGS` and in `PACMAN_PKGS`, and `config.menu` in
+`hypr/modules/config.lua` all went with it, because it drew all three of these
+menus and now draws none. `hypr/scripts/wallpaper-selector.sh` (a `rofi -dmenu
+-show-icons` grid) is gone, and so is `hypr/modules/utils/wallpaper_utils.lua`,
+whose `set_random` duplicated the apply logic in Lua and ran
+`io.popen`/`os.execute` synchronously on Hyprland's config thread.
+`clipboard-menu.sh` — the `rofi -dmenu` clipboard list — is replaced by
+`hypr/scripts/clipboard-history.sh` (below). All four of those paths are in
+`install.sh`'s `ORPHANS` list, which is what removes them from a machine
+upgrading from the rofi layout; the rofi *package* is left installed, since
+`install.sh` uninstalls nothing.
 
-`quickshell/WallpaperPicker.qml` replaces it: a full-screen overlay holding a **single
-row** of large thumbnails that **scrolls sideways** — a filmstrip. `flow:
-GridView.FlowTopToBottom` with the view's height set to exactly one `cellHeight` is what
-pins it to one row; columns then run off the right edge. Left/Right move, Enter applies,
-Escape or a click outside cancels, and typing filters — a few hundred wallpapers is more
-than arrow keys alone want to cross. Up/Down would step *within* a column, so in a
-one-row grid they are dead keys; they page by a screenful instead, as PageUp/PageDown do.
+`OverlayPanel.qml` is the one window all three wear: dimmed backdrop, a centred
+`base` card in a `surface1` border, a lavender title with a subtitle and a count
+beside it, a `surface0` filter box under that, and a hint line along the bottom.
+`WallpaperPicker.qml`, `AppLauncher.qml` and `ClipboardMenu.qml` supply only the
+body — a filmstrip, a list of apps, a list of clipboard entries.
 
-`panel.columns` derives the panel width from whole cells only, because a partly-visible
-tile at the right edge reads as a rendering glitch rather than as "there is more this
-way". Tile size is the two constants `grid.cellWidth`/`cellHeight` (roughly 16:9, since
-that is what a wallpaper is); everything else follows from them.
+The **geometry** lives in `OverlayPanel` for the same reason the colours do. The
+padding, the 58px header and the gaps above the body and the footer are what make
+two overlays look like the same menu; three private copies would drift apart the
+first time one was adjusted. A consumer sets `panelWidth` and `bodyHeight` and
+gets everything else.
 
-It lives **inside the bar process**, not in a `qs -p` of its own, so that opening it is
-instant and decoded thumbnails stay in Qt's pixmap cache between openings. `shell.qml`
-holds it in a `LazyLoader` (`loading: true`, built in the background at startup) beside
-an `IpcHandler`; the keybind is just `qs ipc call wallpaper toggle`. The bar is the only
-quickshell instance and runs the default config path, so `qs ipc call` finds it with no
-`-c`.
+Children are declared in the consumer's file and land in the panel's body via
+`default property alias content: body.data`, so they can freely reference that
+file's ids (including its root `OverlayPanel`) — which is how the wallpaper
+picker's `panelWidth` can be derived from its own grid.
 
-`hypr/scripts/wallpaper-set.sh <path>` is the one place a wallpaper is applied — `awww img`
-plus the `path =` rewrite in `hyprlock.conf`, so the lock screen follows the desktop.
-`wallpaper-random.sh` (SUPER+SHIFT+W) and the picker both `exec` it. That `path =` line is
-the same one `PRESERVE` protects (group `wallpaper`, in `NO_PROMPT_GROUPS`), so a deploy
-does not undo a pick.
+Keyboard flows one way: the filter box holds focus and owns every keystroke.
+`OverlayPanel` claims Escape (close) and Enter (`accepted()`), then offers the
+rest to the body as `navKey(event)`; a body **sets `event.accepted`** for the
+keys it handles (arrows, Home/End, Delete) and lets everything else fall through
+and type into the box. There is no second focus item to fight over.
 
-Five things that bit during the build, all still live traps:
+All three live **inside the bar process**, not in a `qs -p` of their own, so
+opening one is instant and decoded thumbnails stay in Qt's pixmap cache between
+openings. `shell.qml` holds each in a `LazyLoader` (`loading: true`, built in the
+background at startup) beside an `IpcHandler`; the keybinds are just `qs ipc call
+{wallpaper,launcher,clipboard} toggle`. The bar is the only quickshell instance
+and runs the default config path, so `qs ipc call` finds it with no `-c`.
+**Opening one closes the other two** (`closeOverlays()` in `shell.qml`): each
+takes the keyboard with `WlrKeyboardFocus.Exclusive`, and two exclusive layer
+surfaces up at once leaves the keystrokes going to whichever the compositor
+happened to pick.
 
-- **A per-tile `MouseArea` cannot drive hover selection.** Arrow keys scroll the view,
-  which drags tiles under a stationary pointer, and the synthetic hover that produces
-  yanks the cursor straight back off the tile the keyboard just moved to. One stationary
-  `MouseArea` anchored over the grid resolves the index with `grid.indexAt(x + contentX,
-  y + contentY)` instead. It must be a **sibling** of the `GridView` — a child goes into
-  the flickable's content item and scrolls with it, reintroducing the bug.
-- Mapping the window in still delivers one motion event for wherever the pointer already
-  was, so `gridMouse` ignores the first event and any that has not actually moved;
-  otherwise the landing on the current wallpaper is thrown away before it is seen.
-- **The `Behavior on contentX` must be suppressed for the opening jump.** Animating
-  contentX from 0 to column 200 walks the view through every position in between, and
-  each frame queues a screenful of thumbnails the loader then chews through before it
-  reaches the ones actually on screen. `selectCurrent()` sets `grid.jumping` around
-  `positionViewAtIndex` for exactly this.
-- Qt decodes only jpg/png/gif out of the box; `qt6-imageformats` (in `PACMAN_PKGS`) adds
-  webp and avif. A tile whose image fails falls back to its filename, so a missing
-  decoder does not look like a thumbnail that never loaded.
+### The app launcher (SUPER+SPACE)
+
+Applications come from Quickshell's own `DesktopEntries` scanner, so there is no
+`.desktop` parsing here and `entry.execute()` honours Exec field codes,
+`Terminal=true` and the startup working directory. `noDisplay` entries are
+dropped.
+
+`score()` ranks a match rather than just filtering: a prefix of the name (0)
+beats a hit at a word boundary inside it (1), which beats one mid-word (2),
+which beats `genericName` (3), `keywords` (4), `comment` (5) and finally
+`execString` (6) — the last being how you find an app you only know by its binary
+name. Ties break on launch count, then alphabetically.
+
+Launch counts persist in `~/.cache/quickshell-launcher.json` via `FileView`
+(`printErrors: false` — it does not exist until the first launch, and that is not
+worth an error on every bar startup). An empty query is therefore the most-used
+apps in order, which is what `rofi -show drun` did; dropping it would have been a
+downgrade.
+
+`launch()` **closes the overlay before calling `execute()`**, so the exclusive
+keyboard grab is gone by the time the new window maps and asks for focus.
+
+### The clipboard history (SUPER+V)
+
+`hypr/scripts/clipboard-history.sh` is the whole backend — `--list` (JSON,
+newest first), `--copy <id>`, `--delete <id>`. No cliphist output is parsed in
+QML. Image entries carry a cached thumbnail path instead of cliphist's
+`[[ binary data 547 KiB png 998x608 ]]` placeholder; thumbnails live in
+`~/.cache/cliphist-thumbs` keyed by the cliphist id (never reused, so a cached
+file cannot go stale) and are pruned against the live history on each `--list`.
+
+Three things in that script are load-bearing:
+
+- **Only the binary lines are ever read into a shell variable.** Clipboard text
+  is arbitrary bytes and a bash string cannot hold a NUL, so slurping the whole
+  history into one truncates entries *and* warns about it on every run. The text
+  entries only travel down a pipe into `jq`, which keeps them intact.
+- **`grep` needs `-a`.** With a NUL anywhere in the history it decides the input
+  is binary and prints "binary file matches" instead of the lines.
+- **`$ids | index(.id)` does not work in jq** — the pipe rebinds `.` to the array,
+  so `.id` is looked up on it and the whole program dies with "Cannot index array
+  with string". Hoist the argument out first (`.id as $id`).
+- `${f##*/}`, not `basename`, in the prune loop. A few dozen cached thumbnails is
+  a few dozen forks otherwise, and that was the entire cost of a `--list` (1.0s
+  down to 0.02s).
+
+`Delete` (and a right-click) removes an entry and leaves the menu open, so a run
+of junk can be cleared without reopening between each one. The row disappears
+from the model immediately and the reload afterwards reconciles with what
+cliphist actually holds — waiting for the process to return would make the key
+feel dead.
+
+`install.sh`'s `ORPHANS` list is what deletes the old `clipboard-menu.sh` from a
+machine upgrading from the rofi layout — `cp -rf` never removes files the repo
+has dropped.
+
+### The wallpaper picker (SUPER+W)
+
+A full-screen overlay holding a **single row** of large thumbnails that
+**scrolls sideways** — a filmstrip. `flow: GridView.FlowTopToBottom` with the
+view's height set to exactly one `cellHeight` is what pins it to one row; columns
+then run off the right edge. Up/Down would step *within* a column, so in a one-row
+grid they are dead keys; they page by a screenful instead, as PageUp/PageDown do.
+
+`columns` derives the panel width from whole cells only, because a partly-visible
+tile at the right edge reads as a rendering glitch rather than as "there is more
+this way". Tile size is the two constants `grid.cellWidth`/`cellHeight` (roughly
+16:9, since that is what a wallpaper is); everything else follows from them.
+
+`hypr/scripts/wallpaper-set.sh <path>` is the one place a wallpaper is applied —
+`awww img` plus the `path =` rewrite in `hyprlock.conf`, so the lock screen
+follows the desktop. `wallpaper-random.sh` (SUPER+SHIFT+W) and the picker both
+`exec` it. That `path =` line is the same one `PRESERVE` protects (group
+`wallpaper`, in `NO_PROMPT_GROUPS`), so a deploy does not undo a pick.
+
+### Five traps shared by the three bodies
+
+- **A per-row/per-tile `MouseArea` cannot drive hover selection.** Arrow keys
+  scroll the view, which drags items under a stationary pointer, and the
+  synthetic hover that produces yanks the cursor straight back off the item the
+  keyboard just moved to. One stationary `MouseArea` anchored over the view
+  resolves the index with `view.indexAt(x + contentX, y + contentY)` instead. It
+  must be a **sibling** of the `GridView`/`ListView` — a child goes into the
+  flickable's content item and scrolls with it, reintroducing the bug.
+- Mapping the window in still delivers one motion event for wherever the pointer
+  already was, so the hover surface ignores the first event and any that has not
+  actually moved; otherwise the opening selection is thrown away before it is
+  seen.
+- **The wallpaper picker's `Behavior on contentX` must be suppressed for the
+  opening jump.** Animating contentX from 0 to column 200 walks the view through
+  every position in between, and each frame queues a screenful of thumbnails the
+  loader then chews through before it reaches the ones actually on screen.
+  `selectCurrent()` sets `grid.jumping` around `positionViewAtIndex` for exactly
+  this.
+- Qt decodes only jpg/png/gif out of the box; `qt6-imageformats` (in
+  `PACMAN_PKGS`) adds webp and avif. A tile whose image fails falls back to its
+  filename, so a missing decoder does not look like a thumbnail that never loaded.
 - The current wallpaper is read from `hyprlock.conf` with a `FileView`, not from
-  `awww query` — same value, no process. It marks that tile with a green dot and is where
-  the cursor lands on open.
-
+  `awww query` — same value, no process. It marks that tile with a green dot and
+  is where the cursor lands on open.
 
 ## Notifications (swaync)
 
@@ -546,6 +653,17 @@ disk until removed by hand.
   the `awww` daemon up. During an install it is not.
 - `*.sh` under any deployed `<app>/scripts/` is made executable by a `find` sweep — new
   scripts need no per-file `chmod`. (Several are committed mode 644, hence the sweep.)
+- **`reload_session()` is what makes a deploy take effect.** Hyprland parses its config
+  at startup and quickshell parses its QML once, so without it new keybinds and a new bar
+  wait for the next logout — which reads as the deploy having done nothing, and is exactly
+  how a changed `SUPER+SPACE` gets reported as broken. It runs `hyprctl reload`, then
+  kills and re-`setsid`s quickshell — unconditionally, so exactly one bar is left however
+  the reload treated `exec-once`. Every call is `|| true`: a cosmetic reload must not
+  abort a finished deploy under `set -e`. It is the **last** step in `main()`, so the bar
+  comes up reading everything the earlier steps wrote — including the icon theme
+  `apply_gtk_theme` puts in gsettings, which is how `AppLauncher` resolves app icons on a
+  machine that has never had one set. With Hyprland not running (installing from a TTY) it
+  says so and does nothing.
 - Prompts mean the script must be run interactively.
 
 ## First-install extras

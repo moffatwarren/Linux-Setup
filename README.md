@@ -1,8 +1,9 @@
 # Linux-Setup
 
 Personal Hyprland desktop configuration for CachyOS/Arch — Hyprland (Lua config),
-a quickshell bar, hyprlock/hypridle, swaync notifications, kitty, fish, rofi, a
-Catppuccin Mocha GTK theme (thunar and the file chooser) and an SDDM theme.
+a quickshell bar with matching app launcher / clipboard / wallpaper overlays,
+hyprlock/hypridle, swaync notifications, kitty, fish, a Catppuccin Mocha GTK
+theme (thunar and the file chooser) and an SDDM theme.
 
 This repo is the source of truth. The live system is a deployed copy of it, so
 **edit the configs here, in `Hyprland_Setup/<app>/`, not in `~/.config/<app>/`** —
@@ -58,6 +59,11 @@ values into the repo — review with `git diff` before committing.
 
 `Hyprland_Setup/hypr/modules/binds.lua` is the full list.
 
+The launcher, the clipboard history and the wallpaper picker are one interface
+in three guises — the same quickshell overlay, living in the bar process. Type
+to filter, arrows to move, Enter to pick, Escape to cancel. In the clipboard,
+`Delete` (or a right-click) drops an entry.
+
 ## Layout
 
 ```
@@ -65,10 +71,10 @@ Hyprland_Setup/
   install.sh          the only entry point (deploy + --pull)
   install_lib/        python helpers used BY install.sh; not deployed
   hypr/               hyprland, hyprlock, hypridle + the shell scripts
-  quickshell/         the bar, one file per module
+  quickshell/         the bar and the overlays, one file per module
   swaync/             notification daemon theme
   gtk-3.0/ gtk-4.0/   Catppuccin Mocha over adw-gtk3-dark (thunar, dialogs)
-  fastfetch/ fish/ kitty/ nvim/ rofi/ swappy/ weathr/
+  fastfetch/ fish/ kitty/ nvim/ swappy/ weathr/
   voidsddm/ sddm.conf.d/   SDDM theme (deployed to /usr, needs sudo)
 wallpapers/           copied to ~/Pictures/wallpapers on request
 *.txt                 personal command reference notes
