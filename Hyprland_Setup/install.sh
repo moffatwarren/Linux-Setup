@@ -24,9 +24,18 @@ PACMAN_PKGS=(
     # volume scripts), pavucontrol (audio right-click), power-profiles-daemon
     # (the power profile module), networkmanager (the network module + nmtui),
     # qt6-imageformats (webp/avif thumbnails in the SUPER+W wallpaper picker --
-    # Qt ships only jpg/png/gif out of the box).
+    # Qt ships only jpg/png/gif out of the box), libnotify (notify-send in the
+    # OSD and wallpaper scripts) and wl-clipboard (wl-copy/wl-paste in the
+    # clipboard binds). The last two also arrive as dependencies of thunar and
+    # cliphist, but a script calling them directly should not rely on that.
     jq libpulse wireplumber pavucontrol power-profiles-daemon networkmanager
-    qt6-imageformats
+    qt6-imageformats libnotify wl-clipboard
+    # Needed by install.sh itself rather than by anything it deploys: sddm owns
+    # /usr/share/sddm/themes (deploy_configs copies voidsddm into it) and avahi
+    # owns the avahi-daemon unit first_install_extras enables. Both happen to be
+    # present on a stock CachyOS install; neither is guaranteed on plain Arch,
+    # and under `set -e` a missing one aborts the run part-way through.
+    sddm avahi
 )
 PARU_PKGS=(pokemon-colorscripts-git rustdesk-bin teams-for-linux vscodium-bin weathr-bin)
 
@@ -207,6 +216,10 @@ deploy_configs() {
         \cp -rf "$SCRIPT_DIR/$c" "$HOME/.config"
         echo "    $c"
     done
+    # sddm is in PACMAN_PKGS, but its theme directory only exists if the package
+    # ships one. Copying into a missing directory fails, and under `set -e` that
+    # aborts the run with the ~/.config half of the deploy already done.
+    sudo mkdir -p /usr/share/sddm/themes
     sudo \cp -rf "$SCRIPT_DIR/voidsddm" /usr/share/sddm/themes
     sudo \cp -rf "$SCRIPT_DIR/sddm.conf.d" /etc
     echo "    voidsddm + sddm.conf.d (system)"
@@ -268,8 +281,55 @@ get_wallpapers() {
     read -p "Do you want to get wallpapers? (y/N): " reply
     if [[ "$reply" =~ ^[Yy]$ ]]; then
         info "Getting wallpapers"
+        # `cp -r src dest` creates dest AS a copy of src when dest is missing,
+        # so without this the images land directly in ~/Pictures. The picker
+        # (WallpaperPicker.qml) and wallpaper-random.sh both read
+        # ~/Pictures/wallpapers, and would find nothing. xdg-user-dirs usually
+        # creates ~/Pictures, but a fresh machine may not have it yet.
+        mkdir -p "$HOME/Pictures"
         \cp -rn "$REPO_ROOT/wallpapers" "$HOME/Pictures"
     fi
+}
+
+# The committed hyprlock background is an absolute path, so it names the $HOME
+# of whichever machine last committed it. A first install preserves nothing, so
+# on a machine with a different username that path does not resolve and the lock
+# screen comes up with no background at all. Re-point it at the same file under
+# this machine's $HOME, and fall back to any wallpaper if that name is gone.
+#
+# Only the seed matters here: wallpaper-set.sh owns this line from then on, and
+# PRESERVE (group `wallpaper`, in NO_PROMPT_GROUPS) keeps it across later runs.
+# Deliberately does not go through wallpaper-set.sh, which needs the awww daemon
+# up -- during an install it is not.
+normalize_hyprlock_wallpaper() {
+    local conf="$HOME/.config/hypr/hyprlock.conf" current candidate
+    if [ ! -f "$conf" ]; then
+        return 0
+    fi
+    current="$(sed -n 's/^[[:space:]]*path[[:space:]]*=[[:space:]]*//p' "$conf" | head -1)"
+    # Nothing set, or the committed path resolves here: leave it alone.
+    if [ -z "$current" ] || [ -f "$current" ]; then
+        return 0
+    fi
+
+    candidate="$HOME/Pictures/wallpapers/$(basename "$current")"
+    if [ ! -f "$candidate" ]; then
+        # `|| true`: the wallpaper prompt is optional, so the directory may not
+        # exist at all. find then exits non-zero, and pipefail would make the
+        # whole assignment fail the script rather than just yielding "".
+        candidate="$(find "$HOME/Pictures/wallpapers" -maxdepth 1 -type f \
+            \( -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \
+               -o -iname '*.webp' \) 2>/dev/null | sort | head -1 || true)"
+    fi
+    if [ -z "$candidate" ] || [ ! -f "$candidate" ]; then
+        echo "    hyprlock background: $current is missing and no wallpaper was found"
+        return 0
+    fi
+
+    # `&` is the one character sed expands in a replacement, as in
+    # wallpaper-set.sh, which writes this same line.
+    sed -i "s|^\([[:space:]]*\)path = .*|\1path = ${candidate//&/\\&}|" "$conf"
+    echo "    hyprlock background -> $candidate"
 }
 
 # Reverse direction: live system -> repo, for review and commit.
@@ -336,6 +396,8 @@ main() {
 
     fix_permissions
     get_wallpapers
+    # After get_wallpapers, so a first install has the images to point at.
+    normalize_hyprlock_wallpaper
     info "Done."
 }
 

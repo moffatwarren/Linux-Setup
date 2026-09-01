@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
-# Helper script for Waybar to display Private Internet Access (PIA) VPN status
-# and toggle connection on double-click.
+# Private Internet Access (PIA) VPN status for the bar, and connect/disconnect.
+# Written for waybar originally; PiaPill.qml now drives it, and still parses the
+# waybar-style JSON --status prints.
 
 PIACTL="/usr/local/bin/piactl"
 if ! command -v piactl &> /dev/null; then
