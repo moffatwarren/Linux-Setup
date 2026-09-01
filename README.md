@@ -3,7 +3,9 @@
 Personal Hyprland desktop configuration for CachyOS/Arch — Hyprland (Lua config),
 a quickshell bar with matching app launcher / clipboard / wallpaper overlays
 and notifications, hyprlock/hypridle, kitty, fish, a Catppuccin Mocha GTK
-theme (thunar and the file chooser) and an SDDM theme.
+theme (thunar and the file chooser) and an SDDM theme. Everything that
+draws is Catppuccin Mocha — the bar, the terminal, GTK apps, btop, neovim,
+the lock screen and the login screen.
 
 This repo is the source of truth. The live system is a deployed copy of it, so
 **edit the configs here, in `Hyprland_Setup/<app>/`, not in `~/.config/<app>/`** —
@@ -77,7 +79,7 @@ Hyprland_Setup/
   hypr/               hyprland, hyprlock, hypridle + the shell scripts
   quickshell/         the bar, the overlays and notifications, one file per module
   gtk-3.0/ gtk-4.0/   Catppuccin Mocha over adw-gtk3-dark (thunar, dialogs)
-  fastfetch/ fish/ kitty/ nvim/ swappy/ weathr/
+  btop/ fastfetch/ fish/ kitty/ nvim/ swappy/ weathr/
   voidsddm/ sddm.conf.d/   SDDM theme (deployed to /usr, needs sudo)
 wallpapers/           copied to ~/Pictures/wallpapers on request
 *.txt                 personal command reference notes

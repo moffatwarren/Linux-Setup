@@ -11,7 +11,7 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 # Add a new app config by adding its directory name here. A name with no
 # matching directory is skipped with a warning rather than aborting.
 # ---------------------------------------------------------------------------
-CONFIGS=(fastfetch fish gtk-3.0 gtk-4.0 hypr kitty nvim quickshell swappy weathr)
+CONFIGS=(btop fastfetch fish gtk-3.0 gtk-4.0 hypr kitty nvim quickshell swappy weathr)
 
 # ---------------------------------------------------------------------------
 # Paths under ~/.config that an EARLIER release of this repo deployed and this

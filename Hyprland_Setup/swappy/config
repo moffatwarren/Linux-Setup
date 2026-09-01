@@ -9,6 +9,10 @@ paint_mode=brush
 early_exit=false
 fill_shape=false
 auto_save=false
-custom_color=rgba(193,125,17,1)
+# Annotation pen. Catppuccin Mocha red (#f38ba8) -- swappy takes a GdkRGBA
+# string, so the channels are 0-255 and only the alpha is 0-1. Red rather
+# than an accent like mauve because this is drawn *on top of* screenshots of
+# this desktop, which is largely mauve and lavender already.
+custom_color=rgba(243,139,168,1)
 transparent=false
 transparency=50
