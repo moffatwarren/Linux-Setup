@@ -2,7 +2,7 @@
 
 # pactl list short sinks
 BUILT_IN_SINK="alsa_output.pci-0000_07_00.6.HiFi__Speaker__sink"
-HEADPHONE_SINK="alsa_output.usb-Generic_USB_Audio-00.HiFi__Speaker__sink"
+HEADPHONE_SINK="alsa_output.pci-0000_00_1f.3.analog-stereo"
 SPEAKER_SINK="alsa_output.usb-KTMicro_KT_USB_Audio_2021-06-07-0000-0000-0000--00.analog-stereo"
 BLUETOOTH_SINK="bluez_output.7C_F3_4D_83_FB_30.1"
 CURRENT_SINK=$(pactl get-default-sink)
