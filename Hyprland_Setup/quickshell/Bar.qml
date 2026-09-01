@@ -71,5 +71,7 @@ PanelWindow {
         PowerProfilePill {}
 
         BatteryPill {}
+
+        PowerPill {}
     }
 }
