@@ -1,0 +1,75 @@
+import Quickshell
+import Quickshell.Io
+import QtQuick
+
+// waybar: "custom/weather" -- current condition icon and temperature, right
+// click for the weathr TUI.
+//
+// Not a ScriptPill: weather-forecast.sh already returns the current conditions
+// alongside the week ahead, so one poll feeds both the label and the hover
+// panel, and both draw their glyph from the same WMO code table
+// (WeatherCodes.qml) instead of the pill showing wttr.in's emoji next to a
+// panel full of nerd font icons.
+Pill {
+    id: root
+
+    property string place: ""
+    property var days: []
+    // { code, temp } -- either field may be absent if Open-Meteo omitted it.
+    property var current: ({})
+    property string unit: ""
+
+    readonly property var condition: WeatherCodes.condition(current.code)
+
+    // Only the glyph is coloured by the condition; the temperature stays the
+    // bar's normal text colour, the way ScriptPill colours just the state word.
+    richText: true
+    label: {
+        if (current.temp === undefined) return "";
+        return '<font color="' + condition.color + '">' + condition.icon + "</font> "
+             + Math.round(current.temp) + "°" + unit;
+    }
+
+    onRightClicked: Quickshell.execDetached(
+        ["bash", "-lc", "~/.config/hypr/scripts/weather.sh --openWeather"])
+
+    Process {
+        id: weather
+        command: ["bash", "-lc", "~/.config/hypr/scripts/weather-forecast.sh"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const raw = text.trim();
+                // The script prints nothing rather than guessing when it cannot
+                // reach either service -- keep the last good reading.
+                if (raw.length === 0) return;
+                try {
+                    const j = JSON.parse(raw);
+                    root.place = j.place !== undefined ? String(j.place) : "";
+                    root.unit = j.unit !== undefined ? String(j.unit) : "";
+                    root.current = j.current !== undefined ? j.current : ({});
+                    root.days = j.days !== undefined ? j.days : [];
+                } catch (e) {
+                    console.warn("WeatherPill: unparseable weather: " + e);
+                }
+            }
+        }
+    }
+
+    // waybar interval: 600. The script caches for the same ten minutes, so a
+    // tick that lands on a warm cache is a `cat` rather than a request.
+    Timer {
+        interval: 600000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: if (!weather.running) weather.running = true
+    }
+
+    ForecastPopup {
+        anchorItem: root
+        requested: root.hovered
+        place: root.place
+        days: root.days
+        emptyText: "Fetching forecast…"
+    }
+}
