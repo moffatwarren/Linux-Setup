@@ -26,6 +26,7 @@ hl.bind(
 	hl.dsp.exec_cmd("~/.config/hypr/scripts/clipboard-menu.sh"),
 	{ bypass = true }
 )
+hl.bind(config.mainMod .. " + N", hl.dsp.exec_cmd("swaync-client -t -sw"), { bypass = true })
 hl.bind(config.mainMod .. " + T", hl.dsp.exec_cmd(config.terminal .. " --class btop-float -e btop"), { bypass = true })
 hl.bind(config.mainMod .. " + G", hl.dsp.exec_cmd(config.browser .. ' --app="https://gemini.google.com/app"'),
 	{ bypass = true })
