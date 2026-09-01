@@ -113,6 +113,14 @@ keeps the old escape hatch. Scanning is driven by a `Binding` on the device's
 The signal meter is drawn with rectangles rather than a nerd font glyph — no private-use
 codepoint to get wrong, and it scales with the strength value (which is 0..1, not 0-100).
 
+`PowerPill.qml` is the rightmost module: a power button whose **left**-click opens
+`PowerMenu.qml` (Lock, Sleep, Log out, Restart, Shutdown). Left-click rather than
+right-click because opening the menu is the button's only purpose. The commands mirror
+the equivalent keybinds in `binds.lua` — in particular Sleep locks before suspending
+(`hyprlock & sleep 0.5 && systemctl suspend`), matching `SUPER+SHIFT+L`, rather than
+suspending an unlocked session. The action list is a plain array at the top of
+`PowerMenu.qml`, so adding or removing an entry is one line.
+
 `BluetoothMenu.qml` is the right-click dropdown on the bluetooth module, built to match
 `WifiMenu`: paired devices first (click to connect/disconnect, right-click to forget),
 then a "Nearby" section of discovered devices (click to pair). The header toggles the
