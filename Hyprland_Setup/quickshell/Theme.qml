@@ -30,8 +30,11 @@ Singleton {
     readonly property string mantle:    "#181825"
     readonly property string crust:     "#11111b"
 
-    // style.css: background-color: alpha(@surface0, 0.85)
-    readonly property color pill: Qt.rgba(0.192, 0.196, 0.267, 0.85)
+    // The bar's one surface colour: `Bar.qml` paints its whole background with
+    // this too, so a pill is indistinguishable from the strip behind it. Opaque
+    // -- the old alpha(@surface0, 0.85) was tuned to read against the wallpaper,
+    // which no longer shows through anywhere.
+    readonly property color pill: surface1
 
     readonly property string fontFamily: "JetBrainsMono Nerd Font"
     readonly property int fontSize: 12

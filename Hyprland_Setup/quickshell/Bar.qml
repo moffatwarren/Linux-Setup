@@ -27,7 +27,18 @@ PanelWindow {
         right: 5
     }
     implicitHeight: 30
+    // The window stays transparent so the slab below can have rounded ends;
+    // the wallpaper shows through the margins and around the corners.
     color: "transparent"
+
+    // One floating capsule in the modules' own colour, so the pills dissolve
+    // into it and the bar reads as a single solid slab. Declared first, so it
+    // sits behind the module Rows.
+    Rectangle {
+        anchors.fill: parent
+        color: Theme.pill
+        radius: height / 2
+    }
 
     Row {
         anchors.left: parent.left
