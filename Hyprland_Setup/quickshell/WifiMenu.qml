@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Networking
 import QtQuick
 import QtQuick.Layouts
@@ -65,6 +66,14 @@ PopupWindow {
     }
 
     onOpenChanged: if (!open) pendingNetwork = null
+
+    // Dismiss when the user clicks anywhere outside the menu. A layer-shell
+    // popup gets no such event on its own; Hyprland's focus grab reports it.
+    HyprlandFocusGrab {
+        windows: [root]
+        active: root.open
+        onCleared: root.close()
+    }
 
     function close() {
         pendingNetwork = null;
