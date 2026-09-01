@@ -622,6 +622,42 @@ SUPER+N is `qs ipc call notifications toggle` and SUPER+SHIFT+N is
 `… notifications dnd`; `close` and `clear` are there too.
 
 
+## btop (Catppuccin Mocha)
+
+`btop/` is `btop.conf` plus `themes/catppuccin_mocha.theme`. btop is bound to
+`SUPER+T` (`binds.lua`) and floats centred at 1200x800 (`rules.lua`,
+`btop-float`), so it is one of the more visible windows in the session; it was
+the last thing still wearing the retired **noctalia** palette.
+
+btop ships 41 themes in `/usr/share/btop/themes` and **none of them is
+Catppuccin**, so this is a user theme. btop also reads `~/.config/btop/themes`,
+which is where `deploy_configs` puts it. `color_theme` in `btop.conf` names the
+file without its `.theme` suffix — the two have to be edited together.
+
+Three things to know:
+
+- **btop rewrites `btop.conf` itself.** `save_config_on_exit = true`, so every
+  quit regenerates the file from btop's own template — which means a comment
+  added to the repo's copy does **not** survive a round trip through the live
+  machine, and a `--pull` after using btop's options menu is the normal way
+  settings land back here. Do not put load-bearing notes in `btop.conf`; they
+  belong in the `.theme`, which btop only ever reads.
+- **An unset colour key falls back to btop's built-in *default* theme**, not to
+  anything else in the file — so a partially-themed file silently mixes a stock
+  blue-on-white banner into a Mocha window. Six keys cover the process box's
+  banners and its "following" row (`proc_pause_bg`, `proc_follow_bg`,
+  `proc_banner_bg`/`_fg`, `followed_bg`/`_fg`) and only 4 of the 41 shipped
+  themes set them, which is exactly why they are easy to leave out.
+  **`log_level = "DEBUG"` makes btop name every key a theme omits** on startup,
+  in `~/.local/state/btop.log` — that is how the six were found.
+- The four box outlines are deliberately four different accents (mauve CPU,
+  green memory, maroon network, blue processes) rather than one colour, which
+  is what the noctalia theme did — it painted all four the same grey.
+
+Banner foregrounds are `crust`, not a light colour: Mocha's accents are pale
+pastels, so text on top of one has to be dark. It is the same pairing kitty
+uses for its active tab (`#11111b` on mauve).
+
 ## GTK / thunar (Catppuccin Mocha)
 
 `gtk-3.0/` and `gtk-4.0/` theme every GTK app — thunar above all, plus the file
@@ -704,6 +740,53 @@ deploy's `cp -rf` leaves the live one alone) and `gtk-4.0/thumbnail.png`. The
 `noctalia.css` these configs replaced is ignored for the same reason — deploying
 `gtk.css` drops the `@import` that referenced it, but the orphan file stays on
 disk until removed by hand.
+
+## The rest of the palette
+
+kitty, hyprlock and `voidsddm/configs/catppuccin.conf` (selected by
+`ConfigFile=` in `voidsddm/metadata.desktop`) are Mocha in full. Three smaller
+ones are worth a note:
+
+**nvim.** `nvim/lua/plugins/colorscheme.lua` is the whole of it. Without a spec
+naming one, LazyVim loads **its own default, tokyonight** — `example.lua` is
+inert (`if true then return {} end` at the top) and nothing else sets a
+colorscheme, which is how the editor stayed the one Tokyo Night window on a
+Catppuccin desktop. `catppuccin/nvim` needs `name = "catppuccin"`, since the
+repo is called `nvim` and the directory it lands in is what `colorscheme`
+resolves against. It is pinned in `lazy-lock.json` already — LazyVim ships it as
+an optional colorscheme — so nothing new is cloned. The name used is
+`catppuccin-mocha`, not bare `catppuccin`: the plugin registers one colorscheme
+per flavour, so naming the flavour means the editor cannot drift if `flavour` is
+changed or the background is toggled. `install.colorscheme` in
+`lua/config/lazy.lua` is separate — it dresses lazy.nvim's own install screen on
+a first launch, before any of this is cloned, hence the `habamax` fallback
+beside it.
+
+**nvim's Mocha is one off from everything else's, on purpose.** Read the live
+highlights and `Normal` is `#1e1e2f`, not the `#1e1e2e` in `Theme.qml` — every
+palette entry is +1 on its blue channel. That is catppuccin.nvim, in
+`palettes/init.lua`, working around
+[kitty#2917](https://github.com/kovidgoyal/kitty/issues/2917): kitty punches the
+background out of a program whose colour *exactly* matches its own, so an
+un-offset nvim would come up transparent. It applies whenever
+`KITTY_WINDOW_ID` is set, which it always is here — `config.terminal` is kitty
+and `kitty/kitty.conf` sets `background #1e1e2e`, the very value that triggers
+it. Do not "fix" the mismatch, and do not chase it by editing the palette.
+
+**Hyprland's window borders are Mocha but `border_size = 0`.** They draw
+nothing today. The colours are set anyway (mauve → lavender at 45°, `surface1`
+inactive) so that raising the width is a one-line change rather than a change
+plus a palette hunt — otherwise the first thing back on screen would be the only
+off-palette element left in the session. `decoration.shadow.color` in
+`look.lua` is still a generic `0xee1a1a1a` rather than `crust`; it is visible
+(shadows are on), so it is the one deliberate leftover.
+
+**swappy's `custom_color` is the annotation pen** for every `SUPER+S`
+screenshot. It takes a GdkRGBA string, so channels are 0-255 and only the alpha
+is 0-1 — `rgba(243,139,168,1)` is `#f38ba8`. Red rather than one of the
+accents because it is drawn *on top of* screenshots of this desktop, which is
+already largely mauve and lavender. (`text_font` is still `sans-serif`, not the
+JetBrainsMono the rest of the session uses.)
 
 ## install.sh conventions
 

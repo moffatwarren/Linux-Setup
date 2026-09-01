@@ -30,7 +30,10 @@ require("lazy").setup({
     version = false, -- always use the latest git commit
     -- version = "*", -- try installing the latest stable version for plugins that support semver
   },
-  install = { colorscheme = { "tokyonight", "habamax" } },
+  -- Colorscheme for lazy.nvim's own install screen on a first launch, before
+  -- plugins/colorscheme.lua's spec is usable. habamax is the built-in fallback
+  -- for the moment catppuccin itself is still being cloned.
+  install = { colorscheme = { "catppuccin-mocha", "habamax" } },
   checker = {
     enabled = true, -- check for plugin updates periodically
     notify = false, -- notify on update

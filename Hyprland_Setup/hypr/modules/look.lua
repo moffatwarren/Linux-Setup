@@ -3,11 +3,21 @@ hl.config({
 		gaps_in = 2,
 		gaps_out = 5,
 
+		-- Borders are off. The colours below are still set to Catppuccin Mocha
+		-- rather than left at Hyprland's stock cyan/green gradient, so raising
+		-- this to a non-zero width is the only edit needed to turn them on --
+		-- otherwise the first thing back on screen is the one off-palette
+		-- element in the session.
 		border_size = 0,
 
 		col = {
-			active_border = { colors = { "rgba(33ccffee)", "rgba(00ff99ee)" }, angle = 45 },
-			inactive_border = "rgba(595959aa)",
+			-- mauve -> lavender at 45 degrees. Both are already load-bearing
+			-- accents elsewhere: mauve is hyprlock's check_color and the
+			-- btop CPU box, lavender its clock and the bar's titles.
+			active_border = { colors = { "rgba(cba6f7ee)", "rgba(b4befeee)" }, angle = 45 },
+			-- surface1, the same border every quickshell popup and menu draws
+			-- around its base frame.
+			inactive_border = "rgba(45475aaa)",
 		},
 
 		resize_on_border = false,
