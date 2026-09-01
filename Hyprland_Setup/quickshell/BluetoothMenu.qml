@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Bluetooth
 import QtQuick
 import QtQuick.Layouts
@@ -78,6 +79,14 @@ PopupWindow {
         property: "discovering"
         value: root.open && root.adapter !== null && root.adapter.enabled
         when: root.adapter !== null
+    }
+
+    // Dismiss when the user clicks anywhere outside the menu. A layer-shell
+    // popup gets no such event on its own; Hyprland's focus grab reports it.
+    HyprlandFocusGrab {
+        windows: [root]
+        active: root.open
+        onCleared: root.close()
     }
 
     function close() { open = false; }

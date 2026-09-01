@@ -120,6 +120,13 @@ adapter and shows a scanning indicator, and "Open blueman…" remains as the esc
 Discovery is scoped to the menu being open via a `Binding` on the adapter's `discovering`,
 so the radio is not scanning all day.
 
+Both dropdowns dismiss on a click anywhere outside via `HyprlandFocusGrab` (`windows: [root]`,
+`active: root.open`, `onCleared: close()`). A layer-shell popup receives no event for an
+outside click on its own, so without the grab the only way to close the menu was to
+right-click the module again. The grab coexists with `WifiMenu`'s `grabFocus`, which the
+password field needs for keyboard input — verified that revealing the field does not
+clear the grab and dismiss the menu.
+
 Devices whose name is a bare MAC are filtered out — they are BLE beacons and there are
 usually a dozen of them. The row glyph is picked from the device's freedesktop `icon`
 (`input-gaming` → gamepad, `audio-*` → headphones, `phone` → phone), falling back to the
