@@ -267,7 +267,11 @@ Six things to know before editing the QML:
   and the speakers are USB, and other machines invert that. Its hover panel names the
   default output and input (`Pipewire.defaultAudioSink`/`defaultAudioSource`, shown by
   `description` with `nickname`/`name` as fallbacks) plus each one's volume; both nodes
-  go in the `PwObjectTracker` so those stay live.
+  go in the `PwObjectTracker` so those stay live. Its glyphs are Material Design Icons
+  from the nerd font (volume off/low/medium/high, mute, headphones, bluetooth-audio) —
+  **not** the speaker/headphone emoji it used to draw. A real emoji codepoint is served
+  by the colour emoji font, which ignores `labelColor` and renders a glossy multicolour
+  blob beside the flat monochrome glyphs of every other module.
 - **`ScriptPill` must escape control characters before `JSON.parse`.** `tailscale.sh`
   joins its peer list with raw carriage returns, which are illegal inside a JSON string;
   parsing them threw and blanked the module the instant tailscale came up. It also keeps

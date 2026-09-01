@@ -38,14 +38,21 @@ Pill {
     property string headphoneSink: ""
     property string bluetoothSink: ""
 
+    // All Material Design Icons out of the nerd font, so the glyph is flat
+    // monochrome line art in the pill's own colour, matching the weather and
+    // bluetooth modules. The speaker/headphone emoji this used to draw
+    // (U+1F508..U+1F50A, U+1F3A7) come from the colour emoji font instead:
+    // they ignore labelColor entirely and render as glossy multicolour blobs
+    // next to everything else on the bar.
     readonly property string icon: {
-        if (muted) return "\ueb24";
-        if (sinkName.length > 0 && sinkName === bluetoothSink) return "\udb86\udc52";
-        if (sinkName.indexOf("bluez") === 0) return "\udb86\udc52";
-        if (sinkName.length > 0 && sinkName === headphoneSink) return "\ud83c\udfa7";
-        if (volume <= 0.01) return "\ud83d\udd08";
-        if (volume < 0.5) return "\ud83d\udd09";
-        return "\ud83d\udd0a";
+        if (muted) return "\udb81\udf5f";                                  // volume-mute
+        if (sinkName.length > 0 && sinkName === bluetoothSink) return "\udb80\udcb1";
+        if (sinkName.indexOf("bluez") === 0) return "\udb80\udcb1";        // bluetooth-audio
+        if (sinkName.length > 0 && sinkName === headphoneSink) return "\udb80\udecb";
+        if (volume <= 0.01) return "\udb81\udd81";                         // volume-off
+        if (volume < 0.34) return "\udb81\udd7f";                          // volume-low
+        if (volume < 0.67) return "\udb81\udd80";                          // volume-medium
+        return "\udb81\udd7e";                                             // volume-high
     }
 
     // Which sink is headphones/bluetooth is machine-specific; read it rather
