@@ -39,7 +39,14 @@ error. `install_lib/` holds Python helpers used *by* `install.sh` and is deliber
 
 Non-`~/.config` destinations are still explicit in `deploy_configs()`:
 `voidsddm` → `/usr/share/sddm/themes`, `sddm.conf.d` → `/etc` (both sudo). Wallpapers
-go to `~/Pictures` via an opt-in prompt using `cp -rn` (never overwrites).
+go to `~/Pictures/wallpapers` via an opt-in prompt using `cp -rn` (never overwrites).
+
+Both of those copies `mkdir -p` their destination first, for the same reason: `cp -r
+src dest` creates `dest` **as a copy of `src`** when `dest` does not exist. A machine
+without `/usr/share/sddm/themes` aborts the deploy half-done under `set -e`; one without
+`~/Pictures` silently ends up with the images loose in `~/Pictures`, where neither
+`WallpaperPicker.qml` nor `wallpaper-random.sh` — both of which read
+`~/Pictures/wallpapers` — can see them.
 
 ## Machine-specific values (the subtle part)
 
@@ -426,7 +433,22 @@ speaker.
 - Paths resolve from `$SCRIPT_DIR`/`$REPO_ROOT`, never a hardcoded `~/Linux-Setup`, so
   the repo works cloned anywhere.
 - Packages install as one `pacman` transaction plus one `paru` transaction. One bad
-  package name fails the whole transaction.
+  package name fails the whole transaction. `nvim` and `ttf-font-awesome` are not
+  package names but resolve through `provides` (`neovim`, `woff2-font-awesome`) — they
+  are fine, so don't "fix" them into a second entry for a package already listed.
+- **A package install.sh itself depends on still has to be in `PACMAN_PKGS`.** `sddm`
+  (which owns the theme directory `deploy_configs` copies into) and `avahi` (whose unit
+  `first_install_extras` enables) are there for that reason alone, not because anything
+  deployed uses them. So are `libnotify` and `wl-clipboard`, which the deployed scripts
+  call directly and which otherwise arrive only as dependencies of thunar and cliphist.
+- **The committed `hyprlock.conf` background is an absolute path**, so it names the
+  `$HOME` of whichever machine last committed it. A first install preserves nothing, so
+  on another username that path does not resolve and the lock screen has no background.
+  `normalize_hyprlock_wallpaper()` re-points it under this machine's `$HOME` — same
+  filename if it is there, otherwise any wallpaper — and does nothing when the committed
+  path already resolves. It runs after `get_wallpapers`, so the images exist to point at,
+  and rewrites the line with `sed` rather than calling `wallpaper-set.sh`, which needs
+  the `awww` daemon up. During an install it is not.
 - `*.sh` under any deployed `<app>/scripts/` is made executable by a `find` sweep — new
   scripts need no per-file `chmod`. (Several are committed mode 644, hence the sweep.)
 - Prompts mean the script must be run interactively.
@@ -445,5 +467,6 @@ The top-level `*.txt` files are personal command references. The automatable par
 `tailscale_commands.txt` and `pia_install.txt` are now in `install.sh`; the rest
 (`git_command.txt`, `hypctl_commands.txt`, `nmcli.txt`, `systmctl_command.txt`,
 `write_iso_commands.txt`, and the troubleshooting half of `package_management.txt`) are
-lookup notes and deliberately stay manual. `README.md` is stale — it still references
-the removed `update.sh`.
+lookup notes and deliberately stay manual. `README.md` is the human-facing half of this
+file — install, `--pull`, the keybinds and the directory layout. Keep the two in step;
+the internals (the preserve mechanism, the bar modules, the traps) live here, not there.
