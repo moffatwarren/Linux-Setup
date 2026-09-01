@@ -115,9 +115,16 @@ codepoint to get wrong, and it scales with the strength value (which is 0..1, no
 
 `PiaPill.qml` specialises `ScriptPill` the same way: `pia.sh` still drives the state and
 the label, while a `piactl` call fills a hover panel with where the tunnel exits.
-`piactl get region` reports the *selected* region, which is usually `auto`, so the public
-IP is what actually identifies the exit; `vpnip`/`pubip` rows are dropped when piactl
-returns `Unknown`. Disconnected shows "Not connected" in red plus the real public IP.
+`piactl get region` reports the *selected* region, which is usually `auto` and so says
+nothing about where you landed. `hypr/scripts/pia-region.sh` resolves the real one by
+matching the exit IP against PIA's own published server list (first party, no
+geolocation service), cached in `~/.cache/pia-serverlist.json` and refreshed weekly, so
+the Region row reads e.g. `US Seattle  (auto)`. It prints nothing rather than guessing:
+a /24 is shared by more than one region about a quarter of the time and a few of those
+span countries (`82.139.195.0/24` is both Algeria and Egypt), so an exact IP match wins
+and an ambiguous subnet is reported as unknown. `vpnip`/`pubip` rows are dropped when
+piactl returns `Unknown`. Disconnected shows "Not connected" in red plus the real
+public IP.
 
 `TailscalePill.qml` specialises `ScriptPill` because it needs both halves of waybar's
 format (`Tailscale: {icon} | Exit-node: {text}`) and reads its peer list from
