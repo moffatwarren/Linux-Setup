@@ -18,7 +18,9 @@ hl.config({
 	},
 
 	decoration = {
-		rounding = 5,
+		-- Matches the quickshell bar's slab: keep this in step with
+		-- Theme.barRadius in quickshell/Theme.qml.
+		rounding = 8,
 		rounding_power = 2,
 
 		active_opacity = 1.0,
