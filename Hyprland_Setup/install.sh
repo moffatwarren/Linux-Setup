@@ -41,11 +41,19 @@ ORPHANS=(
     # would just be a config for a daemon nothing starts. Nothing uninstalls
     # the swaync *package*; this script only ever installs.
     swaync
+    # The bar's own bluetooth module. blueman-applet publishes a tray icon, and
+    # the tray (quickshell/TrayPill.qml) now draws it -- two bluetooth controls
+    # side by side in the same bar, one of them a worse blueman.
+    quickshell/BluetoothPill.qml
+    quickshell/BluetoothMenu.qml
 )
 
 PACMAN_PKGS=(
     kitty hyprland quickshell hyprlock hypridle awww ttf-font-awesome
     ttf-jetbrains-mono-nerd swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look
+    # wf-recorder is the SUPER+SHIFT+S screen recorder (hypr/scripts/screen-record.sh);
+    # it reuses the slurp above for the region select.
+    wf-recorder
     gvfs gvfs-smb samba nvim mpv imv brightnessctl playerctl blueman gnome-text-editor swayimg imagemagick
     thunar-archive-plugin xarchiver unzip net-tools localsend spotify-launcher
     tesseract tesseract-data-eng speedtest-cli brave-origin-bin paru

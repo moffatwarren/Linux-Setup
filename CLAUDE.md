@@ -129,11 +129,11 @@ holding the Catppuccin Mocha palette.
 
 `tailscale.sh` and `pia.sh` are driven by `ScriptPill.qml`, which runs them with
 `Process` and parses the waybar-style JSON they still print. Audio/battery/network/
-bluetooth/workspaces/media use Quickshell's native services instead, so the bar is
+workspaces/media use Quickshell's native services instead, so the bar is
 event-driven rather than polling.
 
-`ListPopup.qml` is the Catppuccin hover panel used by the audio, bluetooth, battery and
-tailscale modules (a title plus `{ text, detail, accent }` rows). It replaced the stock
+`ListPopup.qml` is the Catppuccin hover panel used by the audio, battery, tailscale,
+tray and recorder modules (a title plus `{ text, detail, accent }` rows). It replaced the stock
 QtQuick `ToolTip`s, which ignored the palette. Modules drive it with
 `requested: root.hovered`, using the `hovered` alias `Pill.qml` exposes. Its optional
 `maxDetailWidth` elides the right-hand column, for rows whose detail is a device name
@@ -235,24 +235,23 @@ open with a real number instead of a row that appears two seconds later. Two tra
 `reload()` hands back the *previous* contents once at startup, so a zero total-delta must
 be skipped rather than divided by, and `idle` is fields 4+5 (idle **and** iowait).
 
-`BluetoothMenu.qml` is the right-click dropdown on the bluetooth module, built to match
-`WifiMenu`: paired devices first (click to connect/disconnect, right-click to forget),
-then a "Nearby" section of discovered devices (click to pair). The header toggles the
-adapter and shows a scanning indicator, and "Open blueman…" remains as the escape hatch.
-Discovery is scoped to the menu being open via a `Binding` on the adapter's `discovering`,
-so the radio is not scanning all day.
+**There is no bluetooth module.** `BluetoothPill.qml` and `BluetoothMenu.qml` were a
+pill showing the connected device plus a right-click dropdown to connect, pair and
+forget — removed once `TrayPill` started drawing blueman-applet's tray icon, which does
+all of that and is the program that actually owns the adapter. Two bluetooth controls a
+few pixels apart in the same bar, one of them a worse blueman, is not a choice worth
+offering. Both files are in `install.sh`'s `ORPHANS`, which is what deletes them from a
+machine that already has them deployed; `blueman` stays in `PACMAN_PKGS`, because it is
+the bluetooth UI now rather than the escape hatch from one. Recoverable from commit
+`ad1551e` if the pill is ever wanted back.
 
-Both dropdowns dismiss on a click anywhere outside via `HyprlandFocusGrab` (`windows: [root]`,
-`active: root.open`, `onCleared: close()`). A layer-shell popup receives no event for an
-outside click on its own, so without the grab the only way to close the menu was to
-right-click the module again. The grab coexists with `WifiMenu`'s `grabFocus`, which the
-password field needs for keyboard input — verified that revealing the field does not
-clear the grab and dismiss the menu.
-
-Devices whose name is a bare MAC are filtered out — they are BLE beacons and there are
-usually a dozen of them. The row glyph is picked from the device's freedesktop `icon`
-(`input-gaming` → gamepad, `audio-*` → headphones, `phone` → phone), falling back to the
-bluetooth glyph.
+`WifiMenu` dismisses on a click anywhere outside via `HyprlandFocusGrab` (`windows: [root]`,
+`active: root.open`, `onCleared: close()`), as `TrayMenu`, `PowerMenu` and
+`NotificationMenu` do. A layer-shell popup receives no event for an outside click on its
+own, so without the grab the only way to close a menu was to right-click the module
+again. The grab coexists with `WifiMenu`'s `grabFocus`, which the password field needs
+for keyboard input — verified that revealing the field does not clear the grab and
+dismiss the menu.
 
 `PiaPill.qml` specialises `ScriptPill` the same way: `pia.sh` still drives the state and
 the label, while a `piactl` call fills a hover panel with where the tunnel exits.
@@ -286,9 +285,11 @@ Six things to know before editing the QML:
   existing module or from `git show 45cf455^:Hyprland_Setup/waybar/config`, rather than
   retyping the character.
 - **Quickshell services are lazy.** `Hyprland.workspaces`, `Networking.devices` and
-  `Bluetooth.devices` stay empty until something actually binds to them; the modules
-  hold a property referencing the service for this reason. Pipewire additionally needs
-  `PwObjectTracker` for live volume/mute updates.
+  `SystemTray.items` stay empty until something actually binds to them; the modules
+  hold a property referencing the service for this reason — for the tray that binding
+  is also what starts the StatusNotifier host, so without it no app can register an
+  icon at all. Pipewire additionally needs `PwObjectTracker` for live volume/mute
+  updates.
 - **`NetworkDevice.address` is the MAC, not the IP** — no IP is exposed anywhere on the
   device, so `NetworkPill` shells out to `ip -4 -br addr` when the active device changes.
   Networking exposes no byte counters either, so the hover panel's up/down rates come
@@ -314,6 +315,53 @@ Six things to know before editing the QML:
   property that is already true at construction, which is why `ListPopup` gates
   visibility through a bound `delayPassed` flag.
 
+`TrayPill.qml` is the StatusNotifierItem tray — the one waybar module that never got
+carried over, and the reason `localsend`, `rustdesk`, `teams-for-linux` and `spotify`
+had nowhere to minimise to. It is **not** a `Pill`: `Pill` draws a single `Text` and
+hides itself on an empty label, and this is a row of icons, so it borrows Pill's
+geometry (height, radius, padding, `Theme.pill`) and paints its own body the way
+`MediaGroup` does for album art. It sits at the *inside* edge of the right-hand group
+because it is the only module whose width changes as apps come and go; out at the screen
+edge it would shuffle every fixed module every time something started.
+
+Left-click activates, right-click opens the menu, middle-click is `secondaryActivate()`
+and the wheel is forwarded to `scroll()`. An item whose `onlyMenu` is set published no
+activate handler at all, so a left-click on one has to fall through to the menu or the
+icon looks dead. `NeedsAttention` — the tray's only "look at me" channel — gets a small
+yellow dot, and an item with no usable icon still gets a slot with a fallback glyph, so
+its menu stays reachable rather than the icon just silently missing. Passive items are
+shown too: waybar hid them by default, and an app that never sets Active is exactly the
+one you go looking for.
+
+`TrayMenu.qml` + `TrayMenuItems.qml` draw the app's own DBus menu in the Catppuccin
+frame every other menu here uses. Quickshell can do this in one line with
+`trayItem.display(...)`, and that is deliberately not used: it renders a stock Qt
+platform menu — wrong font, wrong colours, square frame — hanging off a bar that is
+otherwise entirely Mocha. Same reason `ListPopup` exists instead of the QtQuick
+`ToolTip`. One menu instance lives in `TrayPill` and is re-anchored to whichever icon
+was clicked, rather than one popup window per icon.
+
+Three things in that pair are load-bearing:
+
+- **The handle is dropped when the menu closes** (`root.open && trayItem ? … : null`).
+  DBusMenu is a pull protocol and apps only keep a menu current while a host says it is
+  open; holding the handle would leave a stale menu being polled all day.
+- **`TrayMenuItems` loads itself by URL, not by type name.** A QML file that names
+  itself is a cyclic dependency at compile time, and a DBus menu nests as deep as the
+  app wants. `Loader { source: "TrayMenuItems.qml" }` defers that to runtime;
+  `onLoaded` is what passes `handle`/`depth` in and connects the child's `activated`
+  signal up to the parent.
+- Submenus expand **inline and indented**, not as a flyout. A flyout is a second
+  layer-shell surface with its own `HyprlandFocusGrab`, and two grabs fighting is
+  exactly what the `WifiMenu` password field already cost to get right.
+
+`RecorderPill.qml` is the screen recorder's indicator: hidden entirely unless a
+recording is running (`Pill`'s own empty-label behaviour), then a red dot and the
+elapsed time, click to stop. It does **not** blink — a pulsing dot is the convention,
+but nothing else on this bar animates and a blink in the corner of the eye for the
+length of a screencast is worse than a steady red. See **The screen recorder** below
+for the backend.
+
 `NotificationPill.qml` sits between `NetworkPill` and `PowerProfilePill`: a bell showing
 whether notifications are muted and how many are unread, opening the notification centre
 on click. The bar is the notification daemon now, so that module and the popups it shares
@@ -324,7 +372,7 @@ Not carried over from waybar: the clock's `{calendar}` tooltip is a plain date, 
 
 Media: clicking either the album art or the title opens `MediaMenu.qml` — the cover at
 a size worth looking at, above previous / play/pause / next, in the same
-`base`-inside-`surface1` frame as `PowerMenu`/`BluetoothMenu`, dismissed by Escape or a
+`base`-inside-`surface1` frame as `PowerMenu`/`WifiMenu`, dismissed by Escape or a
 click outside via `HyprlandFocusGrab`. The cover is masked to a rounded square by the
 same `MultiEffect` the 22px pill circle uses, and is drawn at the panel width **or at the
 artwork's own resolution, whichever is smaller** — it is never upscaled. A Chromium
@@ -604,7 +652,7 @@ the wrong style — so it is worth a line of output saying who actually has it.
 The pill is a bell: outline when there is nothing, filled when there is, struck through
 and dimmed to `overlay0` when muted. It goes yellow with a count, red if anything unread
 is critical. Left-click opens the menu, **right-click mutes** without opening anything —
-the same shortcut/menu split the bluetooth and network modules use — and the hover panel
+the same shortcut/menu split the network and tray modules use — and the hover panel
 is the count and the DND state.
 
 The menu is `PowerMenu`'s frame: a header, the Do-not-disturb row with a switch, the
@@ -620,6 +668,104 @@ one of them. `NotificationPill` gets its `monitorName` from `Bar.qml`, the way
 
 SUPER+N is `qs ipc call notifications toggle` and SUPER+SHIFT+N is
 `… notifications dnd`; `close` and `clear` are there too.
+
+### Low-battery warnings
+
+`BatteryWatcher.qml` raises them, and it goes out through `notify-send` like any other
+app's notification rather than by reaching into `NotificationService` directly. That is
+the point: the bar owns `org.freedesktop.Notifications`, so a warning sent this way pops
+as a toast, lands in the notification centre, and — being `critical` — never expires, so
+one raised while the lid was shut is still on the list when you open it.
+
+It is instantiated **once, in `shell.qml`**, deliberately not inside `BatteryPill`.
+There is one `Bar` (and so one `BatteryPill`) per monitor, and a per-monitor watcher
+would raise every warning twice on a two-screen machine — the same trap
+`NotificationService.menuMonitor` exists to dodge, and the reason `NotificationToasts`
+is not a `Variants` over screens either.
+
+Four things worth knowing:
+
+- **No `-i` icon, on purpose.** The battery icons in the theme are `*-symbolic` SVGs
+  with a near-black fill baked in, which is invisible on a `base` card — the trap the
+  volume OSD already hit. With no icon at all, `NotificationToasts` falls back to its
+  own glyph in the urgency accent: a red warning triangle for the critical ones, which
+  is what this should look like anyway.
+- **The `x-canonical-private-synchronous` hint is *not* used**, even though it is how
+  the volume OSD avoids stacking. That hint marks a notification transient, and a
+  transient one never joins `entries` — the exact opposite of what a battery warning is
+  for. Each threshold fires at most once per discharge cycle instead, so a full drain
+  leaves three cards, not thirty.
+- **The deepest threshold crossed wins, not the first match.** `levels` is descending
+  and the loop keeps the last hit. A resume from suspend can land the reading below two
+  thresholds at once, and "Battery low — 4%" is the wrong card to raise.
+- `lastFired` re-arms whenever the state stops being `Discharging`, so unplugging again
+  later warns again. On this desktop UPower reports no battery at all and the whole
+  thing is inert.
+
+
+## The screen recorder (SUPER+SHIFT+S)
+
+`hypr/scripts/screen-record.sh` is the whole backend — `--toggle` (slurp a region and
+start, or stop what is running), `--toggle-audio` (the same plus the default input,
+unbound), `--stop`, `--status`. One key does both halves, so there is nothing to
+remember about how to stop.
+
+`RecorderService.qml` is a `pragma Singleton` holding the state, and `RecorderPill.qml`
+draws it. The pill has to be a singleton's client rather than owning the state because
+there is one bar per monitor and they all have to agree about whether a recording is
+running.
+
+The pieces that took thought:
+
+- **The state file lives under `XDG_RUNTIME_DIR`, not `~/.cache`** like every other
+  cache this repo writes. `/run/user/<uid>` is wiped at logout, so a state file orphaned
+  by a crash cannot outlive the session and leave the bar insisting it is still
+  recording. Within a session, `is_recording` additionally `kill -0`s the recorded pid,
+  so a dead recorder self-heals to idle on the next `--status` or `--toggle`.
+- **`RecorderService` reads that file with a `FileView`, not a `Process` on a timer** —
+  the `NetworkPill` rule that an idle bar should spawn nothing. The script calls
+  `qs ipc call recorder refresh` after every state change, so even the file read only
+  happens when something actually happened; `watchChanges: true` is the backstop for a
+  change landing while the bar is restarting.
+- **`--toggle` `setsid -f`s the script back into itself as `--supervise`.** The
+  keybind's process dies as soon as Hyprland has spawned it, and wf-recorder has to
+  outlive that. `--supervise` runs wf-recorder in the **foreground** so there is a
+  parent to `wait` on it and write the idle state however it ends — our own `--stop`, a
+  crash, or a kill from somewhere else. A `( wait $pid ) &` beside it does not work:
+  `wait` only accepts children of the shell that runs it, and a subshell cannot wait on
+  its parent's child.
+- **Stop is `SIGINT`, never `SIGTERM`.** wf-recorder finalises the mp4 container on an
+  interrupt; a TERM leaves a file that will not play. (Verified: 3 s of `-g "0,0
+  200x200"` plus a `kill -INT` gives a valid 2.88 s h264 file.)
+- `slurp` exits non-zero when the selection is cancelled with Escape. That is a normal
+  way to change your mind, so it exits 0 with no notification rather than reporting a
+  failure.
+- The finished path goes to `wl-copy` as well as into the notification, because the path
+  is the useful half — it pastes straight into a chat window or an `mpv` command.
+
+`wf-recorder` is in `PACMAN_PKGS`; the region select reuses the `slurp` that `SUPER+S`
+already needed.
+
+
+## Idle and lock (hypridle)
+
+`hypr/hypridle.conf` is four rules and every path funnels through `lock_cmd`, whose
+`pidof hyprlock ||` guard is what stops a second hyprlock stacking on the first.
+
+`before_sleep_cmd` **was `logindtl lock-session`** — `loginctl` misspelled, so it
+silently did nothing and a lid-close or `systemctl suspend` resumed straight to an
+unlocked desktop. The only thing that ever locked this machine was the manual
+`SUPER+SHIFT+L`, which runs hyprlock itself and so hid the bug.
+
+Two things beyond the fix:
+
+- `after_sleep_cmd = hyprctl dispatch dpms on`. DPMS state does not reliably survive a
+  suspend/resume, so without it the screen can come back from a lid-close still blanked
+  — which reads as a machine that failed to wake.
+- A second listener blanks the panel at 360 s, a minute after the 300 s lock. Separate
+  from the lock on purpose, so the screen is already showing hyprlock rather than the
+  desktop by the time it goes dark, and so the backlight is not left burning all night
+  behind a lock screen.
 
 
 ## btop (Catppuccin Mocha)

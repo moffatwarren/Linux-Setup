@@ -10,7 +10,7 @@ import QtQuick.Layouts
 // hanging playback on a click and a skip on a double-click -- which meant
 // every skip also toggled playback on the way through.
 //
-// Frame, anchoring and dismissal match PowerMenu and BluetoothMenu.
+// Frame, anchoring and dismissal match PowerMenu and WifiMenu.
 PopupWindow {
     id: root
 
