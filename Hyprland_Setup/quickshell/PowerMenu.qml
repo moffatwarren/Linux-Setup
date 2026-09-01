@@ -34,8 +34,8 @@ PopupWindow {
     implicitHeight: body.implicitHeight + 20
     color: "transparent"
     visible: open
-
-    function close() { open = false; }
+    // Take the keyboard while open so Escape can close the menu.
+    grabFocus: open
 
     // Dismiss on a click anywhere outside, as the network and bluetooth menus do.
     HyprlandFocusGrab {
@@ -44,8 +44,12 @@ PopupWindow {
         onCleared: root.close()
     }
 
+    function close() { open = false; }
+
     Rectangle {
         anchors.fill: parent
+        focus: true
+        Keys.onEscapePressed: root.close()
         radius: 12
         color: Theme.base
         border.width: 1

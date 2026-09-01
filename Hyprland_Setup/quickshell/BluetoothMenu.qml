@@ -71,6 +71,8 @@ PopupWindow {
     implicitHeight: body.implicitHeight + 20
     color: "transparent"
     visible: open
+    // Take the keyboard while open so Escape can close the menu.
+    grabFocus: open
 
     // Scan only while the menu is on screen. A Binding rather than an
     // onOpenChanged handler, which would not fire if open were already true.
@@ -100,6 +102,8 @@ PopupWindow {
 
     Rectangle {
         anchors.fill: parent
+        focus: true
+        Keys.onEscapePressed: root.close()
         radius: 12
         color: Theme.base
         border.width: 1

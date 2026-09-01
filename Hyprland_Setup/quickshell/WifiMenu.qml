@@ -52,8 +52,9 @@ PopupWindow {
     implicitHeight: body.implicitHeight + 20
     color: "transparent"
     visible: open
-    // Needed for the password field to receive key events.
-    grabFocus: open && pendingNetwork !== null
+    // Held whenever the menu is open, so Escape closes it and the password
+    // field can receive key events.
+    grabFocus: open
 
     // Only scan while the menu is on screen. Declared as a Binding rather than
     // an onOpenChanged handler, which would never fire if `open` were already
@@ -66,6 +67,10 @@ PopupWindow {
     }
 
     onOpenChanged: if (!open) pendingNetwork = null
+
+    // Take the keyboard back from the password field when it goes away, so
+    // the next Escape closes the menu.
+    onPendingNetworkChanged: if (pendingNetwork === null) frame.forceActiveFocus()
 
     // Dismiss when the user clicks anywhere outside the menu. A layer-shell
     // popup gets no such event on its own; Hyprland's focus grab reports it.
@@ -94,7 +99,13 @@ PopupWindow {
     }
 
     Rectangle {
+        id: frame
         anchors.fill: parent
+        // The password field steals focus while it is up; its own Escape
+        // handler cancels the entry and hands focus back here (explicitly,
+        // below -- a `focus` binding would be fighting the field's own).
+        focus: true
+        Keys.onEscapePressed: root.close()
         radius: 12
         color: Theme.base
         border.width: 1
