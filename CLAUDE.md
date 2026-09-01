@@ -105,8 +105,8 @@ ask about a choice that no longer exists.
 `Pill.qml` is the shared rounded-module background, and `Theme.qml` is a `pragma Singleton`
 holding the Catppuccin Mocha palette.
 
-`tailscale.sh`, `pia.sh` and `weather.sh` are driven by `ScriptPill.qml`, which runs them
-with `Process` and parses the waybar-style JSON they still print. Audio/battery/network/
+`tailscale.sh` and `pia.sh` are driven by `ScriptPill.qml`, which runs them with
+`Process` and parses the waybar-style JSON they still print. Audio/battery/network/
 bluetooth/workspaces/media use Quickshell's native services instead, so the bar is
 event-driven rather than polling.
 
@@ -127,6 +127,40 @@ truncated** date: `SystemClock` ticks every second, and a `date` property only s
 a change when the value differs, so the grid rebuilds once a day instead of once a
 second. It is display-only — no month navigation, since a hover panel is dismissed by
 moving the pointer to reach the arrows.
+
+`WeatherPill.qml` is the current condition and temperature, with `ForecastPopup.qml`
+— the week ahead as a table — on hover. Both halves read one `hypr/scripts/`
+`weather-forecast.sh` poll, and both draw their glyph from one WMO code table, so
+the pill and the panel can never disagree about the weather or the icon for it.
+
+It is **not** a `ScriptPill`, and `weather.sh` no longer has an `--update` case (only
+`--openWeather`, still the right-click). wttr.in publishes three days, not seven, and
+its one-line format exposes no condition code at all — only an emoji — so a pill fed
+from wttr.in could not show the same icon as a panel fed from anywhere else. Both now
+come from Open-Meteo (free, no key), which publishes a WMO code for the current hour
+and for each day. The location still comes from wttr.in, so only one service does the
+IP geolocation. The script also probes `wttr.in/?format=%t` for whether this location
+is °C or °F — wttr.in picks that from the location and exposes it nowhere in its JSON
+— and asks Open-Meteo for the same unit, so the reading matches what wttr.in would
+have said. It prints raw numbers (WMO code, temperature, min/max, precipitation
+chance) and leaves the formatting to the QML, like `system-stats.sh`. Weather is
+cached for ten minutes (matching both the pill's refresh and Open-Meteo's own update
+rate) and the location for a week, so most ticks are a `cat` rather than a request;
+on a network failure it prints the stale cache, or nothing at all, and the module
+keeps its last good reading rather than blanking.
+
+`WeatherCodes.qml` is the singleton holding that table — WMO code to glyph, short
+label and colour. It is a singleton precisely because two things read it. An unmapped
+code returns the "N/A" glyph, not a sun. The pill colours only the glyph by condition
+and leaves the temperature the bar's normal colour, the way `ScriptPill` colours only
+the state word.
+
+`ForecastPopup` borrows `CalendarPopup`'s frame rather than reusing `ListPopup`,
+because a forecast day is six aligned columns and `ListPopup` only puts one label
+opposite one detail. Its columns are sized from `TextMetrics.advanceWidth` (**not**
+`.width`, which is the ink bounding box and is a fraction narrower than the space the
+same string lays out in — every condition elided by one pixel), so the table does not
+reflow as the numbers change width.
 
 `WifiMenu.qml` is the right-click dropdown on the network module: a scrollable-free
 list of nearby SSIDs (deduplicated per SSID, strongest first, capped at 8), each with a

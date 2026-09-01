@@ -34,12 +34,7 @@ PanelWindow {
 
         ClockPill {}
 
-        // weather.sh --update, 10 minute refresh (waybar interval: 600)
-        ScriptPill {
-            command: "~/.config/hypr/scripts/weather.sh --update"
-            intervalMs: 600000
-            rightClickCommand: "~/.config/hypr/scripts/weather.sh --openWeather"
-        }
+        WeatherPill {}
 
         MediaGroup {}
     }
