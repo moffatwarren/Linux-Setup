@@ -323,16 +323,25 @@ Not carried over from waybar: the clock's `{calendar}` tooltip is a plain date, 
 `format-alt` click-to-cycle is not implemented.
 
 Media: clicking either the album art or the title opens `MediaMenu.qml` — the cover at
-a size worth looking at (the full content width, masked to a rounded square by the same
-`MultiEffect` the 22px pill circle uses, and `sourceSize`d to the width it is drawn at)
-above previous / play/pause / next, in the same `base`-inside-`surface1` frame as
-`PowerMenu`/`BluetoothMenu`, dismissed by Escape or a click outside via
-`HyprlandFocusGrab`. It replaced click-to-toggle plus double-click-to-skip: `clicked`
-arrives before `doubleClicked`, so the single click had to sit in a 250 ms timer and
-every skip toggled playback on its way through. A button is
-greyed to `overlay0` and inert when the player says it `canGoPrevious`/`canGoNext`/
-`canTogglePlaying` is false, and the menu closes itself when `player` goes null — the module
-hides when nothing is playing, and a menu left open would hang off an invisible anchor.
+a size worth looking at, above previous / play/pause / next, in the same
+`base`-inside-`surface1` frame as `PowerMenu`/`BluetoothMenu`, dismissed by Escape or a
+click outside via `HyprlandFocusGrab`. The cover is masked to a rounded square by the
+same `MultiEffect` the 22px pill circle uses, and is drawn at the panel width **or at the
+artwork's own resolution, whichever is smaller** — it is never upscaled. A Chromium
+player publishes a 120–150px cover, and stretching that across the panel is a visibly
+interpolated square; a player with real artwork still fills the full width, and the panel
+keeps its own width either way, so the menu does not resize per track. **`sourceSize` is
+deliberately unset**: under `PreserveAspectCrop` it is a decode *target*, not a cap, so Qt
+scales a 120px cover **up** to meet it and `implicitWidth` then reports the request rather
+than the artwork — which is the one number that sizing rule needs. (Under the default fill
+mode it really is a cap, which is what makes this worth writing down.)
+
+It replaced click-to-toggle plus double-click-to-skip: `clicked` arrives before
+`doubleClicked`, so the single click had to sit in a 250 ms timer and every skip toggled
+playback on its way through. A button is greyed to `overlay0` and inert when the player
+says its `canGoPrevious`/`canGoNext`/`canTogglePlaying` is false, and the menu closes
+itself when `player` goes null — the module hides when nothing is playing, and a menu left
+open would hang off an invisible anchor.
 
 ## The overlays — launcher, clipboard, wallpapers (SUPER+SPACE / V / W)
 
