@@ -11,21 +11,18 @@ hl.bind(config.mainMod .. " + F", hl.dsp.window.fullscreen({ mode = "maximized" 
 hl.bind(config.mainMod .. " + SHIFT + F", hl.dsp.window.fullscreen({ mode = "fullscreen" }), { bypass = true })
 hl.bind(config.mainMod .. " + ALT + F", hl.dsp.window.float({ action = "toggle" }), { bypass = true })
 hl.bind(config.mainMod .. " + J", hl.dsp.layout("togglesplit")) -- dwindle only
-hl.bind(config.mainMod .. " + SPACE", hl.dsp.exec_cmd(config.menu), { bypass = true })
+-- App launcher, clipboard history and the wallpaper picker are all quickshell
+-- overlays living in the bar process (see quickshell/OverlayPanel.qml), so the
+-- binds just poke their IPC handlers.
+hl.bind(config.mainMod .. " + SPACE", hl.dsp.exec_cmd("qs ipc call launcher toggle"), { bypass = true })
 hl.bind(config.mainMod .. " + E", hl.dsp.exec_cmd(config.fileManager), { bypass = true })
 hl.bind(config.mainMod .. " + B", hl.dsp.exec_cmd(config.browser), { bypass = true })
 hl.bind(config.mainMod .. " + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | swappy -f -'), { bypass = true })
 hl.bind(config.mainMod .. " + ALT + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | tesseract stdin stdout | wl-copy'), { bypass = true })
 hl.bind(config.mainMod .. " + O", hl.dsp.exec_cmd("~/.config/hypr/scripts/audio-output-toggle.sh"), { bypass = true })
--- Wallpaper picker: the grid lives in the quickshell bar (WallpaperPicker.qml),
--- so the bind just pokes its IPC handler.
 hl.bind(config.mainMod .. " + W", hl.dsp.exec_cmd("qs ipc call wallpaper toggle"), { bypass = true })
 hl.bind(config.mainMod .. " + SHIFT + W", hl.dsp.exec_cmd("~/.config/hypr/scripts/wallpaper-random.sh"), { bypass = true })
-hl.bind(
-	config.mainMod .. " + V",
-	hl.dsp.exec_cmd("~/.config/hypr/scripts/clipboard-menu.sh"),
-	{ bypass = true }
-)
+hl.bind(config.mainMod .. " + V", hl.dsp.exec_cmd("qs ipc call clipboard toggle"), { bypass = true })
 hl.bind(config.mainMod .. " + N", hl.dsp.exec_cmd("swaync-client -t -sw"), { bypass = true })
 hl.bind(config.mainMod .. " + T", hl.dsp.exec_cmd(config.terminal .. " --class btop-float -e btop"), { bypass = true })
 hl.bind(config.mainMod .. " + G", hl.dsp.exec_cmd(config.browser .. ' --app="https://gemini.google.com/app"'),

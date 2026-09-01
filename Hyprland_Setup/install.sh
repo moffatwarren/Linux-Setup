@@ -11,11 +11,35 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 # Add a new app config by adding its directory name here. A name with no
 # matching directory is skipped with a warning rather than aborting.
 # ---------------------------------------------------------------------------
-CONFIGS=(fastfetch fish gtk-3.0 gtk-4.0 hypr kitty nvim quickshell rofi swappy swaync weathr)
+CONFIGS=(fastfetch fish gtk-3.0 gtk-4.0 hypr kitty nvim quickshell swappy swaync weathr)
+
+# ---------------------------------------------------------------------------
+# Paths under ~/.config that an EARLIER release of this repo deployed and this
+# one no longer ships. `deploy_configs` copies with `cp -rf`, which adds and
+# overwrites but never deletes, so without this list a machine upgrading from an
+# older layout keeps them for ever -- dead configs that still look live.
+#
+# Each entry is removed with `rm -rf`, so add only paths this repo itself put
+# there. A directory is fine; a bare name would delete a whole ~/.config subtree.
+# ---------------------------------------------------------------------------
+ORPHANS=(
+    # rofi drew the app launcher, the clipboard list and the wallpaper picker.
+    # All three are quickshell overlays now (quickshell/OverlayPanel.qml) and
+    # nothing is bound to rofi any more, so its config goes with it. The rofi
+    # *package* is left installed; this script does not uninstall anything.
+    rofi
+    hypr/scripts/clipboard-menu.sh
+    hypr/scripts/wallpaper-selector.sh
+    hypr/modules/utils/wallpaper_utils.lua
+    # The GTK theme these replaced; deploying gtk.css drops the @import that
+    # referenced it, but the file itself stays behind.
+    gtk-3.0/noctalia.css
+    gtk-4.0/noctalia.css
+)
 
 PACMAN_PKGS=(
     kitty hyprland quickshell hyprlock hypridle awww ttf-font-awesome swaync
-    ttf-jetbrains-mono-nerd swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look rofi
+    ttf-jetbrains-mono-nerd swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look
     gvfs gvfs-smb samba nvim mpv imv brightnessctl playerctl blueman gnome-text-editor swayimg imagemagick
     thunar-archive-plugin xarchiver unzip net-tools localsend spotify-launcher
     tesseract tesseract-data-eng speedtest-cli brave-origin-bin paru
@@ -29,9 +53,11 @@ PACMAN_PKGS=(
     # (the power profile module), networkmanager (the network module + nmtui),
     # qt6-imageformats (webp/avif thumbnails in the SUPER+W wallpaper picker --
     # Qt ships only jpg/png/gif out of the box), libnotify (notify-send in the
-    # OSD and wallpaper scripts) and wl-clipboard (wl-copy/wl-paste in the
-    # clipboard binds). The last two also arrive as dependencies of thunar and
-    # cliphist, but a script calling them directly should not rely on that.
+    # OSD and wallpaper scripts), and cliphist + wl-clipboard + imagemagick,
+    # which are between them the whole SUPER+V clipboard history: the store, the
+    # wl-copy that puts an entry back, and the `magick` that makes its thumbnail.
+    # Some of these also arrive as dependencies of thunar and cliphist, but a
+    # script calling them directly should not rely on that.
     jq libpulse wireplumber pavucontrol power-profiles-daemon networkmanager
     qt6-imageformats libnotify wl-clipboard
     # Needed by install.sh itself rather than by anything it deploys: sddm owns
@@ -234,6 +260,36 @@ deploy_configs() {
     echo "    voidsddm + sddm.conf.d (system)"
 }
 
+# Delete what an older release of this repo deployed and this one has dropped.
+# `cp -rf` in deploy_configs only adds and overwrites, so a machine upgrading
+# from a previous layout would otherwise keep every retired config for ever.
+# Runs on a first install too, where it simply finds nothing.
+remove_orphans() {
+    info "Removing configs this release no longer ships"
+    local p target found=0
+    for p in "${ORPHANS[@]}"; do
+        # An empty entry would expand to ~/.config itself. Cheap guard, and the
+        # only thing standing between a typo in ORPHANS and a wiped config dir.
+        [ -n "$p" ] || continue
+        # A path this repo still ships is not an orphan, whatever the list says.
+        # Without this a stale entry silently deletes what deploy_configs just
+        # wrote, one step earlier, and the config simply stops existing.
+        if [ -e "$SCRIPT_DIR/$p" ]; then
+            echo "    skip $p (this repo still ships it)"
+            continue
+        fi
+        target="$HOME/.config/$p"
+        if [ -e "$target" ]; then
+            rm -rf "$target"
+            echo "    removed $p"
+            found=1
+        fi
+    done
+    if [ "$found" -eq 0 ]; then
+        echo "    nothing to remove"
+    fi
+}
+
 fix_permissions() {
     chmod +x "$SCRIPT_DIR/install.sh"
     local c d
@@ -396,6 +452,37 @@ normalize_hyprlock_wallpaper() {
     echo "    hyprlock background -> $candidate"
 }
 
+# A deploy is not live until something re-reads it: Hyprland parses its config
+# at startup and quickshell parses its QML once. Without this, new keybinds and a
+# new bar only appear after a logout -- which reads as the deploy having done
+# nothing, and is exactly how a changed SUPER+SPACE gets reported as broken.
+#
+# Skipped when Hyprland is not running (a fresh machine installing from a TTY),
+# where the next login picks everything up anyway.
+reload_session() {
+    if ! command -v hyprctl >/dev/null 2>&1 || ! hyprctl version >/dev/null 2>&1; then
+        info "Not reloading"
+        echo "    Hyprland is not running -- the new config applies at next login."
+        return 0
+    fi
+
+    info "Reloading the session"
+    # `|| true` throughout: a cosmetic reload must never abort a finished deploy
+    # under `set -e`.
+    hyprctl reload >/dev/null 2>&1 || true
+    echo "    hyprctl reload"
+
+    # Restart the bar last and unconditionally, so exactly one instance is left
+    # no matter what the reload above did with exec-once. It owns the SUPER+
+    # SPACE / V / W overlays as well as the bar, and `qs ipc call` finds it by
+    # the default config path. setsid so it outlives this script.
+    killall quickshell >/dev/null 2>&1 || true
+    sleep 1
+    setsid quickshell >/dev/null 2>&1 &
+    disown
+    echo "    quickshell restarted (bar + SUPER+SPACE / V / W overlays)"
+}
+
 # Reverse direction: live system -> repo, for review and commit.
 pull_configs() {
     info "Pulling live configs into $SCRIPT_DIR"
@@ -452,6 +539,7 @@ main() {
     fi
 
     deploy_configs
+    remove_orphans
 
     if [[ ! "$resp_install" =~ ^[Yy]$ ]]; then
         info "Restoring machine-specific values"
@@ -463,6 +551,10 @@ main() {
     get_wallpapers
     # After get_wallpapers, so a first install has the images to point at.
     normalize_hyprlock_wallpaper
+    # Last: it restarts the bar, which should come up reading the files every
+    # step above has finished writing (the icon theme apply_gtk_theme sets
+    # included -- the launcher resolves its app icons through it).
+    reload_session
     info "Done."
 }
 
