@@ -64,20 +64,7 @@ PanelWindow {
 
         TailscalePill {}
 
-        // pia.sh --status
-        ScriptPill {
-            command: "~/.config/hypr/scripts/pia.sh --status"
-            // waybar coloured #custom-pia by class; red for disconnected as requested.
-            altColors: ({
-                "connected":     Theme.green,
-                "connecting":    Theme.yellow,
-                "disconnecting": Theme.yellow,
-                "disconnected":  Theme.red,
-                "error":         Theme.red
-            })
-            prefix: "\udb80\udda7 PIA: "
-            doubleClickCommand: "~/.config/hypr/scripts/pia.sh --toggle"
-        }
+        PiaPill {}
 
         NetworkPill {}
 
