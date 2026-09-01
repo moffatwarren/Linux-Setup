@@ -76,18 +76,6 @@ hl.window_rule({
 })
 
 hl.window_rule({
-	name = "gnome-text-editor",
-	match = { class = "org.gnome.TextEditor" },
-	opacity = "0.9 0.8",
-})
-
-hl.window_rule({
-	name = "thunar",
-	match = { class = "thunar" },
-	opacity = "0.9 0.8",
-})
-
-hl.window_rule({
 	name = "chrome-picture-in-picture",
 	match = { title = "^(Picture-in-picture)$" },
 	float = true,

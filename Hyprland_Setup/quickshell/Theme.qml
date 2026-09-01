@@ -30,14 +30,18 @@ Singleton {
     readonly property string mantle:    "#181825"
     readonly property string crust:     "#11111b"
 
-    // The bar's one surface colour: `Bar.qml` paints its whole background with
-    // this too, so a pill is indistinguishable from the strip behind it. Opaque
-    // -- the old alpha(@surface0, 0.85) was tuned to read against the wallpaper,
-    // which no longer shows through anywhere.
-    readonly property color pill: surface1
+    // The bar's one surface colour: `Bar.qml` paints its whole slab with this
+    // too, so a pill is indistinguishable from the strip behind it. `base`
+    // matches the popup frames (ListPopup, CalendarPopup, ForecastPopup and the
+    // menus all draw `Theme.base` inside a surface1 border), so a hover panel
+    // reads as an extension of the bar rather than a separate surface.
+    readonly property color pill: base
 
     readonly property string fontFamily: "JetBrainsMono Nerd Font"
     readonly property int fontSize: 12
     readonly property int pillHeight: 22
+    // The bar slab's corner radius (Bar.qml). height/2 would be a full capsule;
+    // keep it in step with decoration.rounding in hypr/modules/look.lua.
+    readonly property int barRadius: 8
     readonly property int pillPad: 12
 }

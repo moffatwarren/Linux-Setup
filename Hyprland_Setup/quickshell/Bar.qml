@@ -37,7 +37,7 @@ PanelWindow {
     Rectangle {
         anchors.fill: parent
         color: Theme.pill
-        radius: height / 2
+        radius: Theme.barRadius
     }
 
     Row {
