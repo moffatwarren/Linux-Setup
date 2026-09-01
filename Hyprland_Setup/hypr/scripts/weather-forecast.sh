@@ -13,6 +13,11 @@
 # chance -- and leaves every bit of formatting to the QML, the way
 # system-stats.sh does. On any failure it prints nothing, so the module keeps
 # its last good reading rather than showing a confidently wrong one.
+#
+# --force ignores the forecast cache's age, for the panel's double-click-to-
+# refresh. The location cache is left alone: it is a week old at worst, it
+# costs two extra requests to rebuild, and where you are is not what you are
+# asking to re-check.
 
 set -uo pipefail
 
@@ -25,6 +30,10 @@ FORECAST_CACHE="$CACHE_DIR/weather-forecast.json"
 # (Open-Meteo updates about every fifteen), the location for a week.
 LOC_MAX_AGE=$((7 * 24 * 3600))
 FORECAST_MAX_AGE=$((10 * 60))
+
+case "${1:-}" in
+    --force) FORECAST_MAX_AGE=0 ;;   # fresh() compares age -lt 0, never true
+esac
 
 fresh() {
     local file=$1 max_age=$2 age
@@ -113,6 +122,13 @@ refresh_forecast() {
 refresh_location
 refresh_forecast
 
-# A stale cache still beats an empty panel when the network is down.
-[ -s "$FORECAST_CACHE" ] && cat "$FORECAST_CACHE"
+# A stale cache still beats an empty panel when the network is down -- hence
+# `updated`, the cache file's mtime: it is when the data was actually fetched,
+# not when it was read, so a panel opened after a failed refresh says so. It
+# comes from the file rather than from the QML so it survives a bar restart.
+if [ -s "$FORECAST_CACHE" ]; then
+    updated=$(stat -c %Y "$FORECAST_CACHE" 2>/dev/null || echo 0)
+    jq -c --argjson updated "$updated" '. + { updated: $updated }' \
+        "$FORECAST_CACHE" 2>/dev/null || cat "$FORECAST_CACHE"
+fi
 exit 0

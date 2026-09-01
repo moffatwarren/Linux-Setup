@@ -15,8 +15,16 @@ PopupWindow {
     // [{ date: "2026-08-31", code: 3, max: 22.5, min: 11, pop: 2 }, …] straight
     // from weather-forecast.sh; every field but `date` may be absent.
     property var days: []
+    // Unix seconds; 0 until the first reading has come back.
+    property double updatedAt: 0
+    property bool refreshing: false
     property string emptyText: ""
     property int delayMs: 300
+
+    // Re-read every half minute while the panel is open, so "5 min ago" does
+    // not sit there going stale in front of you. Nothing drives it when the
+    // panel is closed.
+    property double nowMs: Date.now()
 
     readonly property bool hasContent: days.length > 0 || emptyText.length > 0
 
@@ -40,6 +48,17 @@ PopupWindow {
     function condition(code) { return WeatherCodes.condition(code); }
 
     function temp(v) { return v === undefined ? "" : Math.round(v) + "°"; }
+
+    // Relative for anything inside a day, absolute past that -- "31 h ago" is
+    // arithmetic the reader has to do, a date is not.
+    function agoText(sec) {
+        const mins = Math.floor((root.nowMs / 1000 - sec) / 60);
+        if (mins < 1) return "just now";
+        if (mins < 60) return mins + " min ago";
+        const hrs = Math.floor(mins / 60);
+        if (hrs < 24) return hrs + (hrs === 1 ? " hour ago" : " hours ago");
+        return Qt.formatDateTime(new Date(sec * 1000), "d MMM, h:mm ap");
+    }
 
     function popColor(pop) {
         return pop >= 60 ? Theme.blue : pop >= 20 ? Theme.subtext0 : Theme.overlay0;
@@ -69,6 +88,14 @@ PopupWindow {
         id: openTimer
         interval: root.delayMs
         onTriggered: root.delayPassed = true
+    }
+
+    Timer {
+        interval: 30000
+        running: root.visible
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: root.nowMs = Date.now()
     }
 
     // Column widths are measured off the widest content each column can hold,
@@ -228,6 +255,41 @@ PopupWindow {
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSize
                     }
+                }
+            }
+
+            // Provenance line: how old the reading is, and how to force a new
+            // one. Hidden until there is a reading to be old.
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.topMargin: 2
+                visible: footer.visible
+                implicitHeight: 1
+                color: Theme.surface1
+            }
+
+            RowLayout {
+                id: footer
+                Layout.fillWidth: true
+                visible: root.updatedAt > 0 || root.refreshing
+                spacing: 12
+
+                Text {
+                    text: root.refreshing
+                          ? "Refreshing…"
+                          : "Updated " + root.agoText(root.updatedAt)
+                    color: root.refreshing ? Theme.subtext0 : Theme.overlay0
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize - 2
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Text {
+                    text: "double-click to refresh"
+                    color: Theme.overlay0
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize - 2
                 }
             }
         }

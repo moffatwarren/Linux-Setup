@@ -18,6 +18,11 @@ Pill {
     // { code, temp } -- either field may be absent if Open-Meteo omitted it.
     property var current: ({})
     property string unit: ""
+    // When the data was fetched, in Unix seconds -- the cache file's mtime, not
+    // the time of this poll, so a tick served from cache (most of them) still
+    // reports the age of the reading it is showing.
+    property double updatedAt: 0
+    property bool refreshing: false
 
     readonly property var condition: WeatherCodes.condition(current.code)
 
@@ -33,9 +38,29 @@ Pill {
     onRightClicked: Quickshell.execDetached(
         ["bash", "-lc", "~/.config/hypr/scripts/weather.sh --openWeather"])
 
+    // Double-click re-fetches now rather than waiting out the ten-minute cache.
+    onDoubleClicked: root.refresh()
+
+    function refresh() {
+        // The command is bound to `force`, so it must not be rewritten under a
+        // running process; a second double-click mid-fetch is simply ignored.
+        if (weather.running) return;
+        weather.force = true;
+        root.refreshing = true;
+        weather.running = true;
+    }
+
     Process {
         id: weather
-        command: ["bash", "-lc", "~/.config/hypr/scripts/weather-forecast.sh"]
+        // --force makes the script ignore the cache's age. Cleared again in
+        // onExited so the scheduled polls stay cheap.
+        property bool force: false
+        command: ["bash", "-lc", "~/.config/hypr/scripts/weather-forecast.sh"
+                                 + (force ? " --force" : "")]
+        onExited: {
+            weather.force = false;
+            root.refreshing = false;
+        }
         stdout: StdioCollector {
             onStreamFinished: {
                 const raw = text.trim();
@@ -48,6 +73,7 @@ Pill {
                     root.unit = j.unit !== undefined ? String(j.unit) : "";
                     root.current = j.current !== undefined ? j.current : ({});
                     root.days = j.days !== undefined ? j.days : [];
+                    root.updatedAt = j.updated !== undefined ? Number(j.updated) : 0;
                 } catch (e) {
                     console.warn("WeatherPill: unparseable weather: " + e);
                 }
@@ -70,6 +96,8 @@ Pill {
         requested: root.hovered
         place: root.place
         days: root.days
+        updatedAt: root.updatedAt
+        refreshing: root.refreshing
         emptyText: "Fetching forecast…"
     }
 }
