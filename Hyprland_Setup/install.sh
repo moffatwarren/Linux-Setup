@@ -50,6 +50,15 @@ declare -A GROUP_PROMPT=(
     [machine]="Overwrite monitor and bar selection?"
 )
 
+# Files that moved between releases, as "<old path>|<new path>" under ~/.config.
+# On a machine still running the previous layout the new path does not exist
+# yet, so its machine-specific values would never be captured and would be
+# silently replaced by whatever this repo has committed. Seeding the new path
+# from the old one before the capture step keeps them.
+LEGACY_MOVES=(
+    "waybar/scripts/audio-output-toggle.sh|hypr/scripts/audio-output-toggle.sh"
+)
+
 declare -A GROUP_MODE=()   # group -> "preserve" when the live value is kept
 declare -A PRESERVED=()    # "<rel>|<regex>" -> captured value
 
@@ -98,6 +107,19 @@ prompt_preserve_groups() {
         read -p "${GROUP_PROMPT[$group]} (y/N): " reply
         if [[ ! "$reply" =~ ^[Yy]$ ]]; then
             GROUP_MODE[$group]=preserve
+        fi
+    done
+}
+
+# Carry values over from a path that moved, so the capture below can find them.
+migrate_legacy_paths() {
+    local entry old new
+    for entry in "${LEGACY_MOVES[@]}"; do
+        IFS='|' read -r old new <<<"$entry"
+        if [ -f "$HOME/.config/$old" ] && [ ! -f "$HOME/.config/$new" ]; then
+            mkdir -p "$(dirname "$HOME/.config/$new")"
+            \cp -f "$HOME/.config/$old" "$HOME/.config/$new"
+            echo "    carried over $old -> $new"
         fi
     done
 }
@@ -279,6 +301,7 @@ main() {
     if [[ "$resp_install" =~ ^[Yy]$ ]]; then
         first_install_extras
     else
+        migrate_legacy_paths
         prompt_preserve_groups
         capture_preserved
     fi
