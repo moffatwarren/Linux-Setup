@@ -18,6 +18,7 @@ Text {
     color: config.stringValue("clockColor") || config.stringValue("textColor") || "#c4c4c4"
     font.pixelSize: config.intValue("clockFontSize") || 24
     font.family: config.stringValue("clockFontFamily") || config.stringValue("fontFamily") || "JetBrains Mono Nerd Font"
+    font.letterSpacing: config.intValue("clockLetterSpacing") || 0
     opacity: (root.visible ? 1 : 0) * root.elementOpacity
     
     property string clockFormat: config.stringValue("clockFormat") || "%H:%M"
@@ -45,6 +46,10 @@ Text {
         formatted = formatted.replace(/%S/g, (seconds < 10 ? "0" : "") + seconds)
         // %s - seconds without padding (3)
         formatted = formatted.replace(/%s/g, seconds.toString())
+        // %P - AM/PM, %p - am/pm
+        var meridiem = hours24 < 12 ? "AM" : "PM"
+        formatted = formatted.replace(/%P/g, meridiem)
+        formatted = formatted.replace(/%p/g, meridiem.toLowerCase())
         
         return formatted
     }

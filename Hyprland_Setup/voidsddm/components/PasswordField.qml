@@ -1,4 +1,5 @@
 import QtQuick 2.0
+import "../utils/ConfigManager.js" as ConfigManager
 
 Rectangle {
     id: root
@@ -20,16 +21,16 @@ Rectangle {
     height: config.intValue("passwordFieldHeight") || 35
     color: config.stringValue("passwordFieldBackground") || '#333333'
     radius: config.intValue("passwordFieldRadius") || 16
-    border.color: root.hasError ? 
-        (config.stringValue("loginErrorColor") || '#ff3117') :
-        (root.enabled ? 
-            (config.stringValue("passwordFieldBorderActive") || '#aaaaaa') : 
-            (config.stringValue("passwordFieldBorder") || '#888888'))
-    border.width: root.hasError ? 
-        (config.intValue("loginErrorBorderWidth") || 4) :
-        (root.enabled ? 
-            (config.intValue("passwordFieldBorderWidthActive") || 2) : 
-            (config.intValue("passwordFieldBorderWidth") || 1))
+    border.color: root.hasError
+        ? ConfigManager.colorOr(config, "loginErrorColor", '#ff3117')
+        : (root.enabled
+            ? ConfigManager.colorOr(config, "passwordFieldBorderActive", '#aaaaaa')
+            : ConfigManager.colorOr(config, "passwordFieldBorder", '#888888'))
+    border.width: root.hasError
+        ? ConfigManager.intOr(config, "loginErrorBorderWidth", 4)
+        : (root.enabled
+            ? ConfigManager.intOr(config, "passwordFieldBorderWidthActive", 2)
+            : ConfigManager.intOr(config, "passwordFieldBorderWidth", 1))
     property int animationDuration: config.intValue("animationDuration") || 200
     property int sideMargin: config.intValue("passwordFieldMargin") || 20
     
@@ -116,14 +117,18 @@ Rectangle {
         x: root.shakeOffset
     }
     
-    // Subtle glow effect when selected
+    // Subtle glow when focused. Was a hardcoded '#cccccc', which no config key
+    // could reach -- set passwordFieldGlow=none to drop it entirely.
+    property color glowColor: ConfigManager.colorOr(config, "passwordFieldGlow", '#cccccc')
+    property bool showGlow: root.glowColor.a > 0
+
     Rectangle {
         anchors.fill: parent
         radius: parent.radius
         color: "transparent"
-        border.color: root.enabled ? '#cccccc' : 'transparent'
-        border.width: root.enabled ? 1 : 0
-        opacity: root.enabled ? 0.3 : 0
+        border.color: root.glowColor
+        border.width: (root.enabled && root.showGlow) ? 1 : 0
+        opacity: (root.enabled && root.showGlow) ? 0.3 : 0
         antialiasing: true
         
         Behavior on opacity {
@@ -175,6 +180,22 @@ Rectangle {
                     event.accepted = false
                 }
             }
+        }
+
+        // Placeholder. TextInput has no placeholderText (that is TextField, from
+        // Controls, which this theme does not import), so it is a plain Text laid
+        // over the input and hidden as soon as anything is typed.
+        Text {
+            anchors.fill: parent
+            visible: passwordInput.text.length === 0
+            text: config.stringValue("passwordPlaceholder")
+            color: ConfigManager.colorOr(config, "passwordPlaceholderColor",
+                                         config.stringValue("textColor") || "#c4c4c4")
+            verticalAlignment: Text.AlignVCenter
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideRight
+            font.pixelSize: config.intValue("passwordFieldFontSize") || 16
+            font.family: config.stringValue("fontFamily") || "JetBrains Mono Nerd Font"
         }
         
         // Show/Hide password button
