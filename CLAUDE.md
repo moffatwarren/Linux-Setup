@@ -113,6 +113,12 @@ keeps the old escape hatch. Scanning is driven by a `Binding` on the device's
 The signal meter is drawn with rectangles rather than a nerd font glyph — no private-use
 codepoint to get wrong, and it scales with the strength value (which is 0..1, not 0-100).
 
+`PiaPill.qml` specialises `ScriptPill` the same way: `pia.sh` still drives the state and
+the label, while a `piactl` call fills a hover panel with where the tunnel exits.
+`piactl get region` reports the *selected* region, which is usually `auto`, so the public
+IP is what actually identifies the exit; `vpnip`/`pubip` rows are dropped when piactl
+returns `Unknown`. Disconnected shows "Not connected" in red plus the real public IP.
+
 `TailscalePill.qml` specialises `ScriptPill` because it needs both halves of waybar's
 format (`Tailscale: {icon} | Exit-node: {text}`) and reads its peer list from
 `tailscale status --json` directly, rather than from the script's tooltip.
