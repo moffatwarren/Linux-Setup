@@ -13,6 +13,9 @@ PopupWindow {
     property string title: ""
     property var rows: []
     property string emptyText: ""
+    // Optional cap on the right-hand column, for rows whose detail is a device
+    // name long enough to stretch the panel across the screen. 0 = no cap.
+    property int maxDetailWidth: 0
     property int delayMs: 300
 
     readonly property bool hasContent: rows.length > 0 || emptyText.length > 0
@@ -98,6 +101,10 @@ PopupWindow {
                     Text {
                         text: modelData.detail !== undefined ? modelData.detail : ""
                         color: modelData.accent !== undefined ? modelData.accent : Theme.subtext0
+                        Layout.maximumWidth: root.maxDetailWidth > 0
+                                             ? root.maxDetailWidth : Number.POSITIVE_INFINITY
+                        elide: Text.ElideRight
+                        horizontalAlignment: Text.AlignRight
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSize
                     }

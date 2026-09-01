@@ -23,6 +23,18 @@ Pill {
     readonly property bool muted: audio ? audio.muted : false
     readonly property string sinkName: sink ? String(sink.name) : ""
 
+    readonly property var source: Pipewire.defaultAudioSource
+    readonly property var sourceAudio: source ? source.audio : null
+
+    // description is the human-readable name ("Built-in Audio Analog Stereo");
+    // nickname and name are fallbacks for nodes that publish neither.
+    function nodeLabel(node) {
+        if (!node) return "";
+        if (node.description) return String(node.description);
+        if (node.nickname) return String(node.nickname);
+        return node.name ? String(node.name) : "";
+    }
+
     property string headphoneSink: ""
     property string bluetoothSink: ""
 
@@ -58,9 +70,14 @@ Pill {
 
     onSinkNameChanged: if (!roles.running) roles.running = true
 
-    // Keeps the sink's volume/mute properties live.
+    // Keeps the volume/mute/description properties of both defaults live.
     PwObjectTracker {
-        objects: root.sink ? [root.sink] : []
+        objects: {
+            const out = [];
+            if (root.sink) out.push(root.sink);
+            if (root.source) out.push(root.source);
+            return out;
+        }
     }
 
     label: sink ? (muted ? icon : icon + " " + Math.round(volume * 100) + "%") : ""
@@ -72,5 +89,34 @@ Pill {
         if (!audio) return;
         audio.muted = false;
         audio.volume = Math.max(0, Math.min(1, audio.volume + (delta > 0 ? 0.05 : -0.05)));
+    }
+
+    ListPopup {
+        anchorItem: root
+        requested: root.hovered
+        title: "Audio"
+        // Device descriptions run long ("Navi 48 HDMI/DP Audio Controller
+        // Digital Stereo (HDMI 2) [27E3QKS]"); elide rather than let one row
+        // stretch the panel across the screen.
+        maxDetailWidth: 260
+        rows: {
+            const out = [];
+            out.push({ text: "Output",
+                       detail: root.sink ? root.nodeLabel(root.sink) : "none",
+                       accent: root.sink ? Theme.text : Theme.subtext0 });
+            if (root.audio)
+                out.push({ text: "Volume",
+                           detail: root.muted ? "muted" : Math.round(root.volume * 100) + "%",
+                           accent: root.muted ? Theme.red : Theme.green });
+            out.push({ text: "Input",
+                       detail: root.source ? root.nodeLabel(root.source) : "none",
+                       accent: root.source ? Theme.text : Theme.subtext0 });
+            if (root.sourceAudio)
+                out.push({ text: "Mic",
+                           detail: root.sourceAudio.muted
+                                   ? "muted" : Math.round(root.sourceAudio.volume * 100) + "%",
+                           accent: root.sourceAudio.muted ? Theme.red : Theme.green });
+            return out;
+        }
     }
 }

@@ -110,10 +110,12 @@ with `Process` and parses the waybar-style JSON they still print. Audio/battery/
 bluetooth/workspaces/media use Quickshell's native services instead, so the bar is
 event-driven rather than polling.
 
-`ListPopup.qml` is the Catppuccin hover panel used by the bluetooth, battery and
+`ListPopup.qml` is the Catppuccin hover panel used by the audio, bluetooth, battery and
 tailscale modules (a title plus `{ text, detail, accent }` rows). It replaced the stock
 QtQuick `ToolTip`s, which ignored the palette. Modules drive it with
-`requested: root.hovered`, using the `hovered` alias `Pill.qml` exposes.
+`requested: root.hovered`, using the `hovered` alias `Pill.qml` exposes. Its optional
+`maxDetailWidth` elides the right-hand column, for rows whose detail is a device name
+long enough to stretch the panel across the screen (`AudioPill` needs it).
 
 `WifiMenu.qml` is the right-click dropdown on the network module: a scrollable-free
 list of nearby SSIDs (deduplicated per SSID, strongest first, capped at 8), each with a
@@ -217,7 +219,10 @@ Six things to know before editing the QML:
 - `AudioPill` reads which sink is headphones/bluetooth out of
   `hypr/scripts/audio-output-toggle.sh` rather than guessing from the sink name.
   Inferring it does not work: on this machine the headphones are the PCI analog jack
-  and the speakers are USB, and other machines invert that.
+  and the speakers are USB, and other machines invert that. Its hover panel names the
+  default output and input (`Pipewire.defaultAudioSink`/`defaultAudioSource`, shown by
+  `description` with `nickname`/`name` as fallbacks) plus each one's volume; both nodes
+  go in the `PwObjectTracker` so those stay live.
 - **`ScriptPill` must escape control characters before `JSON.parse`.** `tailscale.sh`
   joins its peer list with raw carriage returns, which are illegal inside a JSON string;
   parsing them threw and blanked the module the instant tailscale came up. It also keeps
