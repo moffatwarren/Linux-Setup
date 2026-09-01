@@ -135,6 +135,25 @@ the equivalent keybinds in `binds.lua` — in particular Sleep locks before susp
 suspending an unlocked session. The action list is a plain array at the top of
 `PowerMenu.qml`, so adding or removing an entry is one line.
 
+`PowerProfilePill.qml` carries the machine's vitals in its hover panel — CPU and memory
+use, GPU load and VRAM, root filesystem use, and CPU/GPU temperature — because none of
+those warrant a pill of their own. `hypr/scripts/system-stats.sh` gathers everything but
+the CPU figure and prints one JSON object of raw numbers (bytes, percent, millidegrees),
+leaving all formatting to the QML. It discovers sensors by **name, not index**: hwmon
+numbering is assigned in probe order and changes between boots, and the DRM card index
+moves the same way. A value it cannot read is omitted from the JSON rather than reported
+as `0`, so the panel drops that row instead of showing a confidently wrong reading. That
+script runs on a 2 s timer gated on `hovered`, with one immediate read on hover, so an
+idle bar spawns no processes.
+
+CPU utilisation is the exception, because `/proc/stat` counts jiffies since boot and so
+only yields a percentage as a **delta between two samples** — there is nothing to read
+once. It is sampled in the QML with `FileView` (the `NetworkPill` throughput pattern: no
+process, so it can run continuously) and differenced, which is also what lets the panel
+open with a real number instead of a row that appears two seconds later. Two traps: a
+`reload()` hands back the *previous* contents once at startup, so a zero total-delta must
+be skipped rather than divided by, and `idle` is fields 4+5 (idle **and** iowait).
+
 `BluetoothMenu.qml` is the right-click dropdown on the bluetooth module, built to match
 `WifiMenu`: paired devices first (click to connect/disconnect, right-click to forget),
 then a "Nearby" section of discovered devices (click to pair). The header toggles the
