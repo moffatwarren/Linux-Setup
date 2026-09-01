@@ -1,0 +1,12 @@
+# `install.sh --pull` copies whole ~/.config directories back into the repo, so
+# anything the live system keeps beside a managed config lands here too. These
+# are per-machine state, not configuration -- they should stay out of commits.
+Hyprland_Setup/gtk-3.0/bookmarks
+Hyprland_Setup/gtk-4.0/thumbnail.png
+
+# Leftovers from the noctalia shell that GTK theming replaced. Deploying
+# gtk.css drops the `@import url("noctalia.css")` that referenced them, but the
+# orphaned files stay on disk until removed by hand -- and --pull would
+# otherwise carry them back in.
+Hyprland_Setup/gtk-3.0/noctalia.css
+Hyprland_Setup/gtk-4.0/noctalia.css

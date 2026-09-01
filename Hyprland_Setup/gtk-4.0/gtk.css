@@ -1,0 +1,6 @@
+/* The palette lives in mocha.css so gtk-3.0 and gtk-4.0 differ only where GTK
+   itself does. Put per-widget rules below the import, not in mocha.css.
+
+   There are none here: the GTK3 sheet needs a rule to stop Thunar's treeview
+   sidebar painting over its own background, and GTK4 has no GtkTreeView. */
+@import url("mocha.css");

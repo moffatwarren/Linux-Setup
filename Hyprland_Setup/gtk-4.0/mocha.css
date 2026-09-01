@@ -1,0 +1,143 @@
+/*
+ * Catppuccin Mocha for GTK 4 / libadwaita -- the same palette as
+ * quickshell/Theme.qml and gtk-3.0/mocha.css. Keep the two in step.
+ *
+ * Thunar is GTK3, so this file is not what themes it; it is here so the GTK4
+ * file chooser, gnome-text-editor and the portal dialogs Thunar opens are not
+ * a bright Adwaita rectangle in the middle of a Mocha desktop.
+ *
+ * Colours are declared TWICE on purpose. `@define-color` is the GTK3-era
+ * mechanism libadwaita still honours; the `:root` custom properties are what
+ * GTK 4.16+ actually resolves, and a newer libadwaita ignores the
+ * `@define-color` form for several of these. Setting only one leaves a
+ * half-recoloured window whose broken half depends on the installed version.
+ * There are no GTK3 legacy names here -- GTK4 has none.
+ */
+
+/* --- @define-color form (libadwaita <= 1.5) ------------------------------ */
+
+@define-color accent_color            #89b4fa;
+@define-color accent_bg_color         #89b4fa;
+@define-color accent_fg_color         #11111b;
+
+@define-color destructive_color       #f38ba8;
+@define-color destructive_bg_color    #f38ba8;
+@define-color destructive_fg_color    #11111b;
+
+@define-color success_color           #a6e3a1;
+@define-color success_bg_color        #a6e3a1;
+@define-color success_fg_color        #11111b;
+
+@define-color warning_color           #f9e2af;
+@define-color warning_bg_color        #f9e2af;
+@define-color warning_fg_color        #11111b;
+
+@define-color error_color             #f38ba8;
+@define-color error_bg_color          #f38ba8;
+@define-color error_fg_color          #11111b;
+
+@define-color window_bg_color         #1e1e2e;
+@define-color window_fg_color         #cdd6f4;
+
+@define-color view_bg_color           #1e1e2e;
+@define-color view_fg_color           #cdd6f4;
+
+@define-color headerbar_bg_color      #181825;
+@define-color headerbar_fg_color      #cdd6f4;
+@define-color headerbar_border_color  #cdd6f4;
+@define-color headerbar_backdrop_color @window_bg_color;
+@define-color headerbar_shade_color   rgba(0, 0, 0, 0.36);
+
+@define-color sidebar_bg_color        #181825;
+@define-color sidebar_fg_color        #cdd6f4;
+@define-color sidebar_backdrop_color  @window_bg_color;
+@define-color sidebar_shade_color     rgba(0, 0, 0, 0.36);
+@define-color sidebar_border_color    #45475a;
+
+@define-color secondary_sidebar_bg_color  #11111b;
+@define-color secondary_sidebar_fg_color  #cdd6f4;
+
+@define-color popover_bg_color        #313244;
+@define-color popover_fg_color        #cdd6f4;
+@define-color popover_shade_color     rgba(0, 0, 0, 0.36);
+
+@define-color card_bg_color           #313244;
+@define-color card_fg_color           #cdd6f4;
+@define-color card_shade_color        rgba(0, 0, 0, 0.36);
+
+@define-color dialog_bg_color         #1e1e2e;
+@define-color dialog_fg_color         #cdd6f4;
+
+@define-color overview_bg_color       #181825;
+@define-color overview_fg_color       #cdd6f4;
+
+@define-color thumbnail_bg_color      #313244;
+@define-color thumbnail_fg_color      #cdd6f4;
+
+@define-color shade_color             rgba(0, 0, 0, 0.36);
+@define-color scrollbar_outline_color #11111b;
+
+/* --- custom-property form (GTK 4.16+ / libadwaita 1.6+) ------------------ */
+
+:root {
+    --accent-color:            #89b4fa;
+    --accent-bg-color:         #89b4fa;
+    --accent-fg-color:         #11111b;
+
+    --destructive-color:       #f38ba8;
+    --destructive-bg-color:    #f38ba8;
+    --destructive-fg-color:    #11111b;
+
+    --success-color:           #a6e3a1;
+    --success-bg-color:        #a6e3a1;
+    --success-fg-color:        #11111b;
+
+    --warning-color:           #f9e2af;
+    --warning-bg-color:        #f9e2af;
+    --warning-fg-color:        #11111b;
+
+    --error-color:             #f38ba8;
+    --error-bg-color:          #f38ba8;
+    --error-fg-color:          #11111b;
+
+    --window-bg-color:         #1e1e2e;
+    --window-fg-color:         #cdd6f4;
+
+    --view-bg-color:           #1e1e2e;
+    --view-fg-color:           #cdd6f4;
+
+    --headerbar-bg-color:      #181825;
+    --headerbar-fg-color:      #cdd6f4;
+    --headerbar-border-color:  #cdd6f4;
+    --headerbar-backdrop-color: #1e1e2e;
+    --headerbar-shade-color:   rgba(0, 0, 0, 0.36);
+
+    --sidebar-bg-color:        #181825;
+    --sidebar-fg-color:        #cdd6f4;
+    --sidebar-backdrop-color:  #1e1e2e;
+    --sidebar-shade-color:     rgba(0, 0, 0, 0.36);
+    --sidebar-border-color:    #45475a;
+
+    --secondary-sidebar-bg-color: #11111b;
+    --secondary-sidebar-fg-color: #cdd6f4;
+
+    --popover-bg-color:        #313244;
+    --popover-fg-color:        #cdd6f4;
+    --popover-shade-color:     rgba(0, 0, 0, 0.36);
+
+    --card-bg-color:           #313244;
+    --card-fg-color:           #cdd6f4;
+    --card-shade-color:        rgba(0, 0, 0, 0.36);
+
+    --dialog-bg-color:         #1e1e2e;
+    --dialog-fg-color:         #cdd6f4;
+
+    --overview-bg-color:       #181825;
+    --overview-fg-color:       #cdd6f4;
+
+    --thumbnail-bg-color:      #313244;
+    --thumbnail-fg-color:      #cdd6f4;
+
+    --shade-color:             rgba(0, 0, 0, 0.36);
+    --scrollbar-outline-color: #11111b;
+}

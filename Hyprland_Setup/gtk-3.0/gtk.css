@@ -1,0 +1,18 @@
+/* The palette lives in mocha.css so gtk-3.0 and gtk-4.0 differ only where GTK
+   itself does. Put per-widget rules below the import, not in mocha.css. */
+@import url("mocha.css");
+
+/* Thunar's shortcuts pane carries `.sidebar`, so adw-gtk3 does colour it --
+   but the pane is a GtkTreeView, and a treeview paints the `view` background
+   (@theme_base_color) on top, which left the sidebar the same flat base as the
+   file list. Verified by probing: `.sidebar { background: magenta }` showed
+   through only where the translucent row selection composited against it.
+   This is a generic GTK3 selector rather than a Thunar widget name, so it
+   survives both a Thunar and an adw-gtk3 update. */
+.sidebar treeview.view {
+    background-color: @sidebar_bg_color;
+    color: @sidebar_fg_color;
+}
+.sidebar treeview.view:backdrop {
+    background-color: @sidebar_backdrop_color;
+}

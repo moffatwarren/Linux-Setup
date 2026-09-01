@@ -11,7 +11,7 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 # Add a new app config by adding its directory name here. A name with no
 # matching directory is skipped with a warning rather than aborting.
 # ---------------------------------------------------------------------------
-CONFIGS=(fastfetch fish hypr kitty nvim quickshell rofi swappy swaync weathr)
+CONFIGS=(fastfetch fish gtk-3.0 gtk-4.0 hypr kitty nvim quickshell rofi swappy swaync weathr)
 
 PACMAN_PKGS=(
     kitty hyprland quickshell hyprlock hypridle awww ttf-font-awesome swaync
@@ -19,6 +19,10 @@ PACMAN_PKGS=(
     gvfs gvfs-smb samba nvim mpv imv brightnessctl playerctl blueman gnome-text-editor swayimg imagemagick
     thunar-archive-plugin xarchiver unzip net-tools localsend spotify-launcher
     tesseract tesseract-data-eng speedtest-cli brave-origin-bin paru
+    # GTK theming (thunar, the file chooser, gnome-text-editor). adw-gtk-theme
+    # owns adw-gtk3-dark and cantarell-fonts the font, both named by
+    # gtk-3.0/settings.ini; papirus-icon-theme is what Papirus-Dark resolves to.
+    adw-gtk-theme cantarell-fonts papirus-icon-theme
     # Called by the deployed scripts/bars rather than by install.sh itself:
     # jq (tailscale.sh), libpulse+wireplumber (pactl/wpctl in the audio and
     # volume scripts), pavucontrol (audio right-click), power-profiles-daemon
@@ -37,7 +41,12 @@ PACMAN_PKGS=(
     # and under `set -e` a missing one aborts the run part-way through.
     sddm avahi
 )
-PARU_PKGS=(pokemon-colorscripts-git rustdesk-bin teams-for-linux vscodium-bin weathr-bin)
+# papirus-folders-catppuccin-git both *provides* and *conflicts with* plain
+# papirus-folders, so listing the two together fails the whole transaction.
+PARU_PKGS=(
+    pokemon-colorscripts-git rustdesk-bin teams-for-linux vscodium-bin weathr-bin
+    papirus-folders-catppuccin-git
+)
 
 # ---------------------------------------------------------------------------
 # Machine-specific values preserved across an update.
@@ -236,6 +245,61 @@ fix_permissions() {
     done
 }
 
+# GTK theming that is not a file under ~/.config, so deploy_configs cannot do
+# it. Everything here is idempotent and runs on every deploy, not just a first
+# install: it is how a new machine gets the folder colour at all, and gsettings
+# is per-user state that a fresh account does not carry.
+apply_gtk_theme() {
+    info "Applying GTK theme"
+
+    # gtk-3.0/gtk.css recolours adw-gtk3-dark, but the folder icons are images
+    # and CSS cannot touch them -- they are the file manager's dominant colour.
+    # Call it WITHOUT sudo: it re-execs itself under sudo when the theme lives
+    # in /usr/share/icons, forwarding the USER_HOME/XDG_DATA_DIRS that a
+    # per-user Papirus copy needs. (papirus-folders-catppuccin-git also ships a
+    # pacman hook that re-applies the colour after a papirus-icon-theme upgrade,
+    # so this is only responsible for setting it the first time.)
+    #
+    # The `if` is what keeps a cosmetic step from aborting the whole deploy:
+    # papirus-folders calls `fatal` for a colour the installed theme does not
+    # carry, and its sudo re-exec fails if the password prompt is declined.
+    # Either would, under `set -e`, stop the run here -- with the configs
+    # already copied but get_wallpapers and normalize_hyprlock_wallpaper still
+    # to go. Icons are not worth a half-finished install.
+    if ! command -v papirus-folders >/dev/null 2>&1; then
+        echo "    skip papirus-folders (not installed)"
+    elif papirus-folders -C cat-mocha-blue --theme Papirus-Dark >/dev/null 2>&1; then
+        echo "    Papirus-Dark folders -> cat-mocha-blue"
+    else
+        echo "    WARNING: papirus-folders failed -- folders keep the stock Papirus blue."
+        echo "             Everything else is themed. Retry by hand with:"
+        echo "               papirus-folders -C cat-mocha-blue --theme Papirus-Dark"
+    fi
+
+    # settings.ini is only read by GTK3 apps; xdg-desktop-portal-gtk and every
+    # GTK4/libadwaita app read gsettings instead, so without this the portal file
+    # chooser thunar opens is still stock Adwaita. Keep the values in step with
+    # gtk-3.0/settings.ini by hand. Unguarded on purpose: the schema ships in
+    # gsettings-desktop-schemas, which arrives with gvfs (in PACMAN_PKGS), and
+    # dconf is a hard dependency of gtk3/gtk4 -- so on any machine this script
+    # has got this far on, both exist and a failure here is worth aborting for.
+    gsettings set org.gnome.desktop.interface gtk-theme    "adw-gtk3-dark"
+    gsettings set org.gnome.desktop.interface icon-theme   "Papirus-Dark"
+    gsettings set org.gnome.desktop.interface color-scheme "prefer-dark"
+    gsettings set org.gnome.desktop.interface font-name    "Cantarell 11"
+    echo "    gsettings: adw-gtk3-dark / Papirus-Dark / prefer-dark"
+
+    # GTK reads its stylesheet once at startup, and thunar stays resident as a
+    # daemon after its last window closes -- so on an update the new colours
+    # would not appear until the next logout, which reads as "the deploy did
+    # nothing". Quitting it means the next launch picks them up. This closes any
+    # open thunar windows; `|| true` because it exits non-zero when none is
+    # running, which is the normal case.
+    if command -v thunar >/dev/null 2>&1; then
+        thunar -q >/dev/null 2>&1 || true
+    fi
+}
+
 # Steps from the top-level *.txt notes that can actually be automated.
 # Each is optional and idempotent; the interactive tail of each is printed.
 first_install_extras() {
@@ -395,6 +459,7 @@ main() {
     fi
 
     fix_permissions
+    apply_gtk_theme
     get_wallpapers
     # After get_wallpapers, so a first install has the images to point at.
     normalize_hyprlock_wallpaper

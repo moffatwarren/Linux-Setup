@@ -1,0 +1,119 @@
+/*
+ * Catppuccin Mocha for GTK 3 -- the same palette as quickshell/Theme.qml.
+ *
+ * This is NOT a theme. adw-gtk3-dark is the theme; it defines every colour it
+ * uses as a named GTK colour, and a user gtk.css is loaded after the theme, so
+ * redefining those names here repaints it without forking it. Editing the list
+ * below is the whole customisation surface -- there are no widget rules to keep
+ * in step with an upstream stylesheet.
+ *
+ * Both the libadwaita names (which adw-gtk3 is generated from) and the GTK3
+ * legacy names are set explicitly. adw-gtk3 does derive the legacy ones from
+ * the libadwaita ones, so the second block is redundant *today*, but Thunar is
+ * a plain GTK3 app whose GtkTreeView/GtkIconView read the legacy names
+ * directly -- and a redundant rule here is cheaper than a beige file list
+ * after an adw-gtk3 update rearranges its own derivations.
+ */
+
+/* --- libadwaita names ---------------------------------------------------- */
+
+/* Accent is `blue`, matching the bar: CalendarPopup's today disc, swaync's
+   normal-urgency stripe, and the wallpaper picker's selection all use it. */
+@define-color accent_color            #89b4fa;
+@define-color accent_bg_color         #89b4fa;
+@define-color accent_fg_color         #11111b;
+
+@define-color destructive_color       #f38ba8;
+@define-color destructive_bg_color    #f38ba8;
+@define-color destructive_fg_color    #11111b;
+
+@define-color success_color           #a6e3a1;
+@define-color success_bg_color        #a6e3a1;
+@define-color success_fg_color        #11111b;
+
+@define-color warning_color           #f9e2af;
+@define-color warning_bg_color        #f9e2af;
+@define-color warning_fg_color        #11111b;
+
+@define-color error_color             #f38ba8;
+@define-color error_bg_color          #f38ba8;
+@define-color error_fg_color          #11111b;
+
+/* Content sits on `base` (the bar slab and every hover panel are also base);
+   the chrome around it -- headerbar, sidebar -- is the recessed `mantle`. */
+@define-color window_bg_color         #1e1e2e;
+@define-color window_fg_color         #cdd6f4;
+
+@define-color view_bg_color           #1e1e2e;
+@define-color view_fg_color           #cdd6f4;
+
+@define-color headerbar_bg_color      #181825;
+@define-color headerbar_fg_color      #cdd6f4;
+@define-color headerbar_border_color  #cdd6f4;
+@define-color headerbar_backdrop_color @window_bg_color;
+@define-color headerbar_shade_color   rgba(0, 0, 0, 0.36);
+
+@define-color sidebar_bg_color        #181825;
+@define-color sidebar_fg_color        #cdd6f4;
+@define-color sidebar_backdrop_color  @window_bg_color;
+@define-color sidebar_shade_color     rgba(0, 0, 0, 0.36);
+@define-color sidebar_border_color    #45475a;
+
+@define-color secondary_sidebar_bg_color  #11111b;
+@define-color secondary_sidebar_fg_color  #cdd6f4;
+
+/* A popover is one step up from the window so it reads as floating, the way
+   ListPopup's surface1 border separates it from the bar behind it. */
+@define-color popover_bg_color        #313244;
+@define-color popover_fg_color        #cdd6f4;
+@define-color popover_shade_color     rgba(0, 0, 0, 0.36);
+
+@define-color card_bg_color           #313244;
+@define-color card_fg_color           #cdd6f4;
+@define-color card_shade_color        rgba(0, 0, 0, 0.36);
+
+@define-color dialog_bg_color         #1e1e2e;
+@define-color dialog_fg_color         #cdd6f4;
+
+@define-color overview_bg_color       #181825;
+@define-color overview_fg_color       #cdd6f4;
+
+@define-color thumbnail_bg_color      #313244;
+@define-color thumbnail_fg_color      #cdd6f4;
+
+@define-color shade_color             rgba(0, 0, 0, 0.36);
+@define-color scrollbar_outline_color #11111b;
+
+/* --- GTK3 legacy names --------------------------------------------------- */
+
+@define-color theme_bg_color          @window_bg_color;
+@define-color theme_fg_color          @window_fg_color;
+@define-color theme_base_color        @view_bg_color;
+@define-color theme_text_color        @view_fg_color;
+@define-color theme_selected_bg_color @accent_bg_color;
+@define-color theme_selected_fg_color @accent_fg_color;
+
+@define-color insensitive_bg_color    #181825;
+@define-color insensitive_fg_color    #6c7086;
+@define-color insensitive_base_color  #1e1e2e;
+
+@define-color theme_unfocused_bg_color            @window_bg_color;
+@define-color theme_unfocused_fg_color            @window_fg_color;
+@define-color theme_unfocused_base_color          @view_bg_color;
+@define-color theme_unfocused_text_color          @view_fg_color;
+@define-color theme_unfocused_selected_bg_color   @accent_bg_color;
+@define-color theme_unfocused_selected_fg_color   @accent_fg_color;
+
+@define-color borders                 #45475a;
+@define-color unfocused_borders       #45475a;
+
+@define-color content_view_bg         @view_bg_color;
+@define-color text_view_bg            @view_bg_color;
+
+/* Window-manager colours: GTK draws its own titlebars for CSD dialogs. */
+@define-color wm_bg                   #181825;
+@define-color wm_bg_unfocused         #181825;
+@define-color wm_title                #cdd6f4;
+@define-color wm_unfocused_title      #a6adc8;
+@define-color wm_highlight            #45475a;
+@define-color wm_borders_edge         #45475a;
