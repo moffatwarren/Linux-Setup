@@ -3,7 +3,9 @@ import Quickshell.Hyprland
 import QtQuick
 
 // waybar: "hyprland/workspaces" with all-outputs:false, format "{name}".
-// style.css: 22px lavender circles, active = crust on lavender, urgent = red.
+// style.css: lavender circles, active = crust on lavender, urgent = red.
+// Sized off Theme.pillHeight so the module is exactly as tall as every other
+// pill in the bar; the dots are inset by 2px a side to sit inside that height.
 Rectangle {
     id: root
 
@@ -21,10 +23,13 @@ Rectangle {
         });
     }
 
+    // Diameter of one workspace dot, inset inside the pill.
+    readonly property int dotSize: Theme.pillHeight - 4
+
     visible: workspaces.length > 0
     implicitWidth: row.implicitWidth + 8
-    implicitHeight: Theme.pillHeight + 8
-    radius: 25
+    implicitHeight: Theme.pillHeight
+    radius: height / 2
     color: Theme.pill
 
     Row {
@@ -37,14 +42,14 @@ Rectangle {
 
             Item {
                 required property var modelData
-                width: 22 + 8
-                height: 22
+                width: root.dotSize + 8
+                height: root.dotSize
 
                 Rectangle {
                     anchors.centerIn: parent
-                    width: 22
-                    height: 22
-                    radius: 11
+                    width: root.dotSize
+                    height: root.dotSize
+                    radius: width / 2
                     color: modelData.active ? Theme.lavender : "transparent"
 
                     Text {
