@@ -1,5 +1,4 @@
 local config = require("modules.config")
-local wallpaper_utils = require("modules.utils.wallpaper_utils")
 local monitor_utils = require("modules.utils.monitor_utils")
 
 hl.bind(config.mainMod .. " + RETURN", hl.dsp.exec_cmd(config.terminal), { bypass = true })
@@ -18,9 +17,10 @@ hl.bind(config.mainMod .. " + B", hl.dsp.exec_cmd(config.browser), { bypass = tr
 hl.bind(config.mainMod .. " + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | swappy -f -'), { bypass = true })
 hl.bind(config.mainMod .. " + ALT + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | tesseract stdin stdout | wl-copy'), { bypass = true })
 hl.bind(config.mainMod .. " + O", hl.dsp.exec_cmd("~/.config/hypr/scripts/audio-output-toggle.sh"), { bypass = true })
---hl.bind(config.mainMod .. " + W", wallpaper_utils.select, { bypass = true })
-hl.bind(config.mainMod .. " + W", hl.dsp.exec_cmd("~/.config/hypr/scripts/wallpaper-selector.sh"), { bypass = true })
-hl.bind(config.mainMod .. " + SHIFT + W", wallpaper_utils.set_random, { bypass = true })
+-- Wallpaper picker: the grid lives in the quickshell bar (WallpaperPicker.qml),
+-- so the bind just pokes its IPC handler.
+hl.bind(config.mainMod .. " + W", hl.dsp.exec_cmd("qs ipc call wallpaper toggle"), { bypass = true })
+hl.bind(config.mainMod .. " + SHIFT + W", hl.dsp.exec_cmd("~/.config/hypr/scripts/wallpaper-random.sh"), { bypass = true })
 hl.bind(
 	config.mainMod .. " + V",
 	hl.dsp.exec_cmd("~/.config/hypr/scripts/clipboard-menu.sh"),
