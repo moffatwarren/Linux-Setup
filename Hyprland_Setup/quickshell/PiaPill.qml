@@ -28,6 +28,24 @@ ScriptPill {
     property string vpnIp: ""
     property string pubIp: ""
     property string protocol: ""
+    // Resolved exit region when `region` is the useless "auto".
+    property string actualRegion: ""
+
+    // What to show on the Region row: the resolved region when PIA picked one
+    // for us, the configured region otherwise.
+    readonly property string regionLabel: {
+        if (region === "auto")
+            return actualRegion.length > 0 ? actualRegion + "  (auto)" : "auto";
+        return region;
+    }
+
+    Process {
+        id: regionProc
+        command: ["bash", "-lc", "~/.config/hypr/scripts/pia-region.sh"]
+        stdout: StdioCollector {
+            onStreamFinished: root.actualRegion = text.trim()
+        }
+    }
 
     Process {
         id: details
@@ -47,6 +65,7 @@ ScriptPill {
 
     function refreshDetails() {
         if (!details.running) details.running = true;
+        if (!regionProc.running) regionProc.running = true;
     }
 
     // Refresh on a slow tick, and immediately whenever the state flips or the
@@ -58,7 +77,7 @@ ScriptPill {
         triggeredOnStart: true
         onTriggered: root.refreshDetails()
     }
-    onConnectedChanged: refreshDetails()
+    onConnectedChanged: { if (!connected) actualRegion = ""; refreshDetails(); }
     onHoveredChanged: if (hovered) refreshDetails()
 
     ListPopup {
@@ -73,7 +92,7 @@ ScriptPill {
                 return off;
             }
             const on = [{ text: "Status", detail: "Connected", accent: Theme.green }];
-            if (root.region.length > 0)   on.push({ text: "Region",   detail: root.region });
+            if (root.regionLabel.length > 0) on.push({ text: "Region", detail: root.regionLabel });
             if (root.pubIp.length > 0 && root.pubIp !== "Unknown")
                 on.push({ text: "Exit IP", detail: root.pubIp, accent: Theme.sapphire });
             if (root.vpnIp.length > 0 && root.vpnIp !== "Unknown")
