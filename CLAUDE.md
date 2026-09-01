@@ -287,6 +287,64 @@ Media: click the album art or the title to play/pause, double-click either to sk
 `clicked` arrives before `doubleClicked`, so the single-click action is held in a 250 ms
 timer that a double-click cancels — otherwise every skip would also toggle playback.
 
+## The wallpaper picker (SUPER+W)
+
+**rofi no longer picks wallpapers.** `hypr/scripts/wallpaper-selector.sh` (a
+`rofi -dmenu -show-icons` grid) is gone, and so is `hypr/modules/utils/wallpaper_utils.lua`,
+whose `set_random` duplicated the apply logic in Lua and ran `io.popen`/`os.execute`
+synchronously on Hyprland's config thread. rofi itself stays — it is still `config.menu`
+(SUPER+SPACE) and `clipboard-menu.sh`.
+
+`quickshell/WallpaperPicker.qml` replaces it: a full-screen overlay holding a **single
+row** of large thumbnails that **scrolls sideways** — a filmstrip. `flow:
+GridView.FlowTopToBottom` with the view's height set to exactly one `cellHeight` is what
+pins it to one row; columns then run off the right edge. Left/Right move, Enter applies,
+Escape or a click outside cancels, and typing filters — a few hundred wallpapers is more
+than arrow keys alone want to cross. Up/Down would step *within* a column, so in a
+one-row grid they are dead keys; they page by a screenful instead, as PageUp/PageDown do.
+
+`panel.columns` derives the panel width from whole cells only, because a partly-visible
+tile at the right edge reads as a rendering glitch rather than as "there is more this
+way". Tile size is the two constants `grid.cellWidth`/`cellHeight` (roughly 16:9, since
+that is what a wallpaper is); everything else follows from them.
+
+It lives **inside the bar process**, not in a `qs -p` of its own, so that opening it is
+instant and decoded thumbnails stay in Qt's pixmap cache between openings. `shell.qml`
+holds it in a `LazyLoader` (`loading: true`, built in the background at startup) beside
+an `IpcHandler`; the keybind is just `qs ipc call wallpaper toggle`. The bar is the only
+quickshell instance and runs the default config path, so `qs ipc call` finds it with no
+`-c`.
+
+`hypr/scripts/wallpaper-set.sh <path>` is the one place a wallpaper is applied — `awww img`
+plus the `path =` rewrite in `hyprlock.conf`, so the lock screen follows the desktop.
+`wallpaper-random.sh` (SUPER+SHIFT+W) and the picker both `exec` it. That `path =` line is
+the same one `PRESERVE` protects (group `wallpaper`, in `NO_PROMPT_GROUPS`), so a deploy
+does not undo a pick.
+
+Five things that bit during the build, all still live traps:
+
+- **A per-tile `MouseArea` cannot drive hover selection.** Arrow keys scroll the view,
+  which drags tiles under a stationary pointer, and the synthetic hover that produces
+  yanks the cursor straight back off the tile the keyboard just moved to. One stationary
+  `MouseArea` anchored over the grid resolves the index with `grid.indexAt(x + contentX,
+  y + contentY)` instead. It must be a **sibling** of the `GridView` — a child goes into
+  the flickable's content item and scrolls with it, reintroducing the bug.
+- Mapping the window in still delivers one motion event for wherever the pointer already
+  was, so `gridMouse` ignores the first event and any that has not actually moved;
+  otherwise the landing on the current wallpaper is thrown away before it is seen.
+- **The `Behavior on contentX` must be suppressed for the opening jump.** Animating
+  contentX from 0 to column 200 walks the view through every position in between, and
+  each frame queues a screenful of thumbnails the loader then chews through before it
+  reaches the ones actually on screen. `selectCurrent()` sets `grid.jumping` around
+  `positionViewAtIndex` for exactly this.
+- Qt decodes only jpg/png/gif out of the box; `qt6-imageformats` (in `PACMAN_PKGS`) adds
+  webp and avif. A tile whose image fails falls back to its filename, so a missing
+  decoder does not look like a thumbnail that never loaded.
+- The current wallpaper is read from `hyprlock.conf` with a `FileView`, not from
+  `awww query` — same value, no process. It marks that tile with a green dot and is where
+  the cursor lands on open.
+
+
 ## install.sh conventions
 
 - Runs under `set -euo pipefail` — failures abort rather than half-deploying. `grep`

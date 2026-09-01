@@ -22,8 +22,11 @@ PACMAN_PKGS=(
     # Called by the deployed scripts/bars rather than by install.sh itself:
     # jq (tailscale.sh), libpulse+wireplumber (pactl/wpctl in the audio and
     # volume scripts), pavucontrol (audio right-click), power-profiles-daemon
-    # (the power profile module), networkmanager (the network module + nmtui).
+    # (the power profile module), networkmanager (the network module + nmtui),
+    # qt6-imageformats (webp/avif thumbnails in the SUPER+W wallpaper picker --
+    # Qt ships only jpg/png/gif out of the box).
     jq libpulse wireplumber pavucontrol power-profiles-daemon networkmanager
+    qt6-imageformats
 )
 PARU_PKGS=(pokemon-colorscripts-git rustdesk-bin teams-for-linux vscodium-bin weathr-bin)
 
