@@ -25,6 +25,11 @@ ShellRoot {
     // by itself, and one window per screen would pop every notification twice.
     NotificationToasts {}
 
+    // Low-battery warnings. Instantiated here, once, rather than inside
+    // BatteryPill: there is one Bar per monitor, so a per-monitor watcher would
+    // raise every warning twice on a two-screen machine.
+    BatteryWatcher {}
+
     // The three full-screen overlays -- SUPER+W wallpaper picker, SUPER+SPACE
     // app launcher, SUPER+V clipboard history. They ride along in the bar
     // process rather than each being its own `qs -p` so that opening one is
@@ -101,6 +106,18 @@ ShellRoot {
         function close(): void { NotificationService.closeMenu(); }
         function dnd(): void { NotificationService.toggleDnd(); }
         function clear(): void { NotificationService.clearAll(); }
+    }
+
+    // The screen recorder (SUPER+SHIFT+S) writes a state file and then calls
+    // this, so the bar picks the change up on the event rather than by polling
+    // the script. `stop` is here so the recording can be ended from a script or
+    // a bind as well as by clicking the pill.
+    IpcHandler {
+        target: "recorder"
+
+        function refresh(): void { RecorderService.reload(); }
+        function toggle(): void { RecorderService.toggle(); }
+        function stop(): void { RecorderService.stop(); }
     }
 
     function closeOverlays(except: string): void {

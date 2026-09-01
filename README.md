@@ -57,6 +57,7 @@ values into the repo — review with `git diff` before committing.
 | `SUPER+V` | clipboard history |
 | `SUPER+N` / `SUPER+SHIFT+N` | notification centre / mute notifications |
 | `SUPER+S` / `SUPER+ALT+S` | screenshot / screenshot to text (OCR) |
+| `SUPER+SHIFT+S` | record a region — press again to stop |
 | `SUPER+L` / `SUPER+SHIFT+L` | lock / lock and suspend |
 
 `Hyprland_Setup/hypr/modules/binds.lua` is the full list.
@@ -64,6 +65,15 @@ values into the repo — review with `git diff` before committing.
 The bar is also the notification daemon — there is no separate one. The bell
 module, right of the network one, shows whether notifications are muted and how
 many are unread; clicking it opens the list, and right-clicking it mutes.
+
+The system tray sits at the inside edge of the right-hand group. Left-click an
+icon to open the app, right-click for its menu, middle-click for the app's own
+secondary action; the scroll wheel is passed through to it.
+
+`SUPER+SHIFT+S` selects a region and starts recording it. A red pill with the
+elapsed time appears in the bar while it runs, and stops the recording when
+clicked — as does pressing `SUPER+SHIFT+S` again. Recordings land in
+`~/Videos/recordings`, and the path of a finished one is put on the clipboard.
 
 The launcher, the clipboard history and the wallpaper picker are one interface
 in three guises — the same quickshell overlay, living in the bar process. Type
