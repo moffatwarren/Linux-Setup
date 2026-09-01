@@ -64,6 +64,14 @@ in `hypr/scripts/audio-output-toggle.sh`; `config.mainMonitor` and `config.bar` 
 
 **Add any new hardware-specific value to `PRESERVE`**, or it is clobbered every run.
 
+**If a preserved file ever moves, add it to `LEGACY_MOVES`.** A machine still running the
+previous layout does not have the new path yet, so its group is never prompted for, nothing
+is captured, and the committed values silently replace the machine's own.
+`migrate_legacy_paths()` seeds the new path from the old one before the capture step. This
+is how `waybar/scripts/audio-output-toggle.sh` → `hypr/scripts/audio-output-toggle.sh`
+survives on a machine upgrading from the waybar era. It only copies when the new path is
+absent, so a machine already on the current layout is untouched by a stale old copy.
+
 Two hazards when adding patterns:
 
 - `replace_line.py` rewrites **every** matching line. `BUILT_IN_SINK` is assigned twice
