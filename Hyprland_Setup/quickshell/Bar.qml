@@ -76,6 +76,10 @@ PanelWindow {
 
         NetworkPill {}
 
+        NotificationPill {
+            monitorName: bar.monitorName
+        }
+
         PowerProfilePill {}
 
         BatteryPill {}

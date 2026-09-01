@@ -1,8 +1,8 @@
 # Linux-Setup
 
 Personal Hyprland desktop configuration for CachyOS/Arch — Hyprland (Lua config),
-a quickshell bar with matching app launcher / clipboard / wallpaper overlays,
-hyprlock/hypridle, swaync notifications, kitty, fish, a Catppuccin Mocha GTK
+a quickshell bar with matching app launcher / clipboard / wallpaper overlays
+and notifications, hyprlock/hypridle, kitty, fish, a Catppuccin Mocha GTK
 theme (thunar and the file chooser) and an SDDM theme.
 
 This repo is the source of truth. The live system is a deployed copy of it, so
@@ -53,11 +53,15 @@ values into the repo — review with `git diff` before committing.
 | `SUPER+RETURN` / `SPACE` / `E` / `B` | terminal / launcher / files / browser |
 | `SUPER+W` / `SUPER+SHIFT+W` | wallpaper picker / random wallpaper |
 | `SUPER+V` | clipboard history |
-| `SUPER+N` | notification centre |
+| `SUPER+N` / `SUPER+SHIFT+N` | notification centre / mute notifications |
 | `SUPER+S` / `SUPER+ALT+S` | screenshot / screenshot to text (OCR) |
 | `SUPER+L` / `SUPER+SHIFT+L` | lock / lock and suspend |
 
 `Hyprland_Setup/hypr/modules/binds.lua` is the full list.
+
+The bar is also the notification daemon — there is no separate one. The bell
+module, right of the network one, shows whether notifications are muted and how
+many are unread; clicking it opens the list, and right-clicking it mutes.
 
 The launcher, the clipboard history and the wallpaper picker are one interface
 in three guises — the same quickshell overlay, living in the bar process. Type
@@ -71,8 +75,7 @@ Hyprland_Setup/
   install.sh          the only entry point (deploy + --pull)
   install_lib/        python helpers used BY install.sh; not deployed
   hypr/               hyprland, hyprlock, hypridle + the shell scripts
-  quickshell/         the bar and the overlays, one file per module
-  swaync/             notification daemon theme
+  quickshell/         the bar, the overlays and notifications, one file per module
   gtk-3.0/ gtk-4.0/   Catppuccin Mocha over adw-gtk3-dark (thunar, dialogs)
   fastfetch/ fish/ kitty/ nvim/ swappy/ weathr/
   voidsddm/ sddm.conf.d/   SDDM theme (deployed to /usr, needs sudo)

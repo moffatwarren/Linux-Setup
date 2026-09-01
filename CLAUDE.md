@@ -48,7 +48,7 @@ path the repo *still ships* is skipped with a note — without which a stale ent
 silently delete what `deploy_configs` wrote one step earlier and the config would just stop
 existing. Beyond that, entries are removed unconditionally, so list only paths this repo
 put there.
-Currently retired: `rofi`, `hypr/scripts/clipboard-menu.sh`,
+Currently retired: `rofi`, `swaync`, `hypr/scripts/clipboard-menu.sh`,
 `hypr/scripts/wallpaper-selector.sh`, `hypr/modules/utils/wallpaper_utils.lua` and the two
 `noctalia.css`. `ORPHANS` never uninstalls a *package* — `install.sh` only ever installs.
 
@@ -314,6 +314,11 @@ Six things to know before editing the QML:
   property that is already true at construction, which is why `ListPopup` gates
   visibility through a bound `delayPassed` flag.
 
+`NotificationPill.qml` sits between `NetworkPill` and `PowerProfilePill`: a bell showing
+whether notifications are muted and how many are unread, opening the notification centre
+on click. The bar is the notification daemon now, so that module and the popups it shares
+a service with have a section of their own — see **Notifications (quickshell)** below.
+
 Not carried over from waybar: the clock's `{calendar}` tooltip is a plain date, and
 `format-alt` click-to-cycle is not implemented.
 
@@ -479,74 +484,134 @@ follows the desktop. `wallpaper-random.sh` (SUPER+SHIFT+W) and the picker both
   `awww query` — same value, no process. It marks that tile with a green dot and
   is where the cursor lands on open.
 
-## Notifications (swaync)
+## Notifications (quickshell)
 
-`swaync` is the notification daemon, started by `autostart.lua` next to the bar. It is
-themed to match `quickshell/Theme.qml`: Catppuccin Mocha, JetBrainsMono Nerd Font, cards
-drawn as `base` inside a 1px `surface1` border with a 14px radius — the same frame
-`ListPopup` uses, so a notification reads as a sibling of the bar's hover panels.
-`SUPER+N` toggles the control centre (`swaync-client -t -sw`).
+**swaync has been removed** — its config, CSS and package entry are gone, and the bar is
+the notification daemon. Only one process can own `org.freedesktop.Notifications`, and
+swaync's own interface (`org.erikreider.swaync.cc`) publishes a count and a DND flag but
+no way to ask it what the notifications *say* — so a bar module that lists them has to be
+the server. `~/.config/swaync` is in `ORPHANS`; the swaync *package* is left installed,
+since `install.sh` uninstalls nothing. The old stylesheet is recoverable from commit
+`5168f36` if a colour or a padding value is ever wanted back.
 
-Urgency is a coloured stripe down the leading edge — `surface2` low, `blue` normal, `red`
-critical (which also tints the rest of its border) — rather than a coloured card, so a
-critical notification stands out without becoming unreadable.
+Four files, all in `Hyprland_Setup/quickshell/`:
 
-`.low` is the OSD hook. Every notification the scripts send — volume, brightness, output
-toggle — is `-u low`, because a status readout is not a message; the stylesheet gives that
-class a small symbolic icon in `lavender` and tighter padding, so a volume tap does not
-look like mail arriving. Everything else keeps the 44px app icon.
+- `NotificationService.qml` — a `pragma Singleton` wrapping `NotificationServer`. It owns
+  the state; the other three only read it.
+- `NotificationPill.qml` — the bar module, immediately right of `NetworkPill`.
+- `NotificationMenu.qml` — the centre: the list plus the mute toggle.
+- `NotificationToasts.qml` — the popups, including the volume/brightness OSDs.
 
-Six things to know before editing:
+### The two lists
 
-- **swaync loads the stock `/etc/xdg/swaync/style.css` *and then* ours on top.** The user
-  sheet does not replace it. `"cssPriority": "user"` is what makes our rules win a tie.
-  The stock sheet is a moving target that a swaync update rewrites, so `style.css` styles
-  every widget explicitly instead of inheriting; a rule is not redundant just because the
-  stock sheet happens to set the same thing today.
-- **`"notification-icon-size"` in `config.json` silently beats `-gtk-icon-size` in the
-  CSS.** It sets the `GtkImage`'s pixel size in code, which CSS cannot override, so *every*
-  notification gets one size and the `.low` rule above does nothing. It is deliberately
-  absent from `config.json`; the size lives in the stylesheet, where it can vary.
-- **The app name is not a CSS class.** swaync 0.12.6 exposes only urgency (`.low` /
-  `.normal` / `.critical`) and, in the control centre, the group. The previous stylesheet
-  carried `.notification.volume` and `.notification.brightness` rules that matched
-  nothing; anything per-app has to go through `notification-visibility` in `config.json`.
-- **Probe with the same selector depth as the rule you are fighting.** A bare
-  `.notification.volume { background: magenta }` is two classes and loses on specificity to
-  the three-class rules in this sheet, which looks exactly like "the class does not exist".
-  That false negative cost a round trip here: `.low` was written off as non-existent for
-  the same reason before the probe was rewritten as
-  `.notification-row .notification-background .notification.low`.
-- **Notifications need no top margin to clear the bar.** Quickshell's `PanelWindow`
-  reserves an exclusive zone, so the layer-shell surface already starts below the slab. A
-  `margin-top` on the first row stacks on top of that and leaves a visible gap.
-- **The mpris widget blacklists `brave`.** Brave registers an MPRIS player the whole time
-  it is open, with no metadata and status `Stopped`, and the widget's `autohide` does not
-  hide it — so the control centre grew a permanent empty "Media Player" placeholder. The
-  bar's own `MediaGroup` covers Brave, and blacklisting it here still lets Spotify (or
-  anything else) show album art in the panel.
+`NotificationService` keeps **`entries`** (what the menu shows, kept until dismissed —
+this is "unread") and **`popups`** (what is on screen right now, dropped on a timer)
+separately. A notification leaves `popups` when its toast times out and stays in
+`entries`, which is the whole difference between "you missed it" and "it is still
+shouting at you". The timeouts are the ones the swaync config used — 8 s, 3 s for low,
+and critical never expires.
 
-Unlike the QML, nerd font glyphs in `config.json` are written as literal UTF-8 — JSON has
-no equivalent of the private-use-codepoint trap. Do **verify** a codepoint by rendering it
-rather than trusting a cheat sheet, though: `magick -font "$(fc-match -f '%{file}'
-"JetBrainsMono Nerd Font")" label:...`. Two of four guesses here came out as a t-shirt and
-a folder.
+Quickshell **destroys a notification as soon as the `notification` signal handler
+returns** unless something sets `tracked`. Everything here is tracked, including an OSD,
+which is then dropped explicitly when its toast expires — so a leak shows up as a
+notification that will not clear, not as one that vanishes.
 
-The two OSD scripts (`hypr/scripts/{volume,brightness}-notify.sh`) pass
-`-h string:x-canonical-private-synchronous:…` so repeated presses replace the notification
-rather than stacking, and `-h int:value:` to draw the progress bar.
-`audio-output-toggle.sh` passes `-a volume` for the same reason `volume-notify.sh` does —
-not for CSS, but so `notification-grouping` files them together instead of under
-`notify-send`.
+### OSDs are not messages
 
-**Always name an Adwaita `*-symbolic` icon in `-i`.** The plain names (`audio-volume-high`
-and friends) resolve to the chunky legacy bitmaps, which is what made the volume popup ugly:
-scaled up they are blurry, and they ignore the palette. The symbolic variants are flat SVG
-line art that GTK recolours from the CSS `color` property. `volume-notify.sh` picks between
-muted/low/medium/high on the same 34%/67% thresholds `AudioPill.qml` uses, and
-`audio-output-toggle.sh` names the device it switched to
-(`audio-headphones-`/`audio-headset-`/`audio-speakers-symbolic`) rather than one generic
-speaker.
+`volume-notify.sh`, `brightness-notify.sh` and `audio-output-toggle.sh` all send
+`-h string:x-canonical-private-synchronous:…`. That hint is the marker for "status
+readout", and it does two things: a new one **replaces** the popup carrying the same tag
+rather than stacking (holding the volume key leaves one card counting up, not thirty),
+and the reading never joins `entries` — a volume tap is not something to review later.
+The spec's own `transient` hint counts the same way.
+
+`notify-send` sends no `replaces_id`, so without that hint there is nothing else to
+deduplicate on. Both it and `value` — the 0-100 that draws the progress bar — have no
+dedicated property on `Notification` and must be listed in the server's **`extraHints`**
+or they never arrive.
+
+**DND silences apps, not your own keypresses.** An OSD still pops while muted, and so
+does a critical notification; everything else is recorded silently. swaync suppressed
+all three, which made the volume keys feel broken while muted. The flag is persisted to
+`~/.cache/quickshell-notifications.json`, so a mute survives a bar restart.
+
+### Retiring swaync is a deploy step, not just a deleted directory
+
+`ORPHANS` removes `~/.config/swaync` and `autostart.lua` no longer starts it, and on a
+machine upgrading from the swaync layout **neither is enough**. `retire_swaync()` in
+`install.sh` runs between `remove_orphans` and `reload_session` and closes two holes:
+
+- swaync is still **running**, started by the old `autostart.lua` at login, and still
+  holds `org.freedesktop.Notifications`. The bar `reload_session` restarts a moment later
+  cannot claim the name, so it comes up with a bell that never receives anything — which
+  reads as the new module being broken rather than as a leftover daemon. It is `pkill`ed.
+- `/usr/share/dbus-1/services/org.erikreider.swaync.service` declares
+  **`Name=org.freedesktop.Notifications`**. Any `notify-send` issued while the name is
+  unowned — the gap between login and the bar registering, or the second `reload_session`
+  spends restarting it — D-Bus-activates swaync, which then keeps the name for the rest of
+  the session. Verified: with the unit unmasked, one `notify-send` against an unowned name
+  starts swaync every time. Both of swaync's `.service` files delegate to
+  `SystemdService=swaync.service`, so `systemctl --user mask swaync.service` is what shuts
+  the activation path (no sudo, undo with `unmask`).
+
+The function is guarded on `command -v swaync`, so it is a no-op on a new machine, and it
+does not uninstall the package — `install.sh` never uninstalls.
+
+`reload_session` finishes with `check_notification_owner`, which polls
+`busctl --user status org.freedesktop.Notifications` for up to five seconds and names the
+owner. Losing the bus name is otherwise a *silent* failure — an empty bell and popups in
+the wrong style — so it is worth a line of output saying who actually has it.
+
+### Things that bit, in order
+
+- **`ExclusionMode.Ignore` means "ignore *other* surfaces' exclusive zones" as well as
+  "claim none".** The toast window used it and drew straight over the bar. It wants
+  `ExclusionMode.Normal` with `exclusiveZone: 0`: reserve nothing, but still respect the
+  bar's zone, which is what puts the first card below the bar.
+- **Hover comes from a `HoverHandler`, not `MouseArea.containsMouse`.** A hovered child
+  MouseArea (an action button, the close button) takes the hover away from a MouseArea
+  underneath it. That resumed the expiry timer while the pointer was still on the card,
+  and — because the close button is only visible on hover — hid the button at the moment
+  it was aimed at, which flickers. A handler on the item keeps reporting for the whole
+  subtree.
+- **The OSD glyph is drawn from the nerd font, not from the `-i` icon.** Those are
+  Adwaita `*-symbolic` SVGs: GTK recoloured them from the stylesheet, but Qt renders them
+  with the near-black fill baked into the file, which is invisible on a `base` card. The
+  icon *name* is still load-bearing — `NotificationToasts.qml` matches `muted` /
+  `volume-low` / `volume-medium` / `headphone` / `brightness` in it — so the scripts still
+  have to name the right one. The glyphs are the same Material Design ones `AudioPill`
+  draws, so the popup and the bar never disagree.
+- **`Notification.expireTimeout` is in milliseconds** (verified: `notify-send -t 10000`
+  arrives as `10000`), with -1 meaning "server decides" and 0 meaning "never".
+- **`closeOverlays()` must not run before the SUPER+N toggle decides.** It closes the
+  notification menu too, so calling it unconditionally made every press re-open the menu
+  it had just closed. It only runs on the way *open*.
+- One toast window, following `Hyprland.focusedMonitor`, **not** a `Variants` over
+  screens — two screens would each pop the same notification. `HyprlandMonitor` exposes no
+  `screen`, so the match is by name against `Quickshell.screens`.
+
+### The module and its menu
+
+The pill is a bell: outline when there is nothing, filled when there is, struck through
+and dimmed to `overlay0` when muted. It goes yellow with a count, red if anything unread
+is critical. Left-click opens the menu, **right-click mutes** without opening anything —
+the same shortcut/menu split the bluetooth and network modules use — and the hover panel
+is the count and the DND state.
+
+The menu is `PowerMenu`'s frame: a header, the Do-not-disturb row with a switch, the
+list, and `Clear all`. A row is left-click to run the sender's `default` action (and
+clear it), right-click to just clear it, which is the split `ClipboardMenu` uses. Any
+other action the sender offered becomes a button. The list is a `ListView` capped at
+420px and clipped, so a busy morning cannot produce a menu taller than the screen.
+
+`open` is **not** owned by the menu: `NotificationService.menuMonitor` holds which
+monitor's copy is up, because there is one bar per monitor and SUPER+N must open exactly
+one of them. `NotificationPill` gets its `monitorName` from `Bar.qml`, the way
+`WorkspacesPill` does.
+
+SUPER+N is `qs ipc call notifications toggle` and SUPER+SHIFT+N is
+`… notifications dnd`; `close` and `clear` are there too.
+
 
 ## GTK / thunar (Catppuccin Mocha)
 
@@ -661,6 +726,9 @@ disk until removed by hand.
   the `awww` daemon up. During an install it is not.
 - `*.sh` under any deployed `<app>/scripts/` is made executable by a `find` sweep — new
   scripts need no per-file `chmod`. (Several are committed mode 644, hence the sweep.)
+- **A retired *daemon* needs more than a retired config.** `ORPHANS` deletes files;
+  it does not stop a process or close a D-Bus activation path. `retire_swaync()` is the
+  worked example — see **Notifications (quickshell)**.
 - **`reload_session()` is what makes a deploy take effect.** Hyprland parses its config
   at startup and quickshell parses its QML once, so without it new keybinds and a new bar
   wait for the next logout — which reads as the deploy having done nothing, and is exactly

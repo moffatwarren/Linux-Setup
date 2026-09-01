@@ -10,9 +10,12 @@ get_mute() {
   wpctl get-volume @DEFAULT_AUDIO_SINK@ | grep -q MUTED && echo "yes" || echo "no"
 }
 
-# Adwaita's *-symbolic icons are flat monochrome line art that swaync recolours
-# from the stylesheet; the non-symbolic names are the chunky legacy bitmaps that
-# look terrible scaled up. Thresholds match AudioPill.qml's glyph choice.
+# The icon NAME is the OSD's glyph selector: NotificationToasts.qml matches
+# "muted" / "volume-low" / "volume-medium" in it and draws the matching Material
+# Design glyph from the nerd font. The icon file is not rendered -- these are
+# Adwaita *-symbolic SVGs, which GTK recoloured from a stylesheet but Qt would
+# draw in the near-black fill baked into the file. Thresholds match
+# AudioPill.qml's glyph choice, so the popup and the bar agree.
 get_icon() {
   local volume=$1
   if [ "$volume" -eq 0 ]; then

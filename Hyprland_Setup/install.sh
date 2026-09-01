@@ -11,7 +11,7 @@ REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 # Add a new app config by adding its directory name here. A name with no
 # matching directory is skipped with a warning rather than aborting.
 # ---------------------------------------------------------------------------
-CONFIGS=(fastfetch fish gtk-3.0 gtk-4.0 hypr kitty nvim quickshell swappy swaync weathr)
+CONFIGS=(fastfetch fish gtk-3.0 gtk-4.0 hypr kitty nvim quickshell swappy weathr)
 
 # ---------------------------------------------------------------------------
 # Paths under ~/.config that an EARLIER release of this repo deployed and this
@@ -35,10 +35,16 @@ ORPHANS=(
     # referenced it, but the file itself stays behind.
     gtk-3.0/noctalia.css
     gtk-4.0/noctalia.css
+    # swaync was the notification daemon. Quickshell is the notification server
+    # itself now (quickshell/NotificationService.qml) and only one process can
+    # hold org.freedesktop.Notifications, so leaving swaync's config behind
+    # would just be a config for a daemon nothing starts. Nothing uninstalls
+    # the swaync *package*; this script only ever installs.
+    swaync
 )
 
 PACMAN_PKGS=(
-    kitty hyprland quickshell hyprlock hypridle awww ttf-font-awesome swaync
+    kitty hyprland quickshell hyprlock hypridle awww ttf-font-awesome
     ttf-jetbrains-mono-nerd swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look
     gvfs gvfs-smb samba nvim mpv imv brightnessctl playerctl blueman gnome-text-editor swayimg imagemagick
     thunar-archive-plugin xarchiver unzip net-tools localsend spotify-launcher
@@ -53,7 +59,8 @@ PACMAN_PKGS=(
     # (the power profile module), networkmanager (the network module + nmtui),
     # qt6-imageformats (webp/avif thumbnails in the SUPER+W wallpaper picker --
     # Qt ships only jpg/png/gif out of the box), libnotify (notify-send in the
-    # OSD and wallpaper scripts), and cliphist + wl-clipboard + imagemagick,
+    # OSD and wallpaper scripts -- the bar renders them, but the scripts still
+    # send them the same way), and cliphist + wl-clipboard + imagemagick,
     # which are between them the whole SUPER+V clipboard history: the store, the
     # wl-copy that puts an entry back, and the `magick` that makes its thumbnail.
     # Some of these also arrive as dependencies of thunar and cliphist, but a
@@ -290,6 +297,50 @@ remove_orphans() {
     fi
 }
 
+# swaync used to be the notification daemon. Quickshell is the notification
+# server itself now (quickshell/NotificationService.qml), and only one process
+# can own org.freedesktop.Notifications -- so on a machine upgrading from the
+# swaync layout, dropping swaync's config (ORPHANS) and its autostart line is
+# NOT enough. Two things still hand the bus name back to swaync:
+#
+#   * swaync is still RUNNING, started by the old autostart.lua at login, and
+#     still holds the name. The bar reload_session restarts below would come up
+#     with a bell module that never receives anything -- which reads as the new
+#     module being broken rather than as a leftover daemon.
+#   * /usr/share/dbus-1/services/org.erikreider.swaync.service declares
+#     `Name=org.freedesktop.Notifications`. Any notify-send issued while the
+#     name is unowned -- the gap between login and the bar registering, or the
+#     second reload_session spends restarting it -- D-Bus-activates swaync,
+#     which then keeps the name for the rest of the session. Masking the user
+#     unit that activation is delegated to (SystemdService=swaync.service in
+#     both of swaync's .service files) is what closes that window.
+#
+# Guarded on swaync being installed, so it is a no-op on a new machine, and
+# idempotent. The swaync *package* is left alone; this script uninstalls
+# nothing.
+retire_swaync() {
+    if ! command -v swaync >/dev/null 2>&1; then
+        return 0
+    fi
+
+    info "Retiring swaync (quickshell is the notification daemon now)"
+    if pkill -x swaync >/dev/null 2>&1; then
+        echo "    stopped the running swaync"
+    else
+        echo "    swaync was not running"
+    fi
+
+    # `|| true`: a TTY install may have no user bus to talk to yet, and a
+    # cosmetic step must not abort the deploy under `set -e`.
+    if systemctl --user mask swaync.service >/dev/null 2>&1; then
+        echo "    masked swaync.service, so D-Bus cannot activate it"
+        echo "    undo with: systemctl --user unmask swaync.service"
+    else
+        echo "    could not mask swaync.service (no user bus?) -- harmless unless"
+        echo "    something sends a notification before the bar has started"
+    fi
+}
+
 fix_permissions() {
     chmod +x "$SCRIPT_DIR/install.sh"
     local c d
@@ -481,6 +532,41 @@ reload_session() {
     setsid quickshell >/dev/null 2>&1 &
     disown
     echo "    quickshell restarted (bar + SUPER+SPACE / V / W overlays)"
+
+    check_notification_owner
+}
+
+# The bar is only the notification daemon if it actually got the bus name. When
+# something else is holding it the symptom is silent -- a bell module that never
+# fills up and popups in the wrong style -- so say so plainly instead. Polls
+# rather than sleeping a fixed amount, because registering takes a second or two
+# and is usually done well before the timeout.
+check_notification_owner() {
+    command -v busctl >/dev/null 2>&1 || return 0
+
+    local i owner=""
+    for i in 1 2 3 4 5 6 7 8 9 10; do
+        owner="$(busctl --user status org.freedesktop.Notifications 2>/dev/null \
+                 | sed -n 's/^Comm=//p' | head -1 || true)"
+        if [ -n "$owner" ]; then
+            break
+        fi
+        sleep 0.5
+    done
+
+    case "$owner" in
+        quickshell|qs)
+            echo "    notifications: owned by the bar ($owner)" ;;
+        "")
+            echo "    WARNING: nothing owns org.freedesktop.Notifications yet."
+            echo "             The bar may still be starting; check with:"
+            echo "               busctl --user status org.freedesktop.Notifications" ;;
+        *)
+            echo "    WARNING: org.freedesktop.Notifications is held by '$owner',"
+            echo "             not the bar -- its notification module will stay empty."
+            echo "             Stop that daemon and restart the bar:"
+            echo "               pkill -x $owner && killall quickshell && setsid quickshell &" ;;
+    esac
 }
 
 # Reverse direction: live system -> repo, for review and commit.
@@ -540,6 +626,10 @@ main() {
 
     deploy_configs
     remove_orphans
+    # After remove_orphans (which deletes ~/.config/swaync) and before
+    # reload_session, which restarts the bar and expects to be able to claim
+    # org.freedesktop.Notifications.
+    retire_swaync
 
     if [[ ! "$resp_install" =~ ^[Yy]$ ]]; then
         info "Restoring machine-specific values"
