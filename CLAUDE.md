@@ -433,6 +433,89 @@ muted/low/medium/high on the same 34%/67% thresholds `AudioPill.qml` uses, and
 (`audio-headphones-`/`audio-headset-`/`audio-speakers-symbolic`) rather than one generic
 speaker.
 
+## GTK / thunar (Catppuccin Mocha)
+
+`gtk-3.0/` and `gtk-4.0/` theme every GTK app — thunar above all, plus the file
+chooser, gnome-text-editor and the portal dialogs — to the same Mocha palette as
+`quickshell/Theme.qml`.
+
+**There is no Catppuccin GTK theme installed.** The theme is stock
+`adw-gtk3-dark` (`adw-gtk-theme`, in `extra`); it declares every colour it uses
+as a named GTK colour, and a user `gtk.css` loads *after* the theme, so
+`gtk-3.0/mocha.css` repaints it by redefining those names. Nothing is forked, so
+an adw-gtk3 update cannot leave a half-updated theme behind. The upstream
+`catppuccin/gtk` was considered and rejected: it is archived, it bakes the accent
+into the package, and it puts the theme outside the repo.
+
+`gtk.css` is the entry point (one `@import`) and `mocha.css` is the palette.
+Widget rules go in `gtk.css`, below the import — never in `mocha.css`, which is
+colour declarations only so the two GTK versions stay diffable against each other.
+
+Surfaces follow the bar: content is `base` (as the bar slab and every hover panel
+are), chrome — headerbar, sidebar — is the recessed `mantle`, popovers and cards
+step up to `surface0`, and the accent is `blue`, the same one `CalendarPopup`'s
+today disc and swaync's normal-urgency stripe use.
+
+Five things to know before editing:
+
+- **The GTK4 palette is declared twice, and both are load-bearing.**
+  `@define-color` is what libadwaita ≤ 1.5 reads; the `:root { --window-bg-color:
+  … }` custom properties are what GTK 4.16+ actually resolves. Set only one and
+  you get a half-recoloured window whose broken half depends on the installed
+  libadwaita. GTK3 has no `:root` form — don't add one there.
+- **`.sidebar` alone does not colour thunar's shortcuts pane.** The pane *does*
+  carry the class, but it is a `GtkTreeView`, and a treeview paints the `view`
+  background (`@theme_base_color`) over it — so the sidebar came out the same flat
+  base as the file list. `gtk-3.0/gtk.css` has a `.sidebar treeview.view` rule for
+  exactly this. The false negative is worth remembering: probing with
+  `.sidebar { background: magenta }` looked like "the class doesn't match",
+  because the only magenta that showed through was where the translucent row
+  selection composited against it.
+- **`headerbar_bg_color` does nothing for thunar** — it has a menubar and toolbar
+  in a plain window, not a `GtkHeaderBar`, so its top chrome is `window_bg_color`.
+  The setting is not dead; it is what colours the apps that *do* use a headerbar.
+- **The GTK3 legacy names are set explicitly even though adw-gtk3 derives them.**
+  Thunar's `GtkTreeView`/`GtkIconView` read `theme_base_color` and friends
+  directly. Redundant today, and a cheap hedge against adw-gtk3 rearranging its
+  own derivations.
+- **Folder icons are images; CSS cannot touch them.** They are the dominant
+  colour in a file manager, so `papirus-folders -C cat-mocha-blue --theme
+  Papirus-Dark` recolours them, from `apply_gtk_theme()` rather than
+  `first_install_extras` — it is how a new machine gets the colour at all, and it
+  is idempotent. It does *not* need to run to survive a `papirus-icon-theme`
+  upgrade (which does reset the folder symlinks it owns):
+  `papirus-folders-catppuccin-git` ships a `PostTransaction` pacman hook that
+  re-applies the last used colour. Call it **without** `sudo` — it re-execs
+  itself under sudo and forwards `USER_HOME`/`XDG_DATA_DIRS` in the process.
+  Note it both *provides* and *conflicts with* plain `papirus-folders`, so
+  listing both in `PARU_PKGS` fails the whole transaction.
+- **The `papirus-folders` call is wrapped in an `if`, and must stay that way.**
+  It calls `fatal` for a colour the installed theme lacks, and its sudo re-exec
+  fails on a declined password prompt. Either one, under `set -e`, aborts the
+  deploy *after* `deploy_configs` but *before* `get_wallpapers` and
+  `normalize_hyprlock_wallpaper` — a half-finished install over folder colours.
+  It warns and carries on instead. The `gsettings` calls beside it are
+  deliberately **not** guarded: the schema comes from `gsettings-desktop-schemas`
+  (pulled in by `gvfs`, in `PACMAN_PKGS`) and `dconf` is a hard dependency of
+  gtk3/gtk4, so a failure there means something genuinely wrong.
+- **`apply_gtk_theme()` ends with `thunar -q`.** GTK reads its stylesheet once at
+  startup and thunar stays resident as a daemon after its last window closes, so
+  on an *update* the new colours would not show until the next logout — which
+  reads as the deploy having done nothing. It closes any open thunar windows.
+
+`apply_gtk_theme()` also mirrors the theme into gsettings. `settings.ini` is only
+read by GTK3 apps; `xdg-desktop-portal-gtk` and every GTK4/libadwaita app read
+`org.gnome.desktop.interface` instead, so without it the portal file chooser
+thunar opens is still stock Adwaita. Its values must be kept in step with
+`gtk-3.0/settings.ini` by hand.
+
+Two things `--pull` drags in, both in the repo `.gitignore`: `gtk-3.0/bookmarks`
+(thunar's sidebar bookmarks — per-machine, and deliberately *not* shipped, so a
+deploy's `cp -rf` leaves the live one alone) and `gtk-4.0/thumbnail.png`. The
+`noctalia.css` these configs replaced is ignored for the same reason — deploying
+`gtk.css` drops the `@import` that referenced it, but the orphan file stays on
+disk until removed by hand.
+
 ## install.sh conventions
 
 - Runs under `set -euo pipefail` — failures abort rather than half-deploying. `grep`
