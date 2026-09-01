@@ -81,11 +81,21 @@ PopupWindow {
 
             // The bar's copy of this is masked to a 22px circle; here there is
             // room to show the cover as the square it actually is.
+            //
+            // Drawn at the panel width, or at the artwork's own resolution when
+            // that is smaller -- never upscaled. A Chromium player publishes a
+            // 120-150px cover, and stretching that to fill the panel is a soft,
+            // obviously-interpolated square; a player with real artwork
+            // (Spotify, mpv) still fills the full width. The panel keeps its
+            // width either way, so the menu does not resize per track.
             Item {
                 id: cover
                 visible: root.artUrl.length > 0
-                Layout.fillWidth: true
-                Layout.preferredHeight: width
+                Layout.alignment: Qt.AlignHCenter
+                Layout.preferredWidth: coverImage.implicitWidth > 0
+                    ? Math.min(body.width, coverImage.implicitWidth, coverImage.implicitHeight)
+                    : body.width
+                Layout.preferredHeight: Layout.preferredWidth
                 Layout.bottomMargin: 2
 
                 Image {
@@ -95,10 +105,13 @@ PopupWindow {
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     cache: true
-                    // Decode at the size drawn rather than at the source's own,
-                    // which for a Spotify cover is several times this.
-                    sourceSize.width: cover.width
-                    sourceSize.height: cover.height
+                    // No sourceSize: under PreserveAspectCrop it is a decode
+                    // *target*, not a cap -- Qt scales a 120px cover up to meet
+                    // it, and implicitWidth then reports the request rather than
+                    // the artwork, which is the one number the sizing above
+                    // needs. Left unset, implicitWidth is the true source size.
+                    // mipmap because a real cover is downscaled several times.
+                    mipmap: true
                     visible: false
                 }
 
