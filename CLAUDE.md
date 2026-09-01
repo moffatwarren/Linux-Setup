@@ -140,6 +140,18 @@ moving the pointer to reach the arrows.
 `weather-forecast.sh` poll, and both draw their glyph from one WMO code table, so
 the pill and the panel can never disagree about the weather or the icon for it.
 
+The panel's footer says how old the reading is, and **double-clicking the pill**
+re-fetches immediately (`weather-forecast.sh --force`, which sets `FORECAST_MAX_AGE=0`
+so the age check can never pass). The age comes from the script, as `updated` — the
+**cache file's mtime**, not the time of the poll that read it. Almost every poll is
+served from the ten-minute cache, so a QML-side "last fetched" clock would report when
+the bar last ran a `cat`; the mtime is when the data actually arrived, and it survives a
+bar restart. It is also what makes a failed refresh legible: the script prints the stale
+cache on a network error, so the footer keeps showing the old age instead of claiming to
+have just updated. `Process.command` is bound to a `force` flag, so `refresh()` must not
+fire while the process runs — a second double-click mid-fetch is ignored. The footer's
+"N min ago" is re-rendered by a 30 s timer gated on the popup being visible.
+
 It is **not** a `ScriptPill`, and `weather.sh` no longer has an `--update` case (only
 `--openWeather`, still the right-click). wttr.in publishes three days, not seven, and
 its one-line format exposes no condition code at all — only an emoji — so a pill fed
