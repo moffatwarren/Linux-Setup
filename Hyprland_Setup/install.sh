@@ -37,6 +37,7 @@ PARU_PKGS=(pokemon-colorscripts-git rustdesk-bin teams-for-linux vscodium-bin we
 # indented inside the toggle logic, so it is anchored to column 0.
 # ---------------------------------------------------------------------------
 PRESERVE=(
+    "hypr/hyprlock.conf|^\s*path\s*=|wallpaper|line"
     "hypr/scripts/audio-output-toggle.sh|^BUILT_IN_SINK\s*=|audio|line"
     "hypr/scripts/audio-output-toggle.sh|^\s*HEADPHONE_SINK\s*=|audio|line"
     "hypr/scripts/audio-output-toggle.sh|^\s*SPEAKER_SINK\s*=|audio|line"
@@ -49,6 +50,10 @@ declare -A GROUP_PROMPT=(
     [audio]="Overwrite audio sink values?"
     [machine]="Overwrite monitor and bar selection?"
 )
+
+# Groups kept without asking: on anything but a first install the live value
+# always wins. The hyprlock wallpaper is a personal choice, not a fix to ship.
+NO_PROMPT_GROUPS=(wallpaper)
 
 # Files that moved between releases, as "<old path>|<new path>" under ~/.config.
 # On a machine still running the previous layout the new path does not exist
@@ -93,6 +98,16 @@ group_has_live_file() {
     return 1
 }
 
+group_is_no_prompt() {
+    local group="$1" g
+    for g in "${NO_PROMPT_GROUPS[@]}"; do
+        if [ "$g" = "$group" ]; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 # Ask, per group, whether to overwrite the machine-specific values it covers.
 prompt_preserve_groups() {
     local group reply groups=()
@@ -102,6 +117,10 @@ prompt_preserve_groups() {
     mapfile -t groups < <(preserve_groups)
     for group in "${groups[@]}"; do
         if ! group_has_live_file "$group"; then
+            continue
+        fi
+        if group_is_no_prompt "$group"; then
+            GROUP_MODE[$group]=preserve
             continue
         fi
         read -p "${GROUP_PROMPT[$group]} (y/N): " reply
