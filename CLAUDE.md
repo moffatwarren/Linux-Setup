@@ -345,6 +345,75 @@ Five things that bit during the build, all still live traps:
   the cursor lands on open.
 
 
+## Notifications (swaync)
+
+`swaync` is the notification daemon, started by `autostart.lua` next to the bar. It is
+themed to match `quickshell/Theme.qml`: Catppuccin Mocha, JetBrainsMono Nerd Font, cards
+drawn as `base` inside a 1px `surface1` border with a 14px radius — the same frame
+`ListPopup` uses, so a notification reads as a sibling of the bar's hover panels.
+`SUPER+N` toggles the control centre (`swaync-client -t -sw`).
+
+Urgency is a coloured stripe down the leading edge — `surface2` low, `blue` normal, `red`
+critical (which also tints the rest of its border) — rather than a coloured card, so a
+critical notification stands out without becoming unreadable.
+
+`.low` is the OSD hook. Every notification the scripts send — volume, brightness, output
+toggle — is `-u low`, because a status readout is not a message; the stylesheet gives that
+class a small symbolic icon in `lavender` and tighter padding, so a volume tap does not
+look like mail arriving. Everything else keeps the 44px app icon.
+
+Six things to know before editing:
+
+- **swaync loads the stock `/etc/xdg/swaync/style.css` *and then* ours on top.** The user
+  sheet does not replace it. `"cssPriority": "user"` is what makes our rules win a tie.
+  The stock sheet is a moving target that a swaync update rewrites, so `style.css` styles
+  every widget explicitly instead of inheriting; a rule is not redundant just because the
+  stock sheet happens to set the same thing today.
+- **`"notification-icon-size"` in `config.json` silently beats `-gtk-icon-size` in the
+  CSS.** It sets the `GtkImage`'s pixel size in code, which CSS cannot override, so *every*
+  notification gets one size and the `.low` rule above does nothing. It is deliberately
+  absent from `config.json`; the size lives in the stylesheet, where it can vary.
+- **The app name is not a CSS class.** swaync 0.12.6 exposes only urgency (`.low` /
+  `.normal` / `.critical`) and, in the control centre, the group. The previous stylesheet
+  carried `.notification.volume` and `.notification.brightness` rules that matched
+  nothing; anything per-app has to go through `notification-visibility` in `config.json`.
+- **Probe with the same selector depth as the rule you are fighting.** A bare
+  `.notification.volume { background: magenta }` is two classes and loses on specificity to
+  the three-class rules in this sheet, which looks exactly like "the class does not exist".
+  That false negative cost a round trip here: `.low` was written off as non-existent for
+  the same reason before the probe was rewritten as
+  `.notification-row .notification-background .notification.low`.
+- **Notifications need no top margin to clear the bar.** Quickshell's `PanelWindow`
+  reserves an exclusive zone, so the layer-shell surface already starts below the slab. A
+  `margin-top` on the first row stacks on top of that and leaves a visible gap.
+- **The mpris widget blacklists `brave`.** Brave registers an MPRIS player the whole time
+  it is open, with no metadata and status `Stopped`, and the widget's `autohide` does not
+  hide it — so the control centre grew a permanent empty "Media Player" placeholder. The
+  bar's own `MediaGroup` covers Brave, and blacklisting it here still lets Spotify (or
+  anything else) show album art in the panel.
+
+Unlike the QML, nerd font glyphs in `config.json` are written as literal UTF-8 — JSON has
+no equivalent of the private-use-codepoint trap. Do **verify** a codepoint by rendering it
+rather than trusting a cheat sheet, though: `magick -font "$(fc-match -f '%{file}'
+"JetBrainsMono Nerd Font")" label:...`. Two of four guesses here came out as a t-shirt and
+a folder.
+
+The two OSD scripts (`hypr/scripts/{volume,brightness}-notify.sh`) pass
+`-h string:x-canonical-private-synchronous:…` so repeated presses replace the notification
+rather than stacking, and `-h int:value:` to draw the progress bar.
+`audio-output-toggle.sh` passes `-a volume` for the same reason `volume-notify.sh` does —
+not for CSS, but so `notification-grouping` files them together instead of under
+`notify-send`.
+
+**Always name an Adwaita `*-symbolic` icon in `-i`.** The plain names (`audio-volume-high`
+and friends) resolve to the chunky legacy bitmaps, which is what made the volume popup ugly:
+scaled up they are blurry, and they ignore the palette. The symbolic variants are flat SVG
+line art that GTK recolours from the CSS `color` property. `volume-notify.sh` picks between
+muted/low/medium/high on the same 34%/67% thresholds `AudioPill.qml` uses, and
+`audio-output-toggle.sh` names the device it switched to
+(`audio-headphones-`/`audio-headset-`/`audio-speakers-symbolic`) rather than one generic
+speaker.
+
 ## install.sh conventions
 
 - Runs under `set -euo pipefail` — failures abort rather than half-deploying. `grep`

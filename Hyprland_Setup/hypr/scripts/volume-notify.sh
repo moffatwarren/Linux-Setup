@@ -1,4 +1,4 @@
-#/home/warren/.config/hypr/scripts/volume-notify.sh!/bin/bash
+#!/bin/bash
 
 # Function to get the current volume percentage
 get_volume() {
@@ -10,6 +10,22 @@ get_mute() {
   wpctl get-volume @DEFAULT_AUDIO_SINK@ | grep -q MUTED && echo "yes" || echo "no"
 }
 
+# Adwaita's *-symbolic icons are flat monochrome line art that swaync recolours
+# from the stylesheet; the non-symbolic names are the chunky legacy bitmaps that
+# look terrible scaled up. Thresholds match AudioPill.qml's glyph choice.
+get_icon() {
+  local volume=$1
+  if [ "$volume" -eq 0 ]; then
+    echo "audio-volume-muted-symbolic"
+  elif [ "$volume" -lt 34 ]; then
+    echo "audio-volume-low-symbolic"
+  elif [ "$volume" -lt 67 ]; then
+    echo "audio-volume-medium-symbolic"
+  else
+    echo "audio-volume-high-symbolic"
+  fi
+}
+
 # Function to send the notification
 send_notification() {
   volume=$(get_volume)
@@ -18,11 +34,11 @@ send_notification() {
   # The 'x-canonical-private-synchronous' hint tells SwayNC to replace the existing notification
   if [ "$mute" == "yes" ]; then
     notify-send -a "volume" -h string:x-canonical-private-synchronous:audio-volume \
-      -u low -i audio-volume-muted "Volume Muted"
+      -u low -i audio-volume-muted-symbolic "Volume Muted"
   else
     notify-send -a "volume" -h string:x-canonical-private-synchronous:audio-volume \
       -h int:value:"$volume" \
-      -u low -i audio-volume-high "Volume: ${volume}%"
+      -u low -i "$(get_icon "$volume")" "Volume: ${volume}%"
   fi
 }
 

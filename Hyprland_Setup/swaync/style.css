@@ -1,25 +1,774 @@
-/* Custom variables to make all notification fonts and icons smaller */
-:root {
-  --font-size-body: 11px;
-  --font-size-summary: 12px;
-  --notification-icon-size: 25px;
+/* ==========================================================================
+ * swaync -- Catppuccin Mocha, matched to the quickshell bar.
+ *
+ * swaync loads /etc/xdg/swaync/style.css first and then this file on top, with
+ * "cssPriority": "user" in config.json making these rules win. The stock sheet
+ * is therefore still underneath -- but it is a moving target that a swaync
+ * update rewrites, so this file styles every widget explicitly rather than
+ * inheriting. Don't delete a rule because the stock sheet also sets it.
+ *
+ * The palette, radii and font mirror quickshell/Theme.qml, and the popups
+ * borrow ListPopup's frame: Theme.base inside a 1px surface1 border. Colours
+ * are @define-color rather than :root custom properties because @define-color
+ * works on every GTK4 the daemon might be built against.
+ * ========================================================================== */
+
+@define-color base     #1e1e2e;
+@define-color mantle   #181825;
+@define-color crust    #11111b;
+@define-color surface0 #313244;
+@define-color surface1 #45475a;
+@define-color surface2 #585b70;
+@define-color overlay0 #6c7086;
+@define-color subtext0 #a6adc8;
+@define-color subtext1 #bac2de;
+@define-color text     #cdd6f4;
+@define-color blue     #89b4fa;
+@define-color lavender #b4befe;
+@define-color mauve    #cba6f7;
+@define-color green    #a6e3a1;
+@define-color peach    #fab387;
+@define-color red      #f38ba8;
+
+/* --------------------------------------------------------------------------
+ * Shell windows
+ * ----------------------------------------------------------------------- */
+
+notificationwindow,
+blankwindow,
+.blank-window {
+  background: transparent;
 }
 
-.notification {
-  /* Lowering these values will shrink the popup */
-  min-width: 170px;
-  margin: 4px;
+.floating-notifications {
+  background: transparent;
+}
+
+/* No top margin is needed to clear the bar: quickshell's PanelWindow reserves an
+ * exclusive zone, so the layer-shell surface already starts below it. */
+
+/* --------------------------------------------------------------------------
+ * A notification
+ * ----------------------------------------------------------------------- */
+
+.notification-row {
+  background: none;
+  outline: none;
+}
+
+.notification-row:focus {
+  background: transparent;
+}
+
+/* 5px sides so a card's right edge lines up with the bar's (Bar.qml margins). */
+.notification-row .notification-background {
+  padding: 6px 5px;
+}
+
+.notification-row .notification-background .notification {
+  background-color: alpha(@base, 0.96);
+  border: 1px solid @surface1;
+  border-radius: 14px;
+  padding: 0;
+  box-shadow: 0 4px 14px 0 alpha(@crust, 0.45);
+  transition: background-color 150ms ease-in-out, border-color 150ms ease-in-out;
+}
+
+/* Urgency reads as a stripe down the leading edge rather than a coloured card,
+ * so a critical notification stands out without becoming unreadable. */
+.notification-row .notification-background .notification.low {
+  border-left: 3px solid @surface2;
+}
+
+.notification-row .notification-background .notification.normal {
+  border-left: 3px solid @blue;
+}
+
+.notification-row .notification-background .notification.critical {
+  border-left: 3px solid @red;
+  border-top-color: alpha(@red, 0.35);
+  border-right-color: alpha(@red, 0.35);
+  border-bottom-color: alpha(@red, 0.35);
+}
+
+/* --------------------------------------------------------------------------
+ * Close button
+ * ----------------------------------------------------------------------- */
+
+.close-button {
+  background: @surface0;
+  color: @subtext0;
+  border: none;
+  border-radius: 100%;
+  box-shadow: none;
+  text-shadow: none;
+  padding: 0;
+  margin: 8px 8px 0 0;
+  min-width: 20px;
+  min-height: 20px;
+  transition: background-color 150ms ease-in-out, color 150ms ease-in-out;
+}
+
+.close-button:hover {
+  background: @red;
+  color: @crust;
+  border: none;
+  box-shadow: none;
+}
+
+/* --------------------------------------------------------------------------
+ * Notification body
+ * ----------------------------------------------------------------------- */
+
+.notification-row .notification-background .notification .notification-default-action {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: @text;
   padding: 8px;
+  margin: 0;
+  border-radius: 12px;
+  transition: background-color 150ms ease-in-out;
 }
 
-/* Make volume and brightness notifications even smaller */
-.notification.volume,
-.notification.brightness {
-  min-width: 170px;
-  padding: 4px 6px;
+.notification-row .notification-background .notification .notification-default-action:hover {
+  -gtk-icon-filter: none;
+  background: @surface0;
 }
 
-.notification.volume .notification-content .image,
-.notification.brightness .notification-content .image {
-  -gtk-icon-size: 24px;
+/* Square off the bottom when action buttons sit below it. */
+.notification-row .notification-background .notification .notification-default-action:not(:only-child) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content {
+  background: transparent;
+  border-radius: 12px;
+  padding: 0;
+}
+
+/* Rounded square, not the stock circle -- album art and app logos both survive
+ * it, where a circle crops the corners off a square icon. */
+.notification-row .notification-background .notification .notification-default-action .notification-content .image {
+  -gtk-icon-filter: none;
+  -gtk-icon-size: 44px;
+  border-radius: 10px;
+  margin: 2px 10px 2px 2px;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content .app-icon {
+  -gtk-icon-filter: none;
+  -gtk-icon-size: 16px;
+  -gtk-icon-shadow: 0 1px 3px alpha(@crust, 0.8);
+  margin: 6px;
+}
+
+/* GTK4's base CSS puts a 50% opacity filter on labels; undo it. */
+.notification-row .notification-background .notification .notification-default-action .notification-content .text-box label {
+  filter: none;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content .text-box .summary {
+  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-size: 13px;
+  font-weight: bold;
+  background: transparent;
+  color: @text;
+  text-shadow: none;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content .text-box .time {
+  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-size: 11px;
+  font-weight: normal;
+  background: transparent;
+  color: @overlay0;
+  text-shadow: none;
+  margin-right: 26px;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content .text-box .body {
+  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-size: 12px;
+  font-weight: normal;
+  background: transparent;
+  color: @subtext0;
+  text-shadow: none;
+  margin-top: 2px;
+}
+
+/* The bar that volume/brightness notifications carry as int:value. */
+.notification-row .notification-background .notification .notification-default-action .notification-content progressbar {
+  margin-top: 8px;
+  margin-bottom: 2px;
+}
+
+progressbar,
+progressbar trough,
+progressbar progress {
+  border: none;
+  box-shadow: none;
+}
+
+progressbar trough {
+  background-color: @surface0;
+  border-radius: 99px;
+  min-height: 6px;
+}
+
+progressbar progress {
+  background-color: @blue;
+  border-radius: 99px;
+  min-height: 6px;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content .body-image {
+  margin-top: 6px;
+  border-radius: 10px;
+  background-color: transparent;
+  -gtk-icon-filter: none;
+}
+
+/* --------------------------------------------------------------------------
+ * Inline replies
+ * ----------------------------------------------------------------------- */
+
+.notification-row .notification-background .notification .notification-default-action .notification-content .inline-reply {
+  margin-top: 6px;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content .inline-reply .inline-reply-entry {
+  background: @mantle;
+  color: @text;
+  caret-color: @text;
+  border: 1px solid @surface1;
+  border-radius: 10px;
+  padding: 4px 8px;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content .inline-reply .inline-reply-button {
+  margin-left: 6px;
+  background: @surface0;
+  border: 1px solid @surface1;
+  border-radius: 10px;
+  color: @text;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content .inline-reply .inline-reply-button:hover {
+  background: @surface1;
+}
+
+.notification-row .notification-background .notification .notification-default-action .notification-content .inline-reply .inline-reply-button:disabled {
+  background: transparent;
+  color: @overlay0;
+  border-color: transparent;
+}
+
+/* --------------------------------------------------------------------------
+ * Action buttons
+ * ----------------------------------------------------------------------- */
+
+.notification-row .notification-background .notification .notification-alt-actions {
+  background: transparent;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+  padding: 0 6px 6px 6px;
+}
+
+.notification-row .notification-background .notification .notification-action {
+  margin: 2px;
+  padding: 0;
+}
+
+.notification-row .notification-background .notification .notification-action > button {
+  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-size: 12px;
+  background: @surface0;
+  border: 1px solid @surface1;
+  border-radius: 10px;
+  color: @text;
+  padding: 4px 10px;
+  box-shadow: none;
+  transition: background-color 150ms ease-in-out;
+}
+
+.notification-row .notification-background .notification .notification-action > button:hover {
+  background: @surface1;
+  color: @lavender;
+}
+
+/* --------------------------------------------------------------------------
+ * Grouped notifications
+ * ----------------------------------------------------------------------- */
+
+.notification-group {
+  transition: opacity 200ms ease-in-out;
+}
+
+.notification-group:focus {
+  background: transparent;
+}
+
+.notification-group .notification-group-headers {
+  margin: 0 16px;
+  color: @subtext1;
+}
+
+.notification-group .notification-group-headers .notification-group-header {
+  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-size: 12px;
+  font-weight: bold;
+  color: @lavender;
+}
+
+.notification-group .notification-group-headers .notification-group-icon {
+  color: @lavender;
+  -gtk-icon-size: 18px;
+}
+
+.notification-group .notification-group-buttons {
+  margin: 0 16px;
+  color: @subtext1;
+}
+
+.notification-group .notification-group-close-button .close-button {
+  margin: 12px 20px;
+}
+
+.notification-group.collapsed.not-expanded {
+  opacity: 0.4;
+}
+
+.notification-group.collapsed .notification-row .notification {
+  background-color: @base;
+}
+
+.notification-group.collapsed .notification-row:not(:last-child) .notification-action,
+.notification-group.collapsed .notification-row:not(:last-child) .notification-default-action {
+  opacity: 0;
+}
+
+.notification-group.collapsed:hover .notification-row:not(:only-child) .notification {
+  background-color: @surface0;
+}
+
+/* --------------------------------------------------------------------------
+ * Control centre
+ * ----------------------------------------------------------------------- */
+
+.control-center {
+  font-family: "JetBrainsMono Nerd Font", monospace;
+  font-size: 12px;
+  background: alpha(@base, 0.97);
+  color: @text;
+  border: 1px solid @surface1;
+  border-radius: 16px;
+  box-shadow: 0 6px 20px 0 alpha(@crust, 0.55);
+  padding: 4px;
+}
+
+.control-center .control-center-list {
+  background: transparent;
+}
+
+/* The empty state: swaync draws a large bell above the label. Dim both -- the
+ * stock 50% opacity on the whole box washes the label out to unreadable. */
+.control-center .control-center-list-placeholder {
+  color: @overlay0;
+  opacity: 1;
+  font-size: 13px;
+}
+
+.control-center .control-center-list-placeholder image {
+  -gtk-icon-size: 72px;
+  opacity: 0.35;
+}
+
+/* Inside the panel the cards sit on the panel's own surface, so they get a flat
+ * mantle fill instead of the floating card's shadow. */
+.control-center .control-center-list .notification {
+  background-color: @mantle;
+  box-shadow: none;
+}
+
+.control-center .control-center-list .notification .notification-default-action,
+.control-center .control-center-list .notification .notification-action {
+  transition: opacity 400ms ease-in-out, background-color 150ms ease-in-out;
+}
+
+.control-center .control-center-list .notification .notification-default-action:hover,
+.control-center .control-center-list .notification .notification-action:hover {
+  background-color: @surface0;
+}
+
+/* --------------------------------------------------------------------------
+ * Widgets
+ * ----------------------------------------------------------------------- */
+
+.widget {
+  background: transparent;
+  margin: 6px 8px;
+  padding: 0;
+  border-radius: 12px;
+}
+
+/* Title */
+.widget-title {
+  margin: 10px 12px 2px 12px;
+}
+
+.widget-title > label {
+  font-size: 16px;
+  font-weight: bold;
+  color: @lavender;
+  margin-right: 8px;
+}
+
+.widget-title > button {
+  font-size: 12px;
+  background: @surface0;
+  color: @subtext0;
+  border: 1px solid @surface1;
+  border-radius: 10px;
+  padding: 3px 10px;
+  margin-left: 8px;
+  box-shadow: none;
+  transition: background-color 150ms ease-in-out, color 150ms ease-in-out;
+}
+
+.widget-title > button:hover {
+  background: @red;
+  color: @crust;
+  border-color: @red;
+}
+
+/* "Clear all" with nothing to clear. */
+.widget-title > button:disabled {
+  background: transparent;
+  color: @surface2;
+  border-color: @surface0;
+}
+
+/* Do not disturb */
+.widget-dnd {
+  background: @mantle;
+  border: 1px solid @surface0;
+  border-radius: 12px;
+  padding: 8px 12px;
+}
+
+.widget-dnd label {
+  font-size: 13px;
+  color: @text;
+  margin-right: 8px;
+}
+
+.widget-dnd switch {
+  background: @surface1;
+  border: none;
+  border-radius: 99px;
+  box-shadow: none;
+  margin-left: 8px;
+  min-width: 42px;
+  min-height: 22px;
+}
+
+.widget-dnd switch:checked {
+  background: @blue;
+}
+
+.widget-dnd switch slider {
+  background: @text;
+  border: none;
+  border-radius: 99px;
+  box-shadow: none;
+  min-width: 18px;
+  min-height: 18px;
+}
+
+.widget-dnd switch:checked slider {
+  background: @crust;
+}
+
+/* Label */
+.widget-label > label {
+  font-size: 13px;
+  color: @subtext0;
+}
+
+/* Inhibitors */
+.widget-inhibitors > label {
+  font-size: 15px;
+  font-weight: bold;
+  color: @lavender;
+  margin-right: 8px;
+}
+
+.widget-inhibitors > button {
+  background: @surface0;
+  color: @subtext0;
+  border: 1px solid @surface1;
+  border-radius: 10px;
+  padding: 3px 10px;
+  margin-left: 8px;
+}
+
+.widget-inhibitors > button:hover {
+  background: @surface1;
+  color: @text;
+}
+
+/* Volume slider (plus the per-app expander) */
+.widget-volume {
+  background: @mantle;
+  border: 1px solid @surface0;
+  border-radius: 12px;
+  padding: 8px 12px;
+  color: @text;
+}
+
+.widget-volume > box > label,
+.widget-volume label {
+  font-size: 13px;
+  color: @subtext1;
+}
+
+.widget-volume > box > button,
+.widget-volume button {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: @subtext0;
+  border-radius: 10px;
+  padding: 2px 6px;
+}
+
+.widget-volume > box > button:hover,
+.widget-volume button:hover {
+  background: @surface0;
+  color: @text;
+}
+
+.widget-volume row image {
+  -gtk-icon-size: 22px;
+}
+
+.per-app-volume {
+  background-color: @surface0;
+  margin: 8px 0 0 0;
+  padding: 4px;
+  border-radius: 10px;
+}
+
+/* Sliders: the volume/backlight widgets and anything else using a GtkScale. */
+scale trough {
+  background-color: @surface1;
+  border: none;
+  border-radius: 99px;
+  min-height: 6px;
+}
+
+scale highlight {
+  background-color: @blue;
+  border-radius: 99px;
+  min-height: 6px;
+}
+
+scale slider {
+  background-color: @text;
+  border: none;
+  box-shadow: 0 1px 3px alpha(@crust, 0.6);
+  border-radius: 99px;
+  min-width: 14px;
+  min-height: 14px;
+  margin: -5px;
+}
+
+scale slider:hover {
+  background-color: @lavender;
+}
+
+.widget-slider label {
+  font-size: inherit;
+  color: @subtext1;
+}
+
+/* Buttons grid */
+.widget-buttons-grid {
+  background: @mantle;
+  border: 1px solid @surface0;
+  border-radius: 12px;
+  padding: 6px;
+}
+
+.widget-buttons-grid flowboxchild > button {
+  background: @surface0;
+  color: @subtext0;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 6px;
+  margin: 2px;
+  box-shadow: none;
+  transition: background-color 150ms ease-in-out, color 150ms ease-in-out;
+}
+
+.widget-buttons-grid flowboxchild > button:hover {
+  background: @surface1;
+  color: @text;
+}
+
+.widget-buttons-grid flowboxchild > button.toggle:checked {
+  background: @blue;
+  color: @crust;
+  border-color: @blue;
+}
+
+/* Menubar */
+.widget-menubar > .menu-button-bar > .start {
+  margin-left: 8px;
+}
+
+.widget-menubar > .menu-button-bar > .end {
+  margin-right: 8px;
+}
+
+.widget-menubar > .menu-button-bar > .widget-menubar-container button {
+  background: @surface0;
+  color: @subtext0;
+  border: 1px solid @surface1;
+  border-radius: 10px;
+  margin: 0 4px;
+  padding: 4px 10px;
+}
+
+.widget-menubar > .menu-button-bar > .widget-menubar-container button:hover {
+  background: @surface1;
+  color: @text;
+}
+
+.widget-menubar > revealer * {
+  margin-top: 8px;
+}
+
+.widget-menubar > revealer * button {
+  background: @surface0;
+  color: @subtext0;
+  border-radius: 10px;
+  margin: 8px;
+  margin-top: 0;
+}
+
+.widget-menubar > revealer * button:last-child {
+  margin-bottom: 0;
+}
+
+/* Media player */
+.widget-mpris {
+  padding: 0;
+  background: transparent;
+}
+
+.widget-mpris .widget-mpris-player {
+  background: @mantle;
+  border: 1px solid @surface0;
+  border-radius: 12px;
+  margin: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+/* The blurred album art behind the player; dim it so the text stays legible
+ * whatever the cover happens to be. */
+.widget-mpris .widget-mpris-player .mpris-background {
+  filter: blur(14px) brightness(0.55);
+}
+
+.widget-mpris .widget-mpris-player .mpris-overlay {
+  padding: 14px;
+  background-color: alpha(@base, 0.72);
+  border-radius: 12px;
+}
+
+.widget-mpris .widget-mpris-player .mpris-overlay .widget-mpris-album-art {
+  border-radius: 10px;
+  box-shadow: 0 2px 8px alpha(@crust, 0.7);
+  -gtk-icon-size: 80px;
+}
+
+.widget-mpris .widget-mpris-player .mpris-overlay .widget-mpris-title {
+  font-size: 14px;
+  font-weight: bold;
+  color: @text;
+}
+
+.widget-mpris .widget-mpris-player .mpris-overlay .widget-mpris-subtitle {
+  font-size: 12px;
+  color: @subtext0;
+}
+
+.widget-mpris .widget-mpris-player .mpris-overlay button,
+.widget-mpris > box > button {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: @text;
+  border-radius: 99px;
+  padding: 4px;
+  transition: background-color 150ms ease-in-out;
+}
+
+.widget-mpris .widget-mpris-player .mpris-overlay button:hover,
+.widget-mpris > box > button:hover {
+  background: @surface1;
+  color: @lavender;
+}
+
+.widget-mpris > box > button:disabled {
+  color: @overlay0;
+  background: transparent;
+}
+
+/* --------------------------------------------------------------------------
+ * The volume / brightness OSD
+ *
+ * hypr/scripts/{volume,brightness}-notify.sh and audio-output-toggle.sh all
+ * send `-u low`, so `.low` is the hook for "transient status readout" as
+ * opposed to a real message. It gets a small symbolic icon in the accent
+ * colour and tighter padding, so a volume tap does not look like mail arriving.
+ *
+ * The app name is NOT a class -- `.notification.volume` matches nothing in
+ * swaync 0.12.6; urgency and (in the control centre) the group are the only
+ * per-notification hooks. Anything else has to go through
+ * `notification-visibility` in config.json.
+ *
+ * When probing what does and does not match, give the probe rule the SAME
+ * selector depth as the rule it is fighting. A bare `.notification.volume` is
+ * two classes and loses on specificity to the three-class rules above, which
+ * looks exactly like "the class does not exist" and is not.
+ * ----------------------------------------------------------------------- */
+
+.notification-row .notification-background .notification.low .notification-default-action {
+  padding: 6px 10px;
+}
+
+/* Symbolic icons are recoloured by `color`, so the speaker/brightness glyph
+ * picks up the accent instead of arriving as a grey bitmap. Square, not the
+ * 10px-rounded frame a real app icon or album art gets. */
+.notification-row .notification-background .notification.low .notification-default-action .notification-content .image {
+  -gtk-icon-size: 20px;
+  color: @lavender;
+  border-radius: 0;
+  margin: 0 10px 0 2px;
+}
+
+.notification-row .notification-background .notification.low .notification-default-action .notification-content .text-box .summary {
+  font-size: 12px;
+  font-weight: normal;
+  color: @subtext1;
+}
+
+.notification-row .notification-background .notification.low .notification-default-action .notification-content progressbar {
+  margin-top: 6px;
+  margin-bottom: 0;
 }

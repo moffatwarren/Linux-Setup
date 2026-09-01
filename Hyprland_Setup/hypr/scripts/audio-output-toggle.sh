@@ -18,35 +18,35 @@ fi
 if [ "$CURRENT_SINK" = "$BUILT_IN_SINK" ]; then
   if pactl list short sinks | grep -F -q "$HEADPHONE_SINK"; then
     pactl set-default-sink "$HEADPHONE_SINK"
-    notify-send -h string:x-canonical-private-synchronous:audio-volume \
+    notify-send -a "volume" -h string:x-canonical-private-synchronous:audio-volume \
       -h int:value:"$(get_volume)" \
-      -u low -i audio-volume-high "Headphone Volume: $(get_volume)%"
+      -u low -i audio-headphones-symbolic "Headphone Volume: $(get_volume)%"
   elif pactl list short sinks | grep -F -q "$BLUETOOTH_SINK"; then
     pactl set-default-sink "$BLUETOOTH_SINK"
-    notify-send -h string:x-canonical-private-synchronous:audio-volume \
+    notify-send -a "volume" -h string:x-canonical-private-synchronous:audio-volume \
       -h int:value:"$(get_volume)" \
-      -u low -i audio-volume-high "Bluetooth Earbud Volume: $(get_volume)%"
+      -u low -i audio-headset-symbolic "Bluetooth Earbud Volume: $(get_volume)%"
   else
     pactl set-default-sink "$BUILT_IN_SINK"
-    notify-send -h string:x-canonical-private-synchronous:audio-volume \
+    notify-send -a "volume" -h string:x-canonical-private-synchronous:audio-volume \
       -h int:value:"$(get_volume)" \
-      -u low -i audio-volume-high "Speaker Volume: $(get_volume)%"
+      -u low -i audio-speakers-symbolic "Speaker Volume: $(get_volume)%"
   fi
 elif [ "$CURRENT_SINK" = "$HEADPHONE_SINK" ]; then
   if pactl list short sinks | grep -F -q "$BLUETOOTH_SINK"; then
     pactl set-default-sink "$BLUETOOTH_SINK"
-    notify-send -h string:x-canonical-private-synchronous:audio-volume \
+    notify-send -a "volume" -h string:x-canonical-private-synchronous:audio-volume \
       -h int:value:"$(get_volume)" \
-      -u low -i audio-volume-high "Bluetooth Earbud Volume: $(get_volume)%"
+      -u low -i audio-headset-symbolic "Bluetooth Earbud Volume: $(get_volume)%"
   else
     pactl set-default-sink "$BUILT_IN_SINK"
-    notify-send -h string:x-canonical-private-synchronous:audio-volume \
+    notify-send -a "volume" -h string:x-canonical-private-synchronous:audio-volume \
       -h int:value:"$(get_volume)" \
-      -u low -i audio-volume-high "Speaker Volume: $(get_volume)%"
+      -u low -i audio-speakers-symbolic "Speaker Volume: $(get_volume)%"
   fi
 else
   pactl set-default-sink "$BUILT_IN_SINK"
-  notify-send -h string:x-canonical-private-synchronous:audio-volume \
+  notify-send -a "volume" -h string:x-canonical-private-synchronous:audio-volume \
     -h int:value:"$(get_volume)" \
-    -u low -i audio-volume-high "Speaker Volume: $(get_volume)%"
+    -u low -i audio-speakers-symbolic "Speaker Volume: $(get_volume)%"
 fi
