@@ -4,7 +4,11 @@ import QtQuick
 
 // Generic wrapper around the shell helper scripts, which already
 // print waybar-style JSON: {"text":…,"alt":…,"class":…}
-// Used for tailscale.sh, pia.sh and weather.sh so their logic is not duplicated.
+// Used for tailscale.sh and pia.sh so their polling logic is not duplicated.
+//
+// It only parses and polls; the two subclasses both draw a fixed two- or
+// three-letter label coloured by `rawAlt`, so nothing here composes a label
+// beyond the script's own text.
 Pill {
     id: root
 
@@ -13,32 +17,13 @@ Pill {
     property string clickCommand: ""
     property string doubleClickCommand: ""
     property string rightClickCommand: ""
-    // Maps the script's "alt" field to display text, like waybar's format-icons.
-    property var altText: ({})
-    // Maps the same "alt" field to a colour for the state word only, the way
-    // waybar's CSS coloured #custom-pia by its class.
-    property var altColors: ({})
-    property string prefix: ""
 
-    // j.text and the altText-mapped j.alt are kept separate so a subclass can
-    // compose both (waybar's tailscale format shows state AND exit node).
+    // The script's "text" and "alt" fields, kept separate: "alt" is the state
+    // (connected/stopped/…) and "text" is whatever detail the script reports.
     property string rawText: ""
     property string rawAlt: ""
-    property string iconText: ""
 
-    readonly property string stateColor: {
-        const c = altColors[rawAlt];
-        return c !== undefined ? String(c) : "";
-    }
-
-    richText: stateColor.length > 0
-
-    label: {
-        const shown = iconText.length > 0 ? iconText : rawText;
-        if (shown.length === 0) return "";
-        if (stateColor.length === 0) return prefix + shown;
-        return prefix + '<font color="' + stateColor + '">' + shown + '</font>';
-    }
+    label: rawText
 
     function run(cmd) {
         if (cmd.length > 0) Quickshell.execDetached(["bash", "-lc", cmd]);
@@ -78,7 +63,7 @@ Pill {
                 const raw = text.trim();
                 if (raw.length === 0) {
                     root.rawText = "";
-                    root.iconText = "";
+                    root.rawAlt = "";
                     return;
                 }
                 // tailscale.sh joins its peer list with raw carriage returns,
@@ -91,8 +76,6 @@ Pill {
                     const j = JSON.parse(safe);
                     root.rawAlt = j.alt !== undefined ? String(j.alt) : "";
                     root.rawText = j.text !== undefined ? String(j.text) : "";
-                    const mapped = root.altText[root.rawAlt];
-                    root.iconText = mapped !== undefined ? String(mapped) : "";
                 } catch (e) {
                     // Keep the last good value rather than making the pill vanish.
                     console.warn("ScriptPill: unparseable output from " + root.command + ": " + e);

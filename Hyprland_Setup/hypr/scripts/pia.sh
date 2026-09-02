@@ -15,6 +15,11 @@ if ! command -v piactl &> /dev/null; then
   fi
 fi
 
+# The systemd unit the PIA installer ships. The pill asks about it because
+# piactl talks to this daemon: with it stopped, every `piactl get` fails and the
+# module can only report "error", which says nothing about why.
+PIA_SERVICE="piavpn.service"
+
 pia_status() {
   $PIACTL get connectionstate
 }
@@ -60,8 +65,23 @@ case "$1" in
   --toggle)
     toggle_status
     ;;
+  --service)
+    # `is-active` exits non-zero for anything but "active", which is not a
+    # failure here -- the word it prints is the whole answer.
+    systemctl is-active "$PIA_SERVICE" 2>/dev/null || true
+    ;;
+  --start-service)
+    # Run from a terminal window (PiaPill's right-click), because starting a
+    # system unit needs a password and this session has no polkit agent to ask
+    # for one. Held open on failure so the error is readable.
+    if ! sudo systemctl start "$PIA_SERVICE"; then
+      echo
+      read -r -n1 -p "Failed to start ${PIA_SERVICE}. Press any key to close."
+      exit 1
+    fi
+    ;;
   *)
-    echo "Usage: $0 {--status|--toggle}"
+    echo "Usage: $0 {--status|--toggle|--service|--start-service}"
     exit 1
     ;;
 esac

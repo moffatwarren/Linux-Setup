@@ -27,6 +27,16 @@ hl.window_rule({
 	float = true,
 })
 
+-- PiaPill's right-click opens a terminal purely to hold a sudo password
+-- prompt; a tiled full-size window for one line of input is jarring.
+hl.window_rule({
+	name = "pia-start-rule",
+	match = { class = "pia-start" },
+	size = "700 200",
+	center = true,
+	float = true,
+})
+
 hl.window_rule({
 	name = "float-nmtui",
 	match = { class = "nmtui-floating" },

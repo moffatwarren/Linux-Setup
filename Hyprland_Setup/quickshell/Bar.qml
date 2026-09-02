@@ -66,15 +66,11 @@ PanelWindow {
         anchors.verticalCenter: parent.verticalCenter
         spacing: 2
 
-        // Leftmost of the right-hand group, as waybar put the tray: it is the
-        // one module whose width changes as apps come and go, so keeping it at
-        // the inside edge means the fixed modules beside the screen edge do
-        // not shuffle every time something starts.
-        TrayPill {}
-
         RecorderPill {}
 
         AudioPill {}
+
+        BluetoothPill {}
 
         TailscalePill {}
 
