@@ -20,14 +20,19 @@ ScriptPill {
     command: "~/.config/hypr/scripts/pia.sh --status"
     doubleClickCommand: "~/.config/hypr/scripts/pia.sh --toggle"
 
-    // Hidden until the first poll lands: Pill drops a module with no label.
-    label: rawAlt.length > 0 ? "PIA" : ""
+    // Hidden until the first poll lands, and on a machine with no PIA at all:
+    // Pill drops a module with no label.
+    label: rawAlt.length > 0 && !serviceAbsent ? "PIA" : ""
     labelColor: connected ? Theme.green : Theme.text
 
     // `systemctl is-active piavpn.service`, via pia.sh so the unit name lives
-    // with the rest of PIA's plumbing rather than in the QML.
+    // with the rest of PIA's plumbing rather than in the QML. "absent" is
+    // pia.sh's own word for "the unit does not exist" -- PIA is an optional
+    // extra in install.sh, and a machine that declined it should carry no PIA
+    // module at all rather than one offering to start what is not installed.
     property string serviceState: ""
     readonly property bool serviceRunning: serviceState === "active"
+    readonly property bool serviceAbsent: serviceState === "absent"
 
     property string region: ""
     property string vpnIp: ""
@@ -56,7 +61,7 @@ ScriptPill {
     // agent, so a terminal is the only place that prompt can be answered.
     // Offered only once a poll has actually reported the daemon down -- and not
     // at all while it is up, where a right-click has nothing to do.
-    rightClickCommand: serviceState.length > 0 && !serviceRunning
+    rightClickCommand: serviceState.length > 0 && !serviceRunning && !serviceAbsent
         ? "kitty --class pia-start -e ~/.config/hypr/scripts/pia.sh --start-service"
         : ""
 
@@ -130,7 +135,8 @@ ScriptPill {
         rows: {
             // With the daemon down, piactl answers nothing and the connection
             // state below is meaningless -- so that is the whole panel.
-            if (root.serviceState.length > 0 && !root.serviceRunning)
+            if (root.serviceState.length > 0 && !root.serviceRunning
+                && !root.serviceAbsent)
                 return [
                     { text: "Service", detail: "Not running", accent: Theme.red },
                     { text: "", detail: "Right-click to start", accent: Theme.overlay0 }

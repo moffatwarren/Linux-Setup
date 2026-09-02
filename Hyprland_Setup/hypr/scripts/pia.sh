@@ -66,6 +66,15 @@ case "$1" in
     toggle_status
     ;;
   --service)
+    # A unit that does not exist reports "inactive" too (verified: prints
+    # "inactive", exits 4), so is-active alone cannot tell "PIA is installed and
+    # stopped" from "PIA was never installed". PIA is an optional extra in
+    # install.sh, so the second case is the normal state of a fresh machine --
+    # and the bar must not offer to start something that is not there.
+    if ! systemctl cat "$PIA_SERVICE" >/dev/null 2>&1; then
+      echo "absent"
+      exit 0
+    fi
     # `is-active` exits non-zero for anything but "active", which is not a
     # failure here -- the word it prints is the whole answer.
     systemctl is-active "$PIA_SERVICE" 2>/dev/null || true
@@ -74,6 +83,13 @@ case "$1" in
     # Run from a terminal window (PiaPill's right-click), because starting a
     # system unit needs a password and this session has no polkit agent to ask
     # for one. Held open on failure so the error is readable.
+    if ! systemctl cat "$PIA_SERVICE" >/dev/null 2>&1; then
+      echo "${PIA_SERVICE} is not installed on this machine."
+      echo "Install PIA with: paru -S piavpn-bin"
+      echo
+      read -r -n1 -p "Press any key to close."
+      exit 1
+    fi
     if ! sudo systemctl start "$PIA_SERVICE"; then
       echo
       read -r -n1 -p "Failed to start ${PIA_SERVICE}. Press any key to close."

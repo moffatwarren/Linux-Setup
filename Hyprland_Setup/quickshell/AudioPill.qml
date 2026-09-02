@@ -90,12 +90,20 @@ Pill {
     label: sink ? (muted ? icon : icon + " " + Math.round(volume * 100) + "%") : ""
     labelColor: Theme.maroon
 
-    onClicked: Quickshell.execDetached(["bash", "-lc", "~/.config/hypr/scripts/audio-output-toggle.sh"])
+    // Set on the node rather than shelling out to volume-notify.sh: the same
+    // direct manipulation onScrolled already does, no process, and no OSD --
+    // the glyph you just clicked is the feedback. Switching sinks moved off the
+    // click entirely; it is still SUPER+O (binds.lua), which is where it also
+    // gets the OSD naming the new output.
+    onClicked: if (audio) audio.muted = !audio.muted
     onRightClicked: Quickshell.execDetached(["pavucontrol"])
+    // 1% a notch, matching what XF86AudioRaise/LowerVolume do via
+    // volume-notify.sh (`wpctl set-volume … 1%+`), so a wheel notch and a key
+    // press are the same step.
     onScrolled: delta => {
         if (!audio) return;
         audio.muted = false;
-        audio.volume = Math.max(0, Math.min(1, audio.volume + (delta > 0 ? 0.05 : -0.05)));
+        audio.volume = Math.max(0, Math.min(1, audio.volume + (delta > 0 ? 0.01 : -0.01)));
     }
 
     ListPopup {
