@@ -197,7 +197,7 @@ opposite one detail. Its columns are sized from `TextMetrics.advanceWidth` (**no
 same string lays out in — every condition elided by one pixel), so the table does not
 reflow as the numbers change width.
 
-`WifiMenu.qml` is the right-click dropdown on the network module: a scrollable-free
+`WifiMenu.qml` is the **left**-click dropdown on the network module: a scrollable-free
 list of nearby SSIDs (deduplicated per SSID, strongest first, capped at 8), each with a
 four-bar signal meter, a lock for secured networks and a "saved" marker for known ones.
 Left-click a row to connect (`connect()`, or `connectWithPsk()` behind an inline
@@ -236,12 +236,32 @@ open with a real number instead of a row that appears two seconds later. Two tra
 `reload()` hands back the *previous* contents once at startup, so a zero total-delta must
 be skipped rather than divided by, and `idle` is fields 4+5 (idle **and** iowait).
 
-`BluetoothMenu.qml` is the right-click dropdown on the bluetooth module, built to match
+`BluetoothMenu.qml` is the **left**-click dropdown on the bluetooth module, built to match
 `WifiMenu`: paired devices first (click to connect/disconnect, right-click to forget),
 then a "Nearby" section of discovered devices (click to pair). The header toggles the
-adapter and shows a scanning indicator, and "Open blueman…" remains as the escape hatch.
-Discovery is scoped to the menu being open via a `Binding` on the adapter's `discovering`,
-so the radio is not scanning all day.
+adapter, and "Open blueman…" remains as the escape hatch.
+
+**Discovery is opt-in, behind the Scan button** in the "Nearby" header row. It used to
+start the instant the menu opened — so every glance at the paired list powered up the
+radio, and the Nearby list churned under the pointer while you were aiming at a paired
+device. `scanRequested` now gates the `Binding` on the adapter's `discovering` alongside
+`open`, and is cleared when the menu closes so the next opening starts quiet rather than
+silently resuming. Two details: that "Nearby" row is visible whenever the adapter is on
+rather than only when devices have been found — gating it on the list, as the old label
+was, would hide the only control that can populate it — and the button's label reads the
+adapter's own `discovering`, not `scanRequested`, so a scan the adapter refused cannot
+leave the button claiming to be running. The header's separate "scanning" indicator went
+with it; two words for one state in a panel this small is noise.
+
+**Right-click on the pill toggles the adapter** without opening anything. The menu
+header's own toggle stays as the discoverable way to do it; the right-click is the
+shortcut for when you already know.
+
+**Every pill that owns a menu opens it on the primary button** —
+`BluetoothPill`, `NetworkPill`, `NotificationPill` and `PowerPill` all do, and the media
+module's cover art does too. Only bluetooth and notifications bind the right button as
+well (adapter, DND); `NetworkPill`'s is unbound, since the wifi radio toggle already sits
+in `WifiMenu`'s header and nothing else on the network module wants a shortcut.
 
 Both dropdowns dismiss on a click anywhere outside via `HyprlandFocusGrab` (`windows: [root]`,
 `active: root.open`, `onCleared: close()`), as `PowerMenu` and `NotificationMenu` do. A
@@ -278,6 +298,20 @@ full-size terminal for one line of input. Installing `hyprpolkitagent` would let
 right-click be silent, but that is a new package and a new autostarted daemon.
 `rightClickCommand` is empty while the daemon is up (nothing for the click to do) and
 until the first poll has actually reported it down, so the offer is never a guess.
+
+**Both PIA and Tailscale are optional in `first_install_extras`, and both modules hide
+themselves when their tool is absent.** This matters because "not installed" and
+"installed but stopped" look identical from the outside: `systemctl is-active` prints
+`inactive` for a unit that does not exist (verified — it prints `inactive` and exits 4),
+and `tailscale status` fails the same way whether the daemon is down or the binary is
+missing. Left alone, a machine that declined both prompts would carry a permanently white
+`TS` and a `PIA` whose panel offered to start a unit that is not there — a right-click
+that asks for a password and then fails. So `pia.sh --service` checks `systemctl cat`
+first and prints its own word, **`absent`**, which blanks `PiaPill`'s label and empties
+`rightClickCommand`; `--start-service` refuses the same way rather than prompting.
+`tailscale.sh --status` prints **nothing** when `command -v tailscale` fails, which clears
+`ScriptPill.rawAlt` and lets `Pill`'s empty-label rule hide the module. Neither script
+uninstalls or installs anything — they only decline to claim a state they cannot see.
 `piactl get region` reports the *selected* region, which is usually `auto` and so says
 nothing about where you landed. `hypr/scripts/pia-region.sh` resolves the real one by
 matching the exit IP against PIA's own published server list (first party, no
@@ -337,6 +371,16 @@ Seven things to know before editing the QML:
   **not** the speaker/headphone emoji it used to draw. A real emoji codepoint is served
   by the colour emoji font, which ignores `labelColor` and renders a glossy multicolour
   blob beside the flat monochrome glyphs of every other module.
+  **Left-click mutes**; it used to switch sinks, which is now only `SUPER+O`
+  (`binds.lua`) — no loss, and that bind raises an OSD naming the new output, which the
+  click never did. Mute is set straight on the node (`audio.muted = !audio.muted`), the
+  way `onScrolled` already sets volume, rather than shelling out to
+  `volume-notify.sh mute`: no process, and no OSD, because the glyph you just clicked is
+  already the feedback. Scroll is still volume — **1% a notch, matching what the
+  `XF86AudioRaise/LowerVolume` keys do** through `volume-notify.sh`
+  (`wpctl set-volume … 1%+`), so a wheel notch and a key press are the same step; it was
+  5%, which made the wheel a coarser control than the keyboard for no reason. Right-click
+  is still pavucontrol.
 - **`ScriptPill` must escape control characters before `JSON.parse`.** `tailscale.sh`
   joins its peer list with raw carriage returns, which are illegal inside a JSON string;
   parsing them threw and blanked the module the instant tailscale came up. It also keeps
@@ -656,8 +700,8 @@ the wrong style — so it is worth a line of output saying who actually has it.
 The pill is a bell: outline when there is nothing, filled when there is, struck through
 and dimmed to `overlay0` when muted. It goes yellow with a count, red if anything unread
 is critical. Left-click opens the menu, **right-click mutes** without opening anything —
-the same shortcut/menu split the bluetooth and network modules use — and the hover panel
-is the count and the DND state.
+the same shortcut/menu split `BluetoothPill` uses (left opens the picker, right toggles
+the adapter) — and the hover panel is the count and the DND state.
 
 The menu is `PowerMenu`'s frame: a header, the Do-not-disturb row with a switch, the
 list, and `Clear all`. A row is left-click to run the sender's `default` action (and

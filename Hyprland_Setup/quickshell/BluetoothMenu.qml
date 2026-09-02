@@ -4,8 +4,10 @@ import Quickshell.Bluetooth
 import QtQuick
 import QtQuick.Layouts
 
-// Right-click dropdown on the bluetooth module: connect, disconnect, pair and
-// forget devices without opening blueman. Mirrors WifiMenu.
+// Left-click dropdown on the bluetooth module: connect, disconnect, pair and
+// forget devices without opening blueman. Mirrors WifiMenu, except for which
+// button opens it (the pill's right-click toggles the adapter instead) and for
+// scanning, which here is opt-in behind the Scan button rather than automatic.
 PopupWindow {
     id: root
 
@@ -74,14 +76,26 @@ PopupWindow {
     // Take the keyboard while open so Escape can close the menu.
     grabFocus: open
 
-    // Scan only while the menu is on screen. A Binding rather than an
-    // onOpenChanged handler, which would not fire if open were already true.
+    // Scanning is opt-in: the radio runs only while the Scan button says so and
+    // the menu is on screen. It used to start the instant the menu opened, so
+    // every glance at the paired list powered up discovery -- and the "Nearby"
+    // list churned under the pointer while you were aiming at a paired device.
+    // A Binding rather than an onOpenChanged handler, which would not fire if
+    // `open` were already true.
+    property bool scanRequested: false
+    readonly property bool scanning: adapter !== null && adapter.discovering
+
     Binding {
         target: root.adapter
         property: "discovering"
-        value: root.open && root.adapter !== null && root.adapter.enabled
+        value: root.open && root.scanRequested
+               && root.adapter !== null && root.adapter.enabled
         when: root.adapter !== null
     }
+
+    // Every opening starts fresh. Leaving the request set would silently resume
+    // the scan on the next open, which is the behaviour this replaced.
+    onOpenChanged: if (!open) scanRequested = false;
 
     // Dismiss when the user clicks anywhere outside the menu. A layer-shell
     // popup gets no such event on its own; Hyprland's focus grab reports it.
@@ -129,14 +143,6 @@ PopupWindow {
                 }
 
                 Item { Layout.fillWidth: true }
-
-                Text {
-                    visible: root.adapter !== null && root.adapter.discovering
-                    text: "scanning"
-                    color: Theme.yellow
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSize - 3
-                }
 
                 Text {
                     text: root.adapter && root.adapter.enabled ? "on" : "off"
@@ -227,13 +233,58 @@ PopupWindow {
             }
 
             // --- discovered -------------------------------------------------
+            // Always present while the adapter is on, because it carries the
+            // Scan button -- gating it on nearbyDevices, as it used to be,
+            // would hide the only way to populate that list.
+            RowLayout {
+                Layout.fillWidth: true
+                visible: root.adapter !== null && root.adapter.enabled
+
+                Text {
+                    text: "Nearby"
+                    color: Theme.subtext0
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize - 3
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Rectangle {
+                    implicitWidth: scanLabel.implicitWidth + 16
+                    implicitHeight: 20
+                    radius: 6
+                    color: scanMouse.containsMouse ? Theme.surface1 : Theme.surface0
+                    border.width: 1
+                    border.color: Theme.surface2
+
+                    Text {
+                        id: scanLabel
+                        anchors.centerIn: parent
+                        // Reads the adapter, not the request, so a scan the
+                        // adapter refused does not leave the button lying.
+                        text: root.scanning ? "Scanning\u2026" : "Scan"
+                        color: root.scanning ? Theme.yellow : Theme.text
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSize - 2
+                    }
+
+                    MouseArea {
+                        id: scanMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.scanRequested = !root.scanRequested
+                    }
+                }
+            }
+
             Text {
                 Layout.fillWidth: true
-                visible: root.nearbyDevices.length > 0
-                text: "Nearby"
+                visible: root.scanning && root.nearbyDevices.length === 0
+                text: "Searching\u2026"
                 color: Theme.subtext0
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize - 3
+                font.pixelSize: Theme.fontSize - 2
             }
 
             Repeater {

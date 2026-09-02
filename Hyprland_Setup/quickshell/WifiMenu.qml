@@ -4,7 +4,7 @@ import Quickshell.Networking
 import QtQuick
 import QtQuick.Layouts
 
-// Right-click dropdown on the network module: pick and connect to a wifi
+// Left-click dropdown on the network module: pick and connect to a wifi
 // network without leaving the bar.
 //
 // Signal strength is drawn as four bars rather than a nerd font glyph -- the

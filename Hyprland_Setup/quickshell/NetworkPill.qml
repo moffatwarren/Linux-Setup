@@ -106,8 +106,12 @@ Pill {
     }
     labelColor: active ? Theme.text : Theme.red
 
-    // Right-click opens the wifi picker; nmtui is still reachable from inside it.
-    onRightClicked: wifiMenu.open = !wifiMenu.open
+    // Left-click opens the wifi picker; nmtui is still reachable from inside it.
+    // Left rather than right to match BluetoothPill and NotificationPill, which
+    // both put their menu on the primary button. The right button is unbound
+    // here -- the wifi radio toggle lives in the menu header, unlike the
+    // bluetooth adapter, which has it on both.
+    onClicked: wifiMenu.open = !wifiMenu.open
 
     WifiMenu {
         id: wifiMenu
