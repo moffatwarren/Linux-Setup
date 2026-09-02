@@ -2,34 +2,30 @@ import Quickshell
 import Quickshell.Io
 import QtQuick
 
-// waybar: "custom/tailscale" -- format was
-//   " Tailscale: {icon} | Exit-node: {text}"
-// where {icon} is the alt-mapped connected/stopped state and {text} is the
-// exit node name (or "no"). tailscale.sh is reused unchanged for the status.
+// Just the letters "TS", green when tailscale is up and the bar's normal text
+// colour when it is not -- everything else moved into the hover panel, so the
+// module costs two characters of bar rather than the waybar-era
+// " Tailscale: on | Exit-node: …".
 //
-// The peer list comes from `tailscale status --json` directly rather than from
-// the script's tooltip, which wraps hostnames in pango markup and joins them
-// with carriage returns.
+// tailscale.sh is reused unchanged for the state and the exit node. The peer
+// list comes from `tailscale status --json` directly rather than from the
+// script's tooltip, which wraps hostnames in pango markup and joins them with
+// carriage returns.
 ScriptPill {
     id: root
 
     readonly property bool connected: rawAlt === "connected"
+    // tailscale.sh prints the literal string "no" when nothing is routing.
+    readonly property string exitNode:
+        connected && rawText.length > 0 && rawText !== "no" ? rawText : ""
 
     command: "~/.config/hypr/scripts/tailscale.sh --status"
-    altText: ({ "connected": "on", "stopped": "off" })
-    altColors: ({ "connected": Theme.green, "stopped": Theme.red })
     doubleClickCommand: "~/.config/hypr/scripts/tailscale.sh --toggle"
     rightClickCommand: "~/.config/hypr/scripts/tailscale.sh --getFile"
 
-    label: {
-        if (iconText.length === 0) return "";
-        const state = stateColor.length > 0
-            ? '<font color="' + stateColor + '">' + iconText + '</font>'
-            : iconText;
-        const base = " Tailscale: " + state;
-        if (!connected) return base;
-        return base + " | Exit-node: " + (rawText.length > 0 ? rawText : "no");
-    }
+    // Hidden until the first poll lands: Pill drops a module with no label.
+    label: rawAlt.length > 0 ? "TS" : ""
+    labelColor: connected ? Theme.green : Theme.text
 
     property var peers: []
 
@@ -79,13 +75,22 @@ ScriptPill {
 
     ListPopup {
         anchorItem: root
-        requested: root.hovered && root.connected
-        title: "Tailscale peers"
-        emptyText: "No peers"
-        rows: root.peers.map(p => ({
-            text: p.name + (p.exitNode ? "  (exit node)" : ""),
-            detail: p.online ? "online" : "offline",
-            accent: p.online ? Theme.green : Theme.overlay0
-        }))
+        requested: root.hovered
+        title: "Tailscale"
+        maxDetailWidth: 220
+        rows: {
+            if (!root.connected)
+                return [{ text: "Status", detail: "Disconnected", accent: Theme.red }];
+            const on = [{ text: "Status", detail: "Connected", accent: Theme.green }];
+            if (root.exitNode.length > 0)
+                on.push({ text: "Exit node", detail: root.exitNode, accent: Theme.sapphire });
+            for (const p of root.peers)
+                on.push({
+                    text: p.name + (p.exitNode ? "  (exit node)" : ""),
+                    detail: p.online ? "online" : "offline",
+                    accent: p.online ? Theme.green : Theme.overlay0
+                });
+            return on;
+        }
     }
 }

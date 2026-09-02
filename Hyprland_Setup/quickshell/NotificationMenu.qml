@@ -10,7 +10,7 @@ import QtQuick.Layouts
 // The notification centre, in place of swaync's control panel: everything that
 // has arrived and not been dismissed, plus the mute toggle.
 //
-// Frame, anchoring and dismissal match PowerMenu, WifiMenu and TrayMenu --
+// Frame, anchoring and dismissal match PowerMenu, BluetoothMenu and WifiMenu --
 // Theme.base inside a surface1 border, Escape or a click outside to close.
 //
 // `open` is driven from NotificationService.menuMonitor rather than owned here,

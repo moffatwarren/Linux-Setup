@@ -49,8 +49,9 @@ silently delete what `deploy_configs` wrote one step earlier and the config woul
 existing. Beyond that, entries are removed unconditionally, so list only paths this repo
 put there.
 Currently retired: `rofi`, `swaync`, `hypr/scripts/clipboard-menu.sh`,
-`hypr/scripts/wallpaper-selector.sh`, `hypr/modules/utils/wallpaper_utils.lua` and the two
-`noctalia.css`. `ORPHANS` never uninstalls a *package* — `install.sh` only ever installs.
+`hypr/scripts/wallpaper-selector.sh`, `hypr/modules/utils/wallpaper_utils.lua`, the two
+`noctalia.css`, and the three `quickshell/Tray*.qml`. `ORPHANS` never uninstalls a
+*package* — `install.sh` only ever installs.
 
 Non-`~/.config` destinations are still explicit in `deploy_configs()`:
 `voidsddm` → `/usr/share/sddm/themes`, `sddm.conf.d` → `/etc` (both sudo). Wallpapers
@@ -129,11 +130,11 @@ holding the Catppuccin Mocha palette.
 
 `tailscale.sh` and `pia.sh` are driven by `ScriptPill.qml`, which runs them with
 `Process` and parses the waybar-style JSON they still print. Audio/battery/network/
-workspaces/media use Quickshell's native services instead, so the bar is
+bluetooth/workspaces/media use Quickshell's native services instead, so the bar is
 event-driven rather than polling.
 
-`ListPopup.qml` is the Catppuccin hover panel used by the audio, battery, tailscale,
-tray and recorder modules (a title plus `{ text, detail, accent }` rows). It replaced the stock
+`ListPopup.qml` is the Catppuccin hover panel used by the audio, bluetooth, battery,
+tailscale and recorder modules (a title plus `{ text, detail, accent }` rows). It replaced the stock
 QtQuick `ToolTip`s, which ignored the palette. Modules drive it with
 `requested: root.hovered`, using the `hovered` alias `Pill.qml` exposes. Its optional
 `maxDetailWidth` elides the right-hand column, for rows whose detail is a device name
@@ -186,8 +187,8 @@ keeps its last good reading rather than blanking.
 `WeatherCodes.qml` is the singleton holding that table — WMO code to glyph, short
 label and colour. It is a singleton precisely because two things read it. An unmapped
 code returns the "N/A" glyph, not a sun. The pill colours only the glyph by condition
-and leaves the temperature the bar's normal colour, the way `ScriptPill` colours only
-the state word.
+and leaves the temperature the bar's normal colour, so only the part that actually
+carries the state is tinted.
 
 `ForecastPopup` borrows `CalendarPopup`'s frame rather than reusing `ListPopup`,
 because a forecast day is six aligned columns and `ListPopup` only puts one label
@@ -235,26 +236,48 @@ open with a real number instead of a row that appears two seconds later. Two tra
 `reload()` hands back the *previous* contents once at startup, so a zero total-delta must
 be skipped rather than divided by, and `idle` is fields 4+5 (idle **and** iowait).
 
-**There is no bluetooth module.** `BluetoothPill.qml` and `BluetoothMenu.qml` were a
-pill showing the connected device plus a right-click dropdown to connect, pair and
-forget — removed once `TrayPill` started drawing blueman-applet's tray icon, which does
-all of that and is the program that actually owns the adapter. Two bluetooth controls a
-few pixels apart in the same bar, one of them a worse blueman, is not a choice worth
-offering. Both files are in `install.sh`'s `ORPHANS`, which is what deletes them from a
-machine that already has them deployed; `blueman` stays in `PACMAN_PKGS`, because it is
-the bluetooth UI now rather than the escape hatch from one. Recoverable from commit
-`ad1551e` if the pill is ever wanted back.
+`BluetoothMenu.qml` is the right-click dropdown on the bluetooth module, built to match
+`WifiMenu`: paired devices first (click to connect/disconnect, right-click to forget),
+then a "Nearby" section of discovered devices (click to pair). The header toggles the
+adapter and shows a scanning indicator, and "Open blueman…" remains as the escape hatch.
+Discovery is scoped to the menu being open via a `Binding` on the adapter's `discovering`,
+so the radio is not scanning all day.
 
-`WifiMenu` dismisses on a click anywhere outside via `HyprlandFocusGrab` (`windows: [root]`,
-`active: root.open`, `onCleared: close()`), as `TrayMenu`, `PowerMenu` and
-`NotificationMenu` do. A layer-shell popup receives no event for an outside click on its
-own, so without the grab the only way to close a menu was to right-click the module
-again. The grab coexists with `WifiMenu`'s `grabFocus`, which the password field needs
-for keyboard input — verified that revealing the field does not clear the grab and
-dismiss the menu.
+Both dropdowns dismiss on a click anywhere outside via `HyprlandFocusGrab` (`windows: [root]`,
+`active: root.open`, `onCleared: close()`), as `PowerMenu` and `NotificationMenu` do. A
+layer-shell popup receives no event for an outside click on its own, so without the grab
+the only way to close the menu was to right-click the module again. The grab coexists with
+`WifiMenu`'s `grabFocus`, which the password field needs for keyboard input — verified
+that revealing the field does not clear the grab and dismiss the menu.
 
-`PiaPill.qml` specialises `ScriptPill` the same way: `pia.sh` still drives the state and
-the label, while a `piactl` call fills a hover panel with where the tunnel exits.
+Devices whose name is a bare MAC are filtered out — they are BLE beacons and there are
+usually a dozen of them. The row glyph is picked from the device's freedesktop `icon`
+(`input-gaming` → gamepad, `audio-*` → headphones, `phone` → phone), falling back to the
+bluetooth glyph.
+
+`PiaPill.qml` specialises `ScriptPill`: `pia.sh` still drives the state, while a
+`piactl` call fills a hover panel with where the tunnel exits.
+
+Its panel's first row is the **`piavpn.service` daemon**, from `pia.sh --service`
+(`systemctl is-active`, whose non-zero exit for anything but "active" is not a failure —
+the word it prints is the answer). It is worth a row because `piactl` talks to that
+daemon: with it stopped every `piactl get` fails, `pia.sh --status` can only report
+`error`, and the pill goes white with nothing saying why. When it is down that row *is*
+the whole panel — the connection state below it would be meaningless — plus a dimmed
+"Right-click to start" hint. The unit name lives in `pia.sh`, not the QML, beside the
+`piactl` path discovery.
+
+**Right-click starts it, through a terminal.** Starting a system unit needs a password
+and this session runs **no polkit agent** (polkitd is up, but nothing in `autostart.lua`
+provides an authentication agent, so `systemctl start piavpn.service` fails with
+"interactive authentication required" and a bar click would do nothing visible). So
+`pia.sh --start-service` runs `sudo systemctl start` inside a `kitty --class pia-start`,
+where the prompt can be answered; it holds the window open on failure so the error is
+readable, and `rules.lua` floats that class small and centred rather than tiling a
+full-size terminal for one line of input. Installing `hyprpolkitagent` would let the
+right-click be silent, but that is a new package and a new autostarted daemon.
+`rightClickCommand` is empty while the daemon is up (nothing for the click to do) and
+until the first poll has actually reported it down, so the offer is never a guess.
 `piactl get region` reports the *selected* region, which is usually `auto` and so says
 nothing about where you landed. `hypr/scripts/pia-region.sh` resolves the real one by
 matching the exit IP against PIA's own published server list (first party, no
@@ -266,18 +289,27 @@ and an ambiguous subnet is reported as unknown. `vpnip`/`pubip` rows are dropped
 piactl returns `Unknown`. Disconnected shows "Not connected" in red plus the real
 public IP.
 
-`TailscalePill.qml` specialises `ScriptPill` because it needs both halves of waybar's
-format (`Tailscale: {icon} | Exit-node: {text}`) and reads its peer list from
-`tailscale status --json` directly, rather than from the script's tooltip.
+`TailscalePill.qml` specialises `ScriptPill` the same way, and reads its peer list from
+`tailscale status --json` directly rather than from the script's tooltip, which wraps
+hostnames in pango markup and joins them with carriage returns. Disconnected, its panel
+is one "Disconnected" row; connected, it is "Connected", the exit node if one is routing,
+then the peers.
 
-`ScriptPill.altColors` maps the script's `alt` field to a Catppuccin colour for the
-**state word only** (green connected / yellow connecting / red disconnected), leaving
-the `Tailscale:` and `PIA:` prefixes neutral — the equivalent of waybar colouring
-`#custom-pia` by its class. It works by switching `Pill.richText` on and wrapping the
-word in `<font color>`, so the palette in `Theme.qml` is stored as **strings**: QML
-converts them to `color` on assignment, and they can also be interpolated into markup.
+**Both are just their letters — `TS` and `PIA`, green when connected and `Theme.text`
+when not.** They used to spell the state out in the bar (` Tailscale: on | Exit-node: …`,
+` PIA: Connected`), which was two of the widest modules on the strip saying what
+their own hover panels already say in full. The colour is now the entire readout, so the
+label is a plain string and `labelColor` carries the state — no `<font>` markup, and the
+`altText`/`altColors`/`prefix` machinery `ScriptPill` used to compose one is gone with it.
+`ScriptPill` now only polls and parses, exposing `rawText`/`rawAlt` for the subclass to
+draw. Note this drops the yellow *connecting* state PIA used to show; it is two colours by
+design, and the hover panel still names the transitional state.
 
-Six things to know before editing the QML:
+The palette in `Theme.qml` is still stored as **strings** rather than `color` values —
+QML converts on assignment, and `ScriptPill.altColors` was not the only thing that
+interpolated one into markup (`WeatherPill` still does).
+
+Seven things to know before editing the QML:
 
 - **Nerd font icons must be written as `\uXXXX` escapes.** The glyphs are private-use
   codepoints; pasting them literally silently produces empty strings, which makes the
@@ -285,11 +317,9 @@ Six things to know before editing the QML:
   existing module or from `git show 45cf455^:Hyprland_Setup/waybar/config`, rather than
   retyping the character.
 - **Quickshell services are lazy.** `Hyprland.workspaces`, `Networking.devices` and
-  `SystemTray.items` stay empty until something actually binds to them; the modules
-  hold a property referencing the service for this reason — for the tray that binding
-  is also what starts the StatusNotifier host, so without it no app can register an
-  icon at all. Pipewire additionally needs `PwObjectTracker` for live volume/mute
-  updates.
+  `Bluetooth.devices` stay empty until something actually binds to them; the modules
+  hold a property referencing the service for this reason. Pipewire additionally needs
+  `PwObjectTracker` for live volume/mute updates.
 - **`NetworkDevice.address` is the MAC, not the IP** — no IP is exposed anywhere on the
   device, so `NetworkPill` shells out to `ip -4 -br addr` when the active device changes.
   Networking exposes no byte counters either, so the hover panel's up/down rates come
@@ -311,49 +341,15 @@ Six things to know before editing the QML:
   joins its peer list with raw carriage returns, which are illegal inside a JSON string;
   parsing them threw and blanked the module the instant tailscale came up. It also keeps
   the last good value on a parse error rather than clearing.
+- **A derived component's signal handler does not replace the base's — both fire.**
+  Verified: a `console.warn` in `ScriptPill.onRightClicked` and another in
+  `PiaPill.onRightClicked` both printed. So `PiaPill` sets `rightClickCommand` and lets
+  the base's handler run it, and its own handler only starts the poll timer; running the
+  command in both places would open two terminals. (`Connections` is not needed for this,
+  and a base handler cannot be suppressed by redeclaring it.)
 - **Bind `visible`, don't set it from `onXChanged`.** A handler never fires for a
   property that is already true at construction, which is why `ListPopup` gates
   visibility through a bound `delayPassed` flag.
-
-`TrayPill.qml` is the StatusNotifierItem tray — the one waybar module that never got
-carried over, and the reason `localsend`, `rustdesk`, `teams-for-linux` and `spotify`
-had nowhere to minimise to. It is **not** a `Pill`: `Pill` draws a single `Text` and
-hides itself on an empty label, and this is a row of icons, so it borrows Pill's
-geometry (height, radius, padding, `Theme.pill`) and paints its own body the way
-`MediaGroup` does for album art. It sits at the *inside* edge of the right-hand group
-because it is the only module whose width changes as apps come and go; out at the screen
-edge it would shuffle every fixed module every time something started.
-
-Left-click activates, right-click opens the menu, middle-click is `secondaryActivate()`
-and the wheel is forwarded to `scroll()`. An item whose `onlyMenu` is set published no
-activate handler at all, so a left-click on one has to fall through to the menu or the
-icon looks dead. `NeedsAttention` — the tray's only "look at me" channel — gets a small
-yellow dot, and an item with no usable icon still gets a slot with a fallback glyph, so
-its menu stays reachable rather than the icon just silently missing. Passive items are
-shown too: waybar hid them by default, and an app that never sets Active is exactly the
-one you go looking for.
-
-`TrayMenu.qml` + `TrayMenuItems.qml` draw the app's own DBus menu in the Catppuccin
-frame every other menu here uses. Quickshell can do this in one line with
-`trayItem.display(...)`, and that is deliberately not used: it renders a stock Qt
-platform menu — wrong font, wrong colours, square frame — hanging off a bar that is
-otherwise entirely Mocha. Same reason `ListPopup` exists instead of the QtQuick
-`ToolTip`. One menu instance lives in `TrayPill` and is re-anchored to whichever icon
-was clicked, rather than one popup window per icon.
-
-Three things in that pair are load-bearing:
-
-- **The handle is dropped when the menu closes** (`root.open && trayItem ? … : null`).
-  DBusMenu is a pull protocol and apps only keep a menu current while a host says it is
-  open; holding the handle would leave a stale menu being polled all day.
-- **`TrayMenuItems` loads itself by URL, not by type name.** A QML file that names
-  itself is a cyclic dependency at compile time, and a DBus menu nests as deep as the
-  app wants. `Loader { source: "TrayMenuItems.qml" }` defers that to runtime;
-  `onLoaded` is what passes `handle`/`depth` in and connects the child's `activated`
-  signal up to the parent.
-- Submenus expand **inline and indented**, not as a flyout. A flyout is a second
-  layer-shell surface with its own `HyprlandFocusGrab`, and two grabs fighting is
-  exactly what the `WifiMenu` password field already cost to get right.
 
 `RecorderPill.qml` is the screen recorder's indicator: hidden entirely unless a
 recording is running (`Pill`'s own empty-label behaviour), then a red dot and the
@@ -370,9 +366,17 @@ a service with have a section of their own — see **Notifications (quickshell)*
 Not carried over from waybar: the clock's `{calendar}` tooltip is a plain date, and
 `format-alt` click-to-cycle is not implemented.
 
+**There is no system tray, deliberately.** `TrayPill.qml` plus `TrayMenu.qml`/
+`TrayMenuItems.qml` were a StatusNotifierItem host drawing each app's own DBus menu in
+the Catppuccin frame, and they were dropped again — the bar is a status readout, and the
+apps that publish an icon (blueman, steam) are better reached from their own windows.
+`BluetoothPill` is the bluetooth control here, not blueman's applet. All three files are
+in `install.sh`'s `ORPHANS`, which is what deletes them from a machine that already had
+them deployed; recoverable from commit `fdefb86` if the tray is ever wanted back.
+
 Media: clicking either the album art or the title opens `MediaMenu.qml` — the cover at
 a size worth looking at, above previous / play/pause / next, in the same
-`base`-inside-`surface1` frame as `PowerMenu`/`WifiMenu`, dismissed by Escape or a
+`base`-inside-`surface1` frame as `PowerMenu`/`BluetoothMenu`, dismissed by Escape or a
 click outside via `HyprlandFocusGrab`. The cover is masked to a rounded square by the
 same `MultiEffect` the 22px pill circle uses, and is drawn at the panel width **or at the
 artwork's own resolution, whichever is smaller** — it is never upscaled. A Chromium
@@ -652,7 +656,7 @@ the wrong style — so it is worth a line of output saying who actually has it.
 The pill is a bell: outline when there is nothing, filled when there is, struck through
 and dimmed to `overlay0` when muted. It goes yellow with a count, red if anything unread
 is critical. Left-click opens the menu, **right-click mutes** without opening anything —
-the same shortcut/menu split the network and tray modules use — and the hover panel
+the same shortcut/menu split the bluetooth and network modules use — and the hover panel
 is the count and the DND state.
 
 The menu is `PowerMenu`'s frame: a header, the Do-not-disturb row with a switch, the

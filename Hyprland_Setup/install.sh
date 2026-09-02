@@ -41,11 +41,12 @@ ORPHANS=(
     # would just be a config for a daemon nothing starts. Nothing uninstalls
     # the swaync *package*; this script only ever installs.
     swaync
-    # The bar's own bluetooth module. blueman-applet publishes a tray icon, and
-    # the tray (quickshell/TrayPill.qml) now draws it -- two bluetooth controls
-    # side by side in the same bar, one of them a worse blueman.
-    quickshell/BluetoothPill.qml
-    quickshell/BluetoothMenu.qml
+    # The StatusNotifierItem tray and the DBus menu it drew. Dropped from the
+    # bar again; blueman's own applet is the bluetooth UI, and BluetoothPill is
+    # back. Nothing deployed references these, but cp -rf never removes.
+    quickshell/TrayPill.qml
+    quickshell/TrayMenu.qml
+    quickshell/TrayMenuItems.qml
 )
 
 PACMAN_PKGS=(
