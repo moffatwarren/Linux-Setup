@@ -75,7 +75,7 @@ OverlayPanel {
                 { keys: "SUPER + S",         desc: "Screenshot a region, annotate in swappy" },
                 { keys: "SUPER + ALT + S",   desc: "OCR a region to the clipboard" },
                 { keys: "SUPER + CTRL + S",  desc: "Start / stop a screen recording" },
-                { keys: "SUPER + SHIFT + Z", desc: "Turn the monitor off / on" },
+                { keys: "SUPER + SHIFT + Z", desc: "Laptop screen off / on (needs an external)" },
             ]
         },
         {

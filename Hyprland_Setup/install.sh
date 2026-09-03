@@ -47,6 +47,12 @@ ORPHANS=(
     quickshell/TrayPill.qml
     quickshell/TrayMenu.qml
     quickshell/TrayMenuItems.qml
+    # A shell implementation of the SUPER+SHIFT+Z panel toggle, shipped briefly
+    # and then found to be impossible: under a Lua config `hyprctl keyword`
+    # refuses outright and `hyprctl dispatch` wants a Lua expression, so a script
+    # cannot drive monitors at all. It is monitor_utils.lua now. Nothing calls
+    # the old file, but cp -rf never removes what the repo has dropped.
+    hypr/scripts/monitor-toggle.sh
 )
 
 PACMAN_PKGS=(
@@ -114,7 +120,7 @@ PARU_PKGS=(
 #                  ~/.cache/quickshell-audio.json (quickshell/AudioService.qml).
 #                  User state under ~/.cache, which a deploy never touches.
 #   mainMonitor -- the laptop's built-in panel is now identified by its DRM
-#                  connector name (hypr/scripts/monitor-toggle.sh). Nothing to
+#                  connector name (hypr/modules/utils/monitor_utils.lua). Nothing to
 #                  set: the kernel only ever calls a built-in panel eDP/LVDS/DSI.
 #                  The committed value was stale on the machine it came from,
 #                  which is the argument against hand-set hardware names in one
@@ -312,6 +318,58 @@ check_nerd_font() {
     echo "               fc-cache -f                                  # just a cold cache"
     echo "               sudo pacman -Syu ttf-jetbrains-mono-nerd     # stale package"
     echo "               fc-list | grep -i 'jetbrainsmono nerd'       # a hand-installed v2 shadowing it"
+}
+
+# The lid rules this config assumes are systemd-logind's DEFAULTS, not anything
+# this repo installs:
+#
+#   lid closed, no external screen  -> logind suspends   (HandleLidSwitch=suspend)
+#   lid closed, external connected  -> logind stands aside, and
+#                                      monitor_utils.panel_off blanks the panel
+#                                      and moves its workspaces across
+#                                      (HandleLidSwitchDocked=ignore -- logind
+#                                       counts >1 connected display as docked)
+#   lid opened                      -> ACPI wakes it, panel_on brings it back
+#
+# Nothing to deploy, then -- but also nothing that would SAY so if a machine had
+# been set up otherwise, and both failure modes are silent and confusing: a lid
+# that suspends a docked laptop mid-work, or one that does nothing at all and
+# cooks in a bag. So check and warn, in the shape check_nerd_font uses: no sudo,
+# no edits, and never fatal.
+#
+# Only on a machine that has a lid. The panel detection is the same rule
+# monitor_utils.internal_panel uses -- an internal DRM connector.
+check_lid_handling() {
+    command -v busctl >/dev/null 2>&1 || return 0
+    compgen -G '/sys/class/drm/card*-eDP-*' >/dev/null 2>&1 ||
+        compgen -G '/sys/class/drm/card*-LVDS-*' >/dev/null 2>&1 ||
+        compgen -G '/sys/class/drm/card*-DSI-*' >/dev/null 2>&1 || return 0
+
+    local prop want got warned=0
+    # "" for HandleLidSwitchExternalPower is correct: unset means logind ignores
+    # it entirely, which is what leaves HandleLidSwitch= in charge on AC power.
+    for prop in "HandleLidSwitch=suspend" "HandleLidSwitchDocked=ignore" \
+                "HandleLidSwitchExternalPower="; do
+        want="${prop#*=}"
+        got="$(busctl --system get-property org.freedesktop.login1 /org/freedesktop/login1 \
+               org.freedesktop.login1.Manager "${prop%%=*}" 2>/dev/null \
+               | sed -n 's/^s "\(.*\)"$/\1/p')"
+        if [ "$got" != "$want" ]; then
+            if [ "$warned" -eq 0 ]; then
+                echo "    WARNING: this machine's lid handling is not the default this"
+                echo "             config assumes (hypr/modules/utils/monitor_utils.lua):"
+                warned=1
+            fi
+            echo "               ${prop%%=*} is '${got}', expected '${want}'"
+        fi
+    done
+
+    if [ "$warned" -eq 0 ]; then
+        echo "    lid handling: logind defaults (suspend undocked, panel-off docked)"
+    else
+        echo "             Closing the lid may suspend a docked laptop, or do nothing"
+        echo "             at all. Fix in /etc/systemd/logind.conf.d/ if unintended."
+    fi
 }
 
 deploy_configs() {
@@ -588,6 +646,20 @@ reload_session() {
     disown
     echo "    quickshell restarted (bar + SUPER+SPACE / V / W overlays)"
 
+    # hypridle reads hypridle.conf once, at startup, exactly as the bar reads its
+    # QML once -- so a changed idle timeout, lock command or dpms line would sit
+    # there doing nothing until the next logout, which reads as the deploy having
+    # skipped the file. autostart.lua starts it at login; restart it here for the
+    # same reason quickshell is restarted, and unconditionally so exactly one is
+    # left however it was running before.
+    if command -v hypridle >/dev/null 2>&1; then
+        killall hypridle >/dev/null 2>&1 || true
+        sleep 0.5
+        setsid hypridle >/dev/null 2>&1 &
+        disown
+        echo "    hypridle restarted (idle, lock and dpms rules)"
+    fi
+
     check_notification_owner
 }
 
@@ -684,6 +756,7 @@ main() {
     restore_lock_wallpaper
 
     fix_permissions
+    check_lid_handling
     apply_system_tweaks
     apply_gtk_theme
     get_wallpapers

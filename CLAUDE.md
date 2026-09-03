@@ -31,12 +31,11 @@ edits, `--pull` brings them back before you lose them. Changes are not live unti
 | An app config | `CONFIGS=(…)` — add the directory name, create `Hyprland_Setup/<name>/` |
 | A repo package | `PACMAN_PKGS=(…)` |
 | An AUR package | `PARU_PKGS=(…)` |
-| A preserved machine value | `PRESERVE=(…)` — see below |
 | A **retired** config path | `ORPHANS=(…)` — see below |
 
 A name in `CONFIGS` with no matching directory is skipped with a warning, not a fatal
-error. `install_lib/` holds Python helpers used *by* `install.sh` and is deliberately
-**not** deployed.
+error. There is no `install_lib/` any more — its one Python helper existed only for
+the `PRESERVE` table, which is gone (see **Nothing is machine-specific any more**).
 
 **Deleting something from the repo does not delete it from the machine.**
 `deploy_configs` copies with `cp -rf`, which adds and overwrites but never removes, so a
@@ -49,9 +48,10 @@ silently delete what `deploy_configs` wrote one step earlier and the config woul
 existing. Beyond that, entries are removed unconditionally, so list only paths this repo
 put there.
 Currently retired: `rofi`, `swaync`, `hypr/scripts/clipboard-menu.sh`,
-`hypr/scripts/wallpaper-selector.sh`, `hypr/modules/utils/wallpaper_utils.lua`, the two
-`noctalia.css`, and the three `quickshell/Tray*.qml`. `ORPHANS` never uninstalls a
-*package* — `install.sh` only ever installs.
+`hypr/scripts/wallpaper-selector.sh`, `hypr/modules/utils/wallpaper_utils.lua`,
+`hypr/scripts/monitor-toggle.sh`, the two `noctalia.css`, and the three
+`quickshell/Tray*.qml`. `ORPHANS` never uninstalls a *package* — `install.sh` only ever
+installs.
 
 Non-`~/.config` destinations are still explicit in `deploy_configs()`:
 `voidsddm` → `/usr/share/sddm/themes`, `sddm.conf.d` → `/etc` (both sudo). Wallpapers
@@ -64,96 +64,134 @@ without `/usr/share/sddm/themes` aborts the deploy half-done under `set -e`; one
 `WallpaperPicker.qml` nor `wallpaper-random.sh` — both of which read
 `~/Pictures/wallpapers` — can see them.
 
-## Machine-specific values (the subtle part)
+## Nothing is machine-specific any more
 
-Some deployed files hold values true only for this hardware. Overwriting them breaks
-audio/display on a machine whose hardware differs from what was last committed. Before
-copying, `install.sh` captures the live values; after copying, it writes them back. The
-`PRESERVE` table drives this entirely:
+This used to be the subtle part of the script. `PRESERVE` named lines in deployed configs
+that were true only of this hardware; every deploy captured them before the copy and wrote
+them back after, behind one y/N prompt per group, with `LEGACY_MOVES` to carry them across
+a renamed path and a Python helper to rewrite the lines. All of it is gone. Three things
+lived there, and each was removed by making the value **answerable** rather than by
+defending it:
+
+| was | is |
+|---|---|
+| `BUILT_IN_SINK` / `HEADPHONE_SINK` / `SPEAKER_SINK` / `BLUETOOTH_SINK` | chosen in the bar's audio menu, stored in `~/.cache/quickshell-audio.json` |
+| `config.mainMonitor` | derived from the DRM connector name at runtime |
+| the `path =` line of `hyprlock.conf` | still real, but the only one — a named pair of functions rather than a table |
+
+**The order that produced this is worth reusing:** make the value discoverable at runtime;
+failing that, ask once in the UI that displays it and store the answer outside `~/.config`;
+and only then consider preserving a committed line. The audio sinks took the second route,
+the monitor the first.
+
+`save_lock_wallpaper` / `restore_lock_wallpaper` are what is left. `SUPER+W` writes the
+chosen wallpaper into `hyprlock.conf` (via `wallpaper-set.sh`) and `deploy_configs` is
+about to copy the committed one over it, so the live value is read before and written back
+after. It declines to restore a path that no longer resolves, which leaves the field to
+`normalize_hyprlock_wallpaper` — that runs later and can do better than a dead path.
+
+**install.sh asks exactly one question**, and it is "Do you want to get wallpapers?". The
+"is this the first install" branch went with the rest: the three settings that were behind
+it (`avahi-daemon`, the `xdg-terminal-exec` symlink, gnome-text-editor whitespace) are
+idempotent, so `apply_system_tweaks` just runs them every time. The prompt only ever
+existed because they sat beside the optional Tailscale/PIA installers, and answering it
+wrong on a real first install left a machine subtly unfinished with nothing to say so.
+Tailscale and PIA are no longer installed from here at all — each is one `pacman`/`paru`
+line followed by an interactive login this script could never do anyway, the notes are in
+`tailscale_commands.txt` and `pia_install.txt`, and both bar modules already hide
+themselves when the tool is absent.
+
+`migrate_audio_icons()` survives all this. It carries `HEADPHONE_SINK`/`BLUETOOTH_SINK`
+out of an old machine's `audio-output-toggle.sh` into the audio menu's icon choices before
+`deploy_configs` overwrites that file, and is self-limiting: it only fires while the live
+script still declares them, so after one update it is a no-op for ever. **A retired
+machine-specific value needs a migration, not just a deleted entry** — dropping the entry
+stops defending the value, and the very next deploy overwrites it.
+
+## The laptop panel, the lid, and SUPER+SHIFT+Z
+
+`hypr/modules/utils/monitor_utils.lua` is all of it. There is no configured monitor name.
+
+**The panel is identified by its DRM connector.** The kernel only ever names a display
+wired to the board `eDP` (every current laptop), `LVDS` (pre-2013) or `DSI` (tablets, some
+ARM laptops), and never uses those for anything you can plug in — and Hyprland names
+monitors after the connector they are on (verified: `/sys/class/drm/card1-DP-2` is the
+monitor Hyprland calls `DP-2`). So `internal_panel()` reads
+`/sys/class/drm/card<N>-<connector>/status` and returns the first internal one that says
+`connected`. It probes a fixed list of candidate names rather than listing the directory,
+because Lua has no `readdir` and shelling out for one is not worth it.
+
+That replaced `config.mainMonitor`, which had to be hand-set per machine and preserved
+across every deploy — and which was **stale on the machine it came from**: it said `DP-1`
+where the monitor is `DP-2`, so `SUPER+SHIFT+Z` had been pointing at a disconnected
+connector with nothing to report it. That is the argument against hardware names in a
+committed line, in one line.
+
+The rules:
+
+| | |
+|---|---|
+| lid closed, no external screen | logind suspends; this code does nothing |
+| lid closed, external connected | panel off, its workspaces move to the external |
+| lid opened | ACPI wakes it, `panel_on` brings the panel back |
+| `SUPER+SHIFT+Z` | the same off/on, by hand |
+
+**Half of that is systemd-logind's default and is deliberately not configured here.**
+`HandleLidSwitch=suspend` fires when the lid closes, *except* that logind counts "more than
+one display connected" as docked and then applies `HandleLidSwitchDocked=`, which defaults
+to `ignore` (`man logind.conf`). So logind suspends exactly when there is no external
+screen and stands aside exactly when there is — the first two rows, for free, with nothing
+to install. `HandleLidSwitchExternalPower` defaults to unset, which means *ignored*, so
+being on AC does not change it. `install.sh`'s `check_lid_handling()` warns — never edits,
+never fatal, and only on a machine that has a lid — if any of the three has been set
+otherwise, because both failure modes are silent: a lid that suspends a docked laptop
+mid-work, or one that does nothing and cooks the machine in a bag.
+
+Four things in the Lua:
+
+- **`panel_off()` refuses while the panel is the only enabled monitor.** That is the whole
+  "docked" condition, and it is the difference between a key that does nothing and a
+  machine with every display disabled and no way to see the shortcut that undoes it.
+  `panel_on()` is deliberately **not** guarded the same way — unplugging the external while
+  the panel is off has to be recoverable, which is exactly what `monitor.removed` calls it
+  for.
+- **Workspaces are moved explicitly, before the output goes away.** Hyprland relocates a
+  disabled monitor's workspaces itself, but not predictably to a monitor of your choosing,
+  and "where did my windows go" is the whole question when the lid shuts. Special
+  workspaces (negative id) are skipped: they are per-monitor overlays, so moving one is
+  meaningless. Note `ws.monitor` is a monitor *object*, not a name.
+- **The on/off state is read, never tracked.** `hl.get_monitors()` lists what is enabled,
+  so presence in it *is* the state. This used to be a Lua boolean, which went stale the
+  moment anything changed a monitor by another route — a reload, a hotplug, `hyprctl` by
+  hand.
+- `handle_new_monitor` restarts the bar on hotplug. It was building a dispatcher and
+  dropping it on the floor — `hl.dsp.exec_cmd` only *describes* a command, `hl.dispatch` is
+  what runs it — so hotplug had silently not restarted the bar at all. It also joined the
+  kill and the restart with `&&`, which skipped the restart whenever `killall` found
+  nothing to kill.
+
+### `hyprctl dispatch` takes a Lua expression, and `hyprctl keyword` does not work at all
+
+This config is Lua, and that changes the shell-facing interface in a way that fails
+silently:
 
 ```
-"<path under ~/.config>|<regex>|<prompt group>|<handler>"
+hyprctl dispatch dpms on        → error: return hl.dispatch(dpms on) — ')' expected
+hyprctl keyword monitor "eDP-1,disable"
+                                → keyword can't work with non-legacy parsers. Use eval.
+hyprctl dispatch 'hl.dsp.dpms({ state = "on" })'    → ok
 ```
 
-- **handler `line`** — the whole line matching `<regex>` is captured and restored. It is
-  the only handler; the `icons` one died with the waybar config it parsed.
-- **prompt group** — one y/N prompt per group, asked only if a file in that group exists
-  live. Two groups are left: `machine` (monitor) and `wallpaper` (hyprlock background),
-  and only `machine` is actually asked. A group in `NO_PROMPT_GROUPS` needs no
-  `GROUP_PROMPT` entry.
-- A group listed in `NO_PROMPT_GROUPS` is never asked about — the live value simply wins
-  on any run that is not a first install. `wallpaper` is there because the lock screen
-  background is a personal choice, not something the repo should ship over.
-- Fields split on `|`, so **a regex must not contain a literal `|`**.
+`hyprctl dispatch` compiles its argument as Lua and passes the result to `hl.dispatch`, so
+it needs a dispatcher *expression*. `PowerMenu.qml` already had this right
+(`hyprctl dispatch 'hl.dsp.exit()'`); **`hypridle.conf` did not**, and all three of its
+`hyprctl dispatch dpms on/off` lines had therefore never once run — the 360 s screen blank
+and the DPMS restore after a resume were both dead. Verified against 0.56.2 and fixed.
 
-Currently preserved: `config.mainMonitor` in `hypr/modules/config.lua`, and the `path =`
-line of `hypr/hyprlock.conf` (its only one, in the `background` block). That is the whole
-table.
-
-**Retiring a preserved value needs a migration, not just a deleted entry.** This is the
-`retire_swaync()` lesson in a different key: `ORPHANS` deletes files and a dropped
-`PRESERVE` row stops defending one, but neither *moves* what the old machine knew into
-wherever the new release keeps it. `migrate_audio_icons()` is the worked example — see
-below.
-
-**The `audio` group is gone, and so is what it protected.** `hypr/scripts/audio-output-
-toggle.sh` used to declare `BUILT_IN_SINK` / `HEADPHONE_SINK` / `SPEAKER_SINK` /
-`BLUETOOTH_SINK`, because a sink's role cannot be inferred from its name and something had
-to say which was which. Both things those names decided — which outputs `SUPER+O` steps
-through, and which glyph each one draws — are chosen in the bar's audio menu now and
-persisted to `~/.cache/quickshell-audio.json`. That is **user state under `~/.cache`, not
-a config this repo deploys**, so nothing overwrites it and there is nothing to capture or
-restore. The general lesson is worth keeping: a value the machine has to be *told* is
-better asked for once in the UI that displays it than committed to the repo and then
-defended from the repo on every deploy.
-
-`migrate_audio_icons()` is what gets an existing machine there. Dropping those four
-declarations means `deploy_configs` is about to overwrite the **only** record of which
-sink is the headphones — an answer that is not recoverable afterwards and, by the very
-argument that created those variables, not guessable either. So it runs on the update path
-**before `deploy_configs`**, reads `HEADPHONE_SINK` and `BLUETOOTH_SINK` out of the live
-script with `sed` (not by sourcing it, which would run it), and seeds the `icon` of those
-two sinks in `~/.cache/quickshell-audio.json`. Five things about it:
-
-- **It is self-limiting rather than version-flagged.** The guard is that the *live* script
-  still declares `HEADPHONE_SINK=`; after one update the deployed one does not, so it is a
-  no-op for ever after. The regex is anchored to an assignment, so the comment in the new
-  script that mentions those names by way of history does not re-arm it.
-- **It never overwrites an icon already chosen**, only fills an empty one — so re-running
-  `install.sh` cannot undo a pick made in the menu since.
-- It checks `hypr/scripts/` and then `waybar/scripts/`, the two paths `LEGACY_MOVES` used
-  to name, so a machine that skipped a generation is still covered.
-- `BUILT_IN_SINK` and `SPEAKER_SINK` are deliberately **not** carried over. Their icon
-  would be `speaker`, which differs from the default `volume` only in looks, and
-  `BUILT_IN_SINK` is the one most likely to still hold the value this repo shipped rather
-  than anything true about that machine — seeding it would add a phantom `unplugged` row.
-- Writing that cache file is normally the bar's job alone. It is safe here because the bar
-  still running on an upgrading machine is the **old** one, which has no `AudioService` and
-  never touches the file; `reload_session` starts the new one at the end of `main()`, which
-  then reads what this wrote.
-
-**Add any new hardware-specific value to `PRESERVE`**, or it is clobbered every run.
-
-**If a preserved file ever moves, add it to `LEGACY_MOVES`.** A machine still running the
-previous layout does not have the new path yet, so its group is never prompted for, nothing
-is captured, and the committed values silently replace the machine's own.
-`migrate_legacy_paths()` seeds the new path from the old one before the capture step, and
-only when the new path is absent, so a machine already on the current layout is untouched
-by a stale old copy. The array is **empty** today: its one entry
-(`waybar/scripts/audio-output-toggle.sh` → `hypr/scripts/audio-output-toggle.sh`) existed
-only to carry the audio sink values across the waybar-era move, and nothing in that file is
-preserved any more. It is kept as the place the next move goes.
-
-Two hazards when adding patterns:
-
-- `replace_line.py` rewrites **every** matching line, so anchor a pattern that could match
-  more than one. The worked example used to be `BUILT_IN_SINK`, assigned twice in
-  `audio-output-toggle.sh` — at the top and again indented inside the cycle logic — whose
-  pattern was therefore anchored to column 0 (`^BUILT_IN_SINK`). Both the second
-  assignment and the entry are gone now, but the hazard is not: it returns the moment a
-  preserved name appears twice in a file.
-- The restore helper lives in `install_lib/`:
-  `replace_line.py <file> <pattern> <replacement> …` (empty replacement = skip).
+This is also why the panel logic is Lua and not a script in `hypr/scripts/` like the rest
+of this repo's work: a shell script *cannot* drive monitors here. `hl.monitor()` and
+`hl.get_monitors()` can, and being in-process they are synchronous with no IPC round trip.
+`hyprctl eval <lua>` is the escape hatch for driving any of it from outside.
 
 ## The bar (quickshell)
 
@@ -168,9 +206,9 @@ is ever needed.
 `config.bar` in `hypr/modules/config.lua` still selects which bar launches, read by
 `autostart.lua` and the monitor-hotplug restart in `utils/monitor_utils.lua` (both now
 fall back to `"quickshell"`). Keeping it means swapping
-bars later is still a one-liner, but it is **not** in `PRESERVE`: with waybar gone there
-is only one value it can hold, so preserving it only made the `machine` prompt claim to
-ask about a choice that no longer exists.
+bars later is still a one-liner. It was never preserved across a deploy: with waybar gone
+there is only one value it can hold, so preserving it only made the old `machine` prompt
+claim to ask about a choice that no longer existed.
 
 `Hyprland_Setup/quickshell/` has one file per module: `Bar.qml` lays out left/center/right,
 `Pill.qml` is the shared rounded-module background, and `Theme.qml` is a `pragma Singleton`
@@ -440,7 +478,7 @@ right-click be silent, but that is a new package and a new autostarted daemon.
 `rightClickCommand` is empty while the daemon is up (nothing for the click to do) and
 until the first poll has actually reported it down, so the offer is never a guess.
 
-**Both PIA and Tailscale are optional in `first_install_extras`, and both modules hide
+**Neither PIA nor Tailscale is installed by `install.sh` any more, and both modules hide
 themselves when their tool is absent.** This matters because "not installed" and
 "installed but stopped" look identical from the outside: `systemctl is-active` prints
 `inactive` for a unit that does not exist (verified — it prints `inactive` and exits 4),
@@ -762,8 +800,8 @@ this way". Tile size is the two constants `grid.cellWidth`/`cellHeight` (roughly
 `hypr/scripts/wallpaper-set.sh <path>` is the one place a wallpaper is applied —
 `awww img` plus the `path =` rewrite in `hyprlock.conf`, so the lock screen
 follows the desktop. `wallpaper-random.sh` (SUPER+SHIFT+W) and the picker both
-`exec` it. That `path =` line is the same one `PRESERVE` protects (group
-`wallpaper`, in `NO_PROMPT_GROUPS`), so a deploy does not undo a pick.
+`exec` it. That `path =` line is the one `save_lock_wallpaper` /
+`restore_lock_wallpaper` carry across a deploy, so a deploy does not undo a pick.
 
 ### The keybind list (SUPER+K)
 
@@ -1043,9 +1081,13 @@ unlocked desktop. The only thing that ever locked this machine was the manual
 
 Two things beyond the fix:
 
-- `after_sleep_cmd = hyprctl dispatch dpms on`. DPMS state does not reliably survive a
+- `after_sleep_cmd` turns DPMS back on. DPMS state does not reliably survive a
   suspend/resume, so without it the screen can come back from a lid-close still blanked
-  — which reads as a machine that failed to wake.
+  — which reads as a machine that failed to wake. **All three of this file's dpms lines
+  were written as `hyprctl dispatch dpms on`, which under a Lua config is a syntax error
+  and had therefore never run** — so neither the blank nor the restore below has ever
+  worked. They are `hyprctl dispatch 'hl.dsp.dpms({ state = "on" })'` now; see
+  **`hyprctl dispatch` takes a Lua expression** above.
 - A second listener blanks the panel at 360 s, a minute after the 300 s lock. Separate
   from the lock on purpose, so the screen is already showing hyprlock rather than the
   desktop by the time it goes dark, and so the backlight is not left burning all night
@@ -1136,8 +1178,9 @@ Five things to know before editing:
 - **Folder icons are images; CSS cannot touch them.** They are the dominant
   colour in a file manager, so `papirus-folders -C cat-mocha-blue --theme
   Papirus-Dark` recolours them, from `apply_gtk_theme()` rather than
-  `first_install_extras` — it is how a new machine gets the colour at all, and it
-  is idempotent. It does *not* need to run to survive a `papirus-icon-theme`
+  `apply_gtk_theme` rather than a first-install-only step — it is how a new
+  machine gets the colour at all, and it is idempotent. It does *not* need to run to
+  survive a `papirus-icon-theme`
   upgrade (which does reset the folder symlinks it owns):
   `papirus-folders-catppuccin-git` ships a `PostTransaction` pacman hook that
   re-applies the last used colour. Call it **without** `sudo` — it re-execs
@@ -1235,7 +1278,7 @@ JetBrainsMono the rest of the session uses.)
   are fine, so don't "fix" them into a second entry for a package already listed.
 - **A package install.sh itself depends on still has to be in `PACMAN_PKGS`.** `sddm`
   (which owns the theme directory `deploy_configs` copies into) and `avahi` (whose unit
-  `first_install_extras` enables) are there for that reason alone, not because anything
+  `apply_system_tweaks` enables) are there for that reason alone, not because anything
   deployed uses them. So are `libnotify` and `wl-clipboard`, which the deployed scripts
   call directly and which otherwise arrive only as dependencies of thunar and cliphist,
   and `curl`, which `weather-forecast.sh`, `pia-region.sh` and `public-ip.sh` all fetch
@@ -1267,31 +1310,45 @@ JetBrainsMono the rest of the session uses.)
 - **A retired *daemon* needs more than a retired config.** `ORPHANS` deletes files;
   it does not stop a process or close a D-Bus activation path. `retire_swaync()` is the
   worked example — see **Notifications (quickshell)**.
-- **A retired *preserved value* needs more than a retired `PRESERVE` row.** Dropping the
-  row stops defending the value; the very next `deploy_configs` then overwrites it, and
-  on a machine that had a real answer there it is gone. If the new release keeps that
-  answer somewhere else, something has to carry it across **before** the copy.
-  `migrate_audio_icons()` is the worked example — see **Machine-specific values**.
+- **A retired *machine-specific value* needs a migration, not just a deleted entry.**
+  Deleting the entry stops defending the value; the very next `deploy_configs` then
+  overwrites it, and on a machine that had a real answer there it is gone. If the new
+  release keeps that answer somewhere else, something has to carry it across **before**
+  the copy. `migrate_audio_icons()` is the worked example — see **Nothing is
+  machine-specific any more**.
 - **`reload_session()` is what makes a deploy take effect.** Hyprland parses its config
   at startup and quickshell parses its QML once, so without it new keybinds and a new bar
   wait for the next logout — which reads as the deploy having done nothing, and is exactly
   how a changed `SUPER+SPACE` gets reported as broken. It runs `hyprctl reload`, then
   kills and re-`setsid`s quickshell — unconditionally, so exactly one bar is left however
-  the reload treated `exec-once`. Every call is `|| true`: a cosmetic reload must not
-  abort a finished deploy under `set -e`. It is the **last** step in `main()`, so the bar
+  the reload treated `exec-once` — and then does the same to **hypridle**, which
+  reads `hypridle.conf` once at startup for the same reason the bar reads its QML once.
+  Without that a changed timeout, lock command or dpms line sits there until the next
+  logout, which reads as the deploy having skipped the file. Every call is `|| true`: a
+  cosmetic reload must not abort a finished deploy under `set -e`. It is the **last**
+  step in `main()`, so the bar
   comes up reading everything the earlier steps wrote — including the icon theme
   `apply_gtk_theme` puts in gsettings, which is how `AppLauncher` resolves app icons on a
   machine that has never had one set. With Hyprland not running (installing from a TTY) it
   says so and does nothing.
-- Prompts mean the script must be run interactively.
+- **One prompt, and it is optional.** "Do you want to get wallpapers?" is the only
+  question `install.sh` asks, so a run is otherwise unattended (`sudo` aside). Adding a
+  second should be a last resort: every prompt that used to be here turned out to be a
+  value that could be discovered, deferred to the UI that displays it, or simply always
+  applied.
 
-## First-install extras
+## System tweaks (`apply_system_tweaks`)
 
-Behind the "first install" prompt, each individually optional: avahi-daemon, the
-`xdg-terminal-exec` → kitty symlink, gnome-text-editor whitespace, global git identity,
-Tailscale (Arch package + `tailscaled`, rather than the upstream `curl | sh`), and PIA
-(`piavpn-bin` + service). The interactive tails — `tailscale up` browser auth, PIA app
-login — are printed as instructions, since they can't be automated.
+Three settings that are not files under `~/.config`, so `deploy_configs` cannot do them:
+the `avahi-daemon` unit, the `xdg-terminal-exec` → kitty symlink, and gnome-text-editor's
+whitespace display (which lives in gsettings). All three are idempotent, so they run on
+every deploy rather than behind a "first install?" question.
+
+They used to sit behind that question alongside optional Tailscale/PIA installers and a
+global git identity prompt, all of which are gone — see **Nothing is machine-specific any
+more**. The automatable halves of `tailscale_commands.txt` and `pia_install.txt` are
+therefore *not* in `install.sh` any more; those files are back to being lookup notes like
+the rest.
 
 ## Not code
 
