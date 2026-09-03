@@ -1,19 +1,26 @@
 import Quickshell
+import Quickshell.Hyprland
 import QtQuick
 import QtQuick.Layouts
 
-// Hover panel for the clock: the current month laid out as a grid, with today
-// picked out. Built like ListPopup (same anchoring, same open delay, same
-// Catppuccin frame) rather than reusing it, because a month is a grid and
-// ListPopup only knows how to stack rows.
+// Drop-down for the clock: the current month laid out as a grid, with today
+// picked out. Built like ListPopup (same anchoring, same Catppuccin frame)
+// rather than reusing it, because a month is a grid and ListPopup only knows
+// how to stack rows.
+//
+// It is opened by a click, not by hover, so it dismisses the way every other
+// drop-down on this bar does -- Escape, or a click anywhere outside via
+// HyprlandFocusGrab. A hover panel cannot own the keyboard, so it could not
+// answer Escape; a panel you open deliberately should close deliberately too.
 PopupWindow {
     id: root
 
     property Item anchorItem: null
-    property bool requested: false
+    property bool open: false
     // The clock's date, so the grid follows midnight without a timer of its own.
     property date date: new Date()
-    property int delayMs: 300
+
+    signal calendarRequested()
 
     readonly property int cellSize: 28
     readonly property int columns: 7
@@ -66,25 +73,24 @@ PopupWindow {
     implicitHeight: body.implicitHeight + 24
     color: "transparent"
 
-    // Bound rather than set from onRequestedChanged: a handler never fires for
-    // a property that is already true at construction.
-    property bool delayPassed: false
-    visible: requested && delayPassed
+    visible: open
+    // Take the keyboard while open so Escape can close the panel.
+    grabFocus: open
 
-    onRequestedChanged: {
-        if (requested) openTimer.restart();
-        else { openTimer.stop(); delayPassed = false; }
+    // Dismiss on a click anywhere outside, as PowerMenu and the network,
+    // bluetooth and audio menus do.
+    HyprlandFocusGrab {
+        windows: [root]
+        active: root.open
+        onCleared: root.close()
     }
-    Component.onCompleted: if (requested) openTimer.restart()
 
-    Timer {
-        id: openTimer
-        interval: root.delayMs
-        onTriggered: root.delayPassed = true
-    }
+    function close() { open = false; }
 
     Rectangle {
         anchors.fill: parent
+        focus: true
+        Keys.onEscapePressed: root.close()
         radius: 12
         color: Theme.base
         border.width: 1
@@ -173,6 +179,37 @@ PopupWindow {
                             font.pixelSize: Theme.fontSize
                             font.bold: modelData.isToday
                         }
+                    }
+                }
+            }
+
+            // Google Calendar used to be the pill's double-click. The left
+            // button opens this panel now, and `clicked` arrives before
+            // `doubleClicked`, so a double-click would have opened the panel on
+            // its way to the browser. It moves into the footer instead, the way
+            // pavucontrol and blueman sit at the foot of their own menus.
+            Rectangle {
+                Layout.fillWidth: true
+                Layout.topMargin: 2
+                implicitHeight: 1
+                color: Theme.surface1
+            }
+
+            Text {
+                Layout.fillWidth: true
+                text: "Open Google Calendar\u2026"
+                color: calMouse.containsMouse ? Theme.blue : Theme.overlay0
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSize - 1
+
+                MouseArea {
+                    id: calMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        root.close();
+                        root.calendarRequested();
                     }
                 }
             }

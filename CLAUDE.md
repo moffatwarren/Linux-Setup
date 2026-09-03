@@ -226,23 +226,31 @@ QtQuick `ToolTip`s, which ignored the palette. Modules drive it with
 `maxDetailWidth` elides the right-hand column, for rows whose detail is a device name
 long enough to stretch the panel across the screen (`AudioPill` needs it).
 
-`CalendarPopup.qml` is the clock's hover panel: the current month as a grid, today
-picked out with a filled blue disc, with the leading and trailing days of the
-neighbouring months dimmed so every week is complete. It borrows `ListPopup`'s frame,
-anchoring and 300 ms open delay rather than reusing it — a month is a grid, and
-`ListPopup` only stacks rows. Whole weeks that fall entirely outside the month are
+`CalendarPopup.qml` is the clock's **left-click dropdown**: the current month as a grid,
+today picked out with a filled blue disc, with the leading and trailing days of the
+neighbouring months dimmed so every week is complete. It borrows `ListPopup`'s frame and
+anchoring rather than reusing it — a month is a grid, and `ListPopup` only stacks rows —
+but not its hover machinery. It is a menu, so it has an `open` flag, `grabFocus`, an
+Escape handler and a `HyprlandFocusGrab`, exactly like `PowerMenu`: a hover panel cannot
+own the keyboard and so could never answer Escape. The 300 ms open delay went with the
+hover — it existed to keep a panel from flashing up as the pointer crossed the pill, and
+a panel you asked for should not make you wait. Whole weeks that fall entirely outside the month are
 dropped, so a short month leaves no blank row. `ClockPill` feeds it a **midnight-
 truncated** date: `SystemClock` ticks every second, and a `date` property only signals
 a change when the value differs, so the grid rebuilds once a day instead of once a
-second. It is display-only — no month navigation, since a hover panel is dismissed by
-moving the pointer to reach the arrows.
+second. It is display-only — no month navigation — and **Google Calendar is a link in
+its footer**, where the pill's double-click used to be: `clicked` arrives before
+`doubleClicked`, so leaving it on the double-click would open the panel on the way to
+the browser. The footer is where pavucontrol and blueman already sit in their own menus.
 
 `WeatherPill.qml` is the current condition and temperature, with `ForecastPopup.qml`
-— the week ahead as a table — on hover. Both halves read one `hypr/scripts/`
+— the week ahead as a table — as its **left-click dropdown**, dismissed the same way
+`CalendarPopup` is (`open`, `grabFocus`, Escape, `HyprlandFocusGrab`; no hover, no open
+delay). Both halves read one `hypr/scripts/`
 `weather-forecast.sh` poll, and both draw their glyph from one WMO code table, so
 the pill and the panel can never disagree about the weather or the icon for it.
 
-The panel's footer says how old the reading is, and **double-clicking the pill**
+The panel's footer says how old the reading is, and **right-clicking the pill**
 re-fetches immediately (`weather-forecast.sh --force`, which sets `FORECAST_MAX_AGE=0`
 so the age check can never pass). The age comes from the script, as `updated` — the
 **cache file's mtime**, not the time of the poll that read it. Almost every poll is
@@ -251,11 +259,19 @@ the bar last ran a `cat`; the mtime is when the data actually arrived, and it su
 bar restart. It is also what makes a failed refresh legible: the script prints the stale
 cache on a network error, so the footer keeps showing the old age instead of claiming to
 have just updated. `Process.command` is bound to a `force` flag, so `refresh()` must not
-fire while the process runs — a second double-click mid-fetch is ignored. The footer's
+fire while the process runs — a second right-click mid-fetch is ignored. The footer's
 "N min ago" is re-rendered by a 30 s timer gated on the popup being visible.
 
-It is **not** a `ScriptPill`, and `weather.sh` no longer has an `--update` case (only
-`--openWeather`, still the right-click). wttr.in publishes three days, not seven, and
+It is **not** a `ScriptPill`, and **`hypr/scripts/weather.sh` is gone**. Its one
+remaining case, `--openWeather` — a floating kitty running the weathr TUI — was the
+pill's right-click, and the right button forces a refresh now, so nothing called the
+script at all. Retiring it took all three of the usual steps: the file deleted, the path
+added to `ORPHANS` so `cp -rf` does not leave it on a machine that already has it, and
+`rules.lua`'s `weathr-float` float rule dropped, since only that script ever set the
+class. **`weathr-bin` is out of `PARU_PKGS` too**, so a new machine does not install a
+TUI nothing on the desktop launches; a machine that already has it keeps it, because
+`install.sh` never uninstalls. `weathr/config.toml` stays in `CONFIGS` — it costs
+nothing to deploy and is the settings waiting if `weathr` is ever installed by hand. wttr.in publishes three days, not seven, and
 its one-line format exposes no condition code at all — only an emoji — so a pill fed
 from wttr.in could not show the same icon as a panel fed from anywhere else. Both now
 come from Open-Meteo (free, no key), which publishes a WMO code for the current hour
@@ -276,7 +292,8 @@ code returns the "N/A" glyph, not a sun. The pill colours only the glyph by cond
 and leaves the temperature the bar's normal colour, so only the part that actually
 carries the state is tinted.
 
-`ForecastPopup` borrows `CalendarPopup`'s frame rather than reusing `ListPopup`,
+`ForecastPopup` borrows `CalendarPopup`'s frame and dismissal rather than reusing
+`ListPopup`,
 because a forecast day is six aligned columns and `ListPopup` only puts one label
 opposite one detail. Its columns are sized from `TextMetrics.advanceWidth` (**not**
 `.width`, which is the ink bounding box and is a fraction narrower than the space the
@@ -344,13 +361,18 @@ header's own toggle stays as the discoverable way to do it; the right-click is t
 shortcut for when you already know.
 
 **Every pill that owns a menu opens it on the primary button** —
-`AudioPill`, `BluetoothPill`, `NetworkPill`, `NotificationPill` and `PowerPill` all do,
-and the media module's cover art does too. Only audio, bluetooth and notifications bind
-the right button as well (mute, adapter, DND); `NetworkPill`'s is unbound, since the wifi
-radio toggle already sits in `WifiMenu`'s header and nothing else on the network module
-wants a shortcut.
+`AudioPill`, `BluetoothPill`, `NetworkPill`, `NotificationPill`, `PowerPill`,
+`ClockPill` and `WeatherPill` all do, and the media module's cover art does too. Audio,
+bluetooth and notifications bind the right button as well (mute, adapter, DND), and so
+does weather (force a re-fetch); `NetworkPill`'s is unbound, since the wifi radio toggle
+already sits in `WifiMenu`'s header and nothing else on the network module wants a
+shortcut.
 
-All three dropdowns dismiss on a click anywhere outside via `HyprlandFocusGrab`
+**Nothing on this bar opens a panel on hover any more except `ListPopup` and its
+clients.** The calendar and the forecast were hover panels and are dropdowns now, for
+one reason: a hover panel is dismissed only by moving the pointer, so it cannot answer
+Escape and cannot be closed by clicking past it. Every dropdown dismisses on a click
+anywhere outside via `HyprlandFocusGrab`
 (`windows: [root]`, `active: root.open`, `onCleared: close()`), as `PowerMenu` and
 `NotificationMenu` do. A
 layer-shell popup receives no event for an outside click on its own, so without the grab
@@ -432,6 +454,21 @@ Four things follow from how that file is read:
   menu can reach, and a dead `SUPER+O` is a worse answer than ignoring the filter once.
 - Sinks are sorted by **node id**, which is the number `pactl` prints as the sink index —
   so the menu lists outputs top-to-bottom in exactly the order the script cycles them.
+
+**A sink name is unique in this menu but not in PipeWire, so both readers of that file
+deduplicate by name.** Unplugging and replugging a monitor while the session runs leaves
+WirePlumber's old HDMI sink node behind beside the new one — verified after two hotplugs:
+three nodes (ids 54, 107, 108) with the same `node.name`, the same device and the same
+`api.alsa.path`, every one of them reported by `pactl list short sinks` and by
+`Pipewire.nodes`. They are the same ALSA pcm, so the extras are ghosts. `AudioService`'s
+`uniqueByName()` keeps the first (lowest node id, so the menu's order does not shuffle as
+ghosts come and go) and everything downstream is keyed by name already, which is why that
+one filter is the whole fix on the bar side. In `audio-output-toggle.sh` the duplicates
+were worse than cosmetic: `present_sinks` fed the cycle two adjacent copies of one name,
+so `SUPER+O` stepped from the first to the second, set the default to the name it already
+had, and stayed on that output for ever — hence the `awk '!seen[$0]++'` there. Neither
+side tries to make the ghosts go away; `systemctl --user restart wireplumber` is what
+clears them, and nothing here should need that to be right.
 
 Two traps in the service:
 

@@ -45,7 +45,13 @@ present_sinks() {
   # would read as a single nameless sink and carry all the way to a
   # `pactl set-default-sink ""`.
   [ -n "$out" ] || return 0
-  printf '%s\n' "$out"
+  # A name is unique in the menu but not in PipeWire: replugging a monitor mid
+  # session leaves WirePlumber's old HDMI sink node behind beside the new one,
+  # and pactl lists every one of them. Duplicates are worse than cosmetic here
+  # -- the cycle below matches the current sink by name, so it would step from
+  # the first copy to the second, set the default to the name it already has,
+  # and leave SUPER+O stuck on that output for ever. awk keeps the first.
+  printf '%s\n' "$out" | awk '!seen[$0]++'
 }
 
 # Only outputs explicitly switched off in the menu. Everything else is in.

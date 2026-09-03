@@ -98,10 +98,3 @@ hl.window_rule({
 	no_shortcuts_inhibit = true,
 })
 
-hl.window_rule({
-	name = "float-terminal-weathr",
-	match = { class = "weathr-float" },
-	size = "1000 600",
-	center = true,
-	float = true,
-})

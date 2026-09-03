@@ -43,13 +43,39 @@ Singleton {
     // them. isStream drops per-application streams; the audio check drops video
     // nodes. Monitor sources are ports on a sink rather than nodes, so nothing
     // has to filter those out here (pactl synthesises them; PipeWire does not).
-    readonly property var sinks: Pipewire.nodes.values
+    readonly property var sinks: uniqueByName(Pipewire.nodes.values
         .filter(n => n.isSink && !n.isStream && n.audio)
-        .sort((a, b) => a.id - b.id)
+        .sort((a, b) => a.id - b.id))
 
-    readonly property var sources: Pipewire.nodes.values
+    readonly property var sources: uniqueByName(Pipewire.nodes.values
         .filter(n => !n.isSink && !n.isStream && n.audio)
-        .sort((a, b) => a.id - b.id)
+        .sort((a, b) => a.id - b.id))
+
+    // A node name is unique in the menu but NOT in PipeWire. Unplugging and
+    // replugging a monitor while the session runs leaves WirePlumber's old HDMI
+    // sink node behind beside the new one -- verified after two hotplugs: three
+    // nodes (ids 54, 107, 108), same node.name, same device, same
+    // api.alsa.path, all reported by pactl and by Pipewire.nodes. They are the
+    // same ALSA pcm, so the extras are ghosts and the menu drew the monitor
+    // three times.
+    //
+    // Everything downstream is keyed by name already (records, the icon, the
+    // default-sink comparison, and the state file this writes), so deduping the
+    // node list here is the whole fix. Which of the duplicates is kept barely
+    // matters -- the default sink is set by name, so a ghost cannot be selected
+    // by mistake -- and the first, i.e. the lowest node id after the sort above,
+    // is the one that keeps the menu's order stable as ghosts come and go.
+    function uniqueByName(nodes) {
+        const seen = ({});
+        const out = [];
+        for (var i = 0; i < nodes.length; i++) {
+            const name = String(nodes[i].name);
+            if (seen[name]) continue;
+            seen[name] = true;
+            out.push(nodes[i]);
+        }
+        return out;
+    }
 
     // name -> { description, enabled }. Everything ever seen, present or not.
     property var records: ({})

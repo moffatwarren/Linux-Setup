@@ -53,6 +53,15 @@ ORPHANS=(
     # cannot drive monitors at all. It is monitor_utils.lua now. Nothing calls
     # the old file, but cp -rf never removes what the repo has dropped.
     hypr/scripts/monitor-toggle.sh
+    # weather.sh only ever had an --openWeather case, which launched the weathr
+    # TUI in a floating kitty and was the weather module's right-click. That
+    # button forces a forecast refresh now (quickshell/WeatherPill.qml), so
+    # nothing called the script at all. weathr-bin has gone from PARU_PKGS with
+    # it; a machine that already has the package keeps it, since this script
+    # never uninstalls. weathr/config.toml is still in CONFIGS -- it costs
+    # nothing to deploy and is the settings back if weathr is ever installed
+    # by hand.
+    hypr/scripts/weather.sh
 )
 
 PACMAN_PKGS=(
@@ -102,7 +111,7 @@ PACMAN_PKGS=(
 # papirus-folders-catppuccin-git both *provides* and *conflicts with* plain
 # papirus-folders, so listing the two together fails the whole transaction.
 PARU_PKGS=(
-    pokemon-colorscripts-git rustdesk-bin teams-for-linux vscodium-bin weathr-bin
+    pokemon-colorscripts-git rustdesk-bin teams-for-linux vscodium-bin
     papirus-folders-catppuccin-git
 )
 
