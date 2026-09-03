@@ -1,16 +1,21 @@
 import Quickshell
+import Quickshell.Hyprland
 import QtQuick
 import QtQuick.Layouts
 
-// Hover panel for the weather module: the next seven days as a table.
-// Built like CalendarPopup (same frame, anchoring and open delay) rather than
-// reusing ListPopup, because a forecast day is six aligned columns and
-// ListPopup only knows how to put one label opposite one detail.
+// Drop-down for the weather module: the next seven days as a table.
+// Built like CalendarPopup (same frame and anchoring) rather than reusing
+// ListPopup, because a forecast day is six aligned columns and ListPopup only
+// knows how to put one label opposite one detail.
+//
+// Opened by a click, not by hover, so it dismisses the way every other
+// drop-down on this bar does -- Escape, or a click anywhere outside via
+// HyprlandFocusGrab.
 PopupWindow {
     id: root
 
     property Item anchorItem: null
-    property bool requested: false
+    property bool open: false
     property string place: ""
     // [{ date: "2026-08-31", code: 3, max: 22.5, min: 11, pop: 2 }, …] straight
     // from weather-forecast.sh; every field but `date` may be absent.
@@ -19,14 +24,11 @@ PopupWindow {
     property double updatedAt: 0
     property bool refreshing: false
     property string emptyText: ""
-    property int delayMs: 300
 
     // Re-read every half minute while the panel is open, so "5 min ago" does
     // not sit there going stale in front of you. Nothing drives it when the
     // panel is closed.
     property double nowMs: Date.now()
-
-    readonly property bool hasContent: days.length > 0 || emptyText.length > 0
 
     // "2026-08-31" -> a *local* midnight. new Date(string) reads an ISO date as
     // UTC, which lands on the previous day west of Greenwich and would shift
@@ -73,22 +75,19 @@ PopupWindow {
     implicitHeight: body.implicitHeight + 24
     color: "transparent"
 
-    // Bound rather than set from onRequestedChanged: a handler never fires for
-    // a property that is already true at construction.
-    property bool delayPassed: false
-    visible: requested && hasContent && delayPassed
+    visible: open
+    // Take the keyboard while open so Escape can close the panel.
+    grabFocus: open
 
-    onRequestedChanged: {
-        if (requested) openTimer.restart();
-        else { openTimer.stop(); delayPassed = false; }
+    // Dismiss on a click anywhere outside, as PowerMenu and the network,
+    // bluetooth and audio menus do.
+    HyprlandFocusGrab {
+        windows: [root]
+        active: root.open
+        onCleared: root.close()
     }
-    Component.onCompleted: if (requested) openTimer.restart()
 
-    Timer {
-        id: openTimer
-        interval: root.delayMs
-        onTriggered: root.delayPassed = true
-    }
+    function close() { open = false; }
 
     Timer {
         interval: 30000
@@ -141,6 +140,8 @@ PopupWindow {
 
     Rectangle {
         anchors.fill: parent
+        focus: true
+        Keys.onEscapePressed: root.close()
         radius: 12
         color: Theme.base
         border.width: 1
@@ -286,7 +287,7 @@ PopupWindow {
                 Item { Layout.fillWidth: true }
 
                 Text {
-                    text: "double-click to refresh"
+                    text: "right-click to refresh"
                     color: Theme.overlay0
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSize - 2

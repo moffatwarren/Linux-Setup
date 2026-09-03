@@ -1,7 +1,8 @@
 import Quickshell
 import QtQuick
 
-// waybar: "clock" -- format "{:%I:%M %p  %d-%b-%Y}", double-click opens calendar.
+// waybar: "clock" -- format "{:%I:%M %p  %d-%b-%Y}". Left-click opens the
+// month grid; Google Calendar is a link in its footer.
 Pill {
     id: root
 
@@ -20,11 +21,17 @@ Pill {
     label: Qt.formatDateTime(clock.date, "hh:mm AP  dd-MMM-yyyy")
     labelColor: Theme.blue
 
-    onDoubleClicked: Quickshell.execDetached(["brave-origin", "--app=https://calendar.google.com"])
+    // Left-click opens the calendar, the way every other pill that owns a
+    // drop-down does. Google Calendar moved into that panel's footer: `clicked`
+    // arrives before `doubleClicked`, so keeping it on the double-click would
+    // have opened the panel on the way to the browser.
+    onClicked: calendar.open = !calendar.open
 
     CalendarPopup {
+        id: calendar
         anchorItem: root
-        requested: root.hovered
         date: root.today
+        onCalendarRequested: Quickshell.execDetached(
+            ["brave-origin", "--app=https://calendar.google.com"])
     }
 }

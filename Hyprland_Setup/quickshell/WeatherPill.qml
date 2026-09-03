@@ -2,11 +2,11 @@ import Quickshell
 import Quickshell.Io
 import QtQuick
 
-// waybar: "custom/weather" -- current condition icon and temperature, right
-// click for the weathr TUI.
+// waybar: "custom/weather" -- current condition icon and temperature.
+// Left-click opens the forecast, right-click forces a re-fetch.
 //
 // Not a ScriptPill: weather-forecast.sh already returns the current conditions
-// alongside the week ahead, so one poll feeds both the label and the hover
+// alongside the week ahead, so one poll feeds both the label and the forecast
 // panel, and both draw their glyph from the same WMO code table
 // (WeatherCodes.qml) instead of the pill showing wttr.in's emoji next to a
 // panel full of nerd font icons.
@@ -35,15 +35,16 @@ Pill {
              + Math.round(current.temp) + "°" + unit;
     }
 
-    onRightClicked: Quickshell.execDetached(
-        ["bash", "-lc", "~/.config/hypr/scripts/weather.sh --openWeather"])
-
-    // Double-click re-fetches now rather than waiting out the ten-minute cache.
-    onDoubleClicked: root.refresh()
+    // Left-click opens the forecast, the way every other pill that owns a
+    // drop-down does; right-click re-fetches now rather than waiting out the
+    // ten-minute cache. It used to run weather.sh --openWeather; that script
+    // had no other caller and has been retired.
+    onClicked: forecast.open = !forecast.open
+    onRightClicked: root.refresh()
 
     function refresh() {
         // The command is bound to `force`, so it must not be rewritten under a
-        // running process; a second double-click mid-fetch is simply ignored.
+        // running process; a second right-click mid-fetch is simply ignored.
         if (weather.running) return;
         weather.force = true;
         root.refreshing = true;
@@ -92,8 +93,8 @@ Pill {
     }
 
     ForecastPopup {
+        id: forecast
         anchorItem: root
-        requested: root.hovered
         place: root.place
         days: root.days
         updatedAt: root.updatedAt
