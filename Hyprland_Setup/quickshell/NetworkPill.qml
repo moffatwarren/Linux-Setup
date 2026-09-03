@@ -32,11 +32,25 @@ Pill {
     // there is nothing to ask NetworkManager separately.
     readonly property bool wifiCapable: devices.some(d => d.type === DeviceType.Wifi)
 
+    // The WifiNetwork the active device is actually on. NetworkDevice exposes
+    // no `network` property -- only `networks`, the list of everything in range
+    // (verified against quickshell-network.qmltypes: type, name, networks,
+    // address, connected, state, nmManaged, autoconnect, and nothing else) --
+    // so the current one is the connected member of that list. Reading a
+    // `.network` that does not exist is not an error in QML, just undefined,
+    // which is why this failed silently: the panel showed the fallback "Wi-Fi"
+    // instead of the SSID and dropped the Signal row entirely.
+    readonly property var activeNetwork: {
+        if (!active || active.type !== DeviceType.Wifi) return null;
+        const on = active.networks.values.filter(n => n.connected);
+        return on.length > 0 ? on[0] : null;
+    }
+
     // 0..1, not 0-100 -- the same scale WifiMenu's signal meter reads, and -1
     // for "not on wifi". Verified against a live scan: 0.92, 0.45, not 92/45.
+    // signalStrength is a WifiNetwork property, not a NetworkDevice one.
     readonly property real wifiSignal: {
-        if (!active || active.type !== DeviceType.Wifi) return -1;
-        const net = active.network;
+        const net = activeNetwork;
         return net && net.signalStrength !== undefined ? net.signalStrength : -1;
     }
 
@@ -190,7 +204,7 @@ Pill {
             // how well. The strength takes an accent rather than a bare number
             // because the bar's idiom is that the colour is the readout.
             if (root.active.type === DeviceType.Wifi) {
-                const net = root.active.network;
+                const net = root.activeNetwork;
                 out.push({ text: "Network", detail: net ? String(net.name) : "Wi-Fi" });
                 if (root.wifiSignal >= 0)
                     out.push({

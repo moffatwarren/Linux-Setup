@@ -339,7 +339,8 @@ reflow as the numbers change width.
 
 `WifiMenu.qml` is the **left**-click dropdown on the network module: a scrollable-free
 list of nearby SSIDs (deduplicated per SSID, strongest first, capped at 8), each with a
-four-bar signal meter, a lock for secured networks and a "saved" marker for known ones.
+four-bar signal meter, the strength as a percentage, a lock for secured networks and a
+"saved" marker for known ones.
 Left-click a row to connect (`connect()`, or `connectWithPsk()` behind an inline
 password field for a secured network never joined before), right-click a saved row to
 `forget()` it. The header toggles `Networking.wifiEnabled`, and an "Open nmtui…" footer
@@ -348,6 +349,10 @@ keeps the old escape hatch. Scanning is driven by a `Binding` on the device's
 
 The signal meter is drawn with rectangles rather than a nerd font glyph — no private-use
 codepoint to get wrong, and it scales with the strength value (which is 0..1, not 0-100).
+The percentage beside it is the same number `NetworkPill`'s hover panel shows, on the same
+green/yellow/red thresholds, so the two readouts of one value cannot disagree; four bars
+cannot separate two networks that both light three of them. It sits in a fixed
+right-aligned column so the lock and "saved" markers land at the same x on every row.
 
 `PowerPill.qml` is the rightmost module: a power button whose **left**-click opens
 `PowerMenu.qml` (Lock, Sleep, Log out, Restart, Shutdown). Left-click rather than
@@ -644,6 +649,18 @@ Seven things to know before editing the QML:
   0.92, 0.45). The old bar label appended a `%` to it directly and would have read
   "0.92%" — it never showed, because this machine is wired and the wifi branch never
   ran. `WifiMenu`'s meter had it right all along.
+- **A `NetworkDevice` has `networks`, not a `network`** — there is no property naming the
+  one it is joined to (its whole surface is `type`, `name`, `networks`, `address`,
+  `connected`, `state`, `nmManaged`, `autoconnect`; verified in
+  `/usr/lib/qt6/qml/Quickshell/Networking/quickshell-network.qmltypes`), and
+  `signalStrength` is on `WifiNetwork`, a member of that list, not on the device. The
+  current network is `active.networks.values.filter(n => n.connected)[0]` —
+  `NetworkPill.activeNetwork`. Reading the `.network` that does not exist is not an error
+  in QML, just `undefined`, so the hover panel silently showed its "Wi-Fi" fallback
+  instead of the SSID and dropped the Signal row altogether. It needs no scan and no
+  binding to populate: verified live, `Warren's S26` / 0.91 with nothing else bound to
+  `networks`, which is why `WifiMenu`'s `scannerEnabled` gate does not have to be open
+  for the panel to read a strength.
 - **`NetworkDevice.address` is the MAC, not the IP** — no IP is exposed anywhere on the
   device, so `NetworkPill` shells out to `ip -4 -br addr` when the active device changes.
   Networking exposes no byte counters either, so the hover panel's up/down rates come
