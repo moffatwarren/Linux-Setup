@@ -10,7 +10,9 @@ import QtQuick.Layouts
 // Log out goes through the Lua dispatcher. This Hyprland uses the Lua config
 // plugin, so `hyprctl dispatch` takes a Lua expression, not a bare dispatcher
 // name -- `hyprctl dispatch exit` parses as an undefined identifier, errors,
-// and silently does nothing. `hl.dsp.exit()` is what SUPER+M binds to.
+// and silently does nothing. Hence the `hl.dsp.exit()` below. It is also the
+// only way out of the session now: SUPER+M used to do this and has been
+// removed, so nothing else calls exit.
 PopupWindow {
     id: root
 

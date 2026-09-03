@@ -7,6 +7,16 @@ Rectangle {
     id: root
 
     property string label: ""
+    // A module that draws its own content instead of a label (TailscalePill's
+    // logo) overrides these two: `hasContent` is what decides whether the
+    // module is in the bar at all, and `contentWidth` is what the pill sizes
+    // to. Their defaults are the label, so a text module needs neither.
+    // Not named `active`: NetworkPill already uses that for its active device,
+    // and one object carrying two unrelated `active`s is a trap even though
+    // the shadowing is harmless (verified: a derived property of the same name
+    // does not capture the base's own `visible` binding).
+    property bool hasContent: label.length > 0
+    property real contentWidth: -1
     // Lets modules drive a hover popup without another MouseArea.
     readonly property alias hovered: mouse.containsMouse
     property color labelColor: Theme.text
@@ -19,8 +29,8 @@ Rectangle {
     signal rightClicked
     signal scrolled(int delta)
 
-    visible: label.length > 0
-    implicitWidth: text.implicitWidth + Theme.pillPad * 2
+    visible: hasContent
+    implicitWidth: (contentWidth >= 0 ? contentWidth : text.implicitWidth) + Theme.pillPad * 2
     implicitHeight: Theme.pillHeight
     radius: height / 2
     color: Theme.pill

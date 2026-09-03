@@ -3,18 +3,19 @@ local monitor_utils = require("modules.utils.monitor_utils")
 
 hl.bind(config.mainMod .. " + RETURN", hl.dsp.exec_cmd(config.terminal), { bypass = true })
 hl.bind(config.mainMod .. " + Q", hl.dsp.window.close(), { bypass = true })
-hl.bind(config.mainMod .. " + M", hl.dsp.exit(), { bypass = true })
-hl.bind(config.mainMod .. " + R", hl.dsp.exec_cmd("killall " .. (config.bar or "quickshell") .. " && " .. (config.bar or "quickshell") .. " &"), { bypass = true })
 hl.bind(config.mainMod .. " + L", hl.dsp.exec_cmd("hyprlock"), { bypass = true })
 hl.bind(config.mainMod .. " + SHIFT + L", hl.dsp.exec_cmd("hyprlock & sleep 0.5 && systemctl suspend"), { bypass = true })
 hl.bind(config.mainMod .. " + F", hl.dsp.window.fullscreen({ mode = "maximized" }), { bypass = true })
 hl.bind(config.mainMod .. " + SHIFT + F", hl.dsp.window.fullscreen({ mode = "fullscreen" }), { bypass = true })
 hl.bind(config.mainMod .. " + ALT + F", hl.dsp.window.float({ action = "toggle" }), { bypass = true })
 hl.bind(config.mainMod .. " + J", hl.dsp.layout("togglesplit")) -- dwindle only
--- App launcher, clipboard history and the wallpaper picker are all quickshell
--- overlays living in the bar process (see quickshell/OverlayPanel.qml), so the
--- binds just poke their IPC handlers.
+-- App launcher, clipboard history, wallpaper picker and the keybind list are
+-- all quickshell overlays living in the bar process (see
+-- quickshell/OverlayPanel.qml), so the binds just poke their IPC handlers.
 hl.bind(config.mainMod .. " + SPACE", hl.dsp.exec_cmd("qs ipc call launcher toggle"), { bypass = true })
+-- The list quickshell/KeybindsHelp.qml draws is hand-written; anything added
+-- or changed in this file has to be added there too.
+hl.bind(config.mainMod .. " + K", hl.dsp.exec_cmd("qs ipc call keybinds toggle"), { bypass = true })
 hl.bind(config.mainMod .. " + E", hl.dsp.exec_cmd(config.fileManager), { bypass = true })
 hl.bind(config.mainMod .. " + B", hl.dsp.exec_cmd(config.browser), { bypass = true })
 hl.bind(config.mainMod .. " + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | swappy -f -'), { bypass = true })

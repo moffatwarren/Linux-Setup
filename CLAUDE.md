@@ -78,32 +78,80 @@ copying, `install.sh` captures the live values; after copying, it writes them ba
 - **handler `line`** — the whole line matching `<regex>` is captured and restored. It is
   the only handler; the `icons` one died with the waybar config it parsed.
 - **prompt group** — one y/N prompt per group, asked only if a file in that group exists
-  live. Groups: `audio` (sinks), `machine` (monitor), `wallpaper` (hyprlock background).
+  live. Two groups are left: `machine` (monitor) and `wallpaper` (hyprlock background),
+  and only `machine` is actually asked. A group in `NO_PROMPT_GROUPS` needs no
+  `GROUP_PROMPT` entry.
 - A group listed in `NO_PROMPT_GROUPS` is never asked about — the live value simply wins
   on any run that is not a first install. `wallpaper` is there because the lock screen
   background is a personal choice, not something the repo should ship over.
 - Fields split on `|`, so **a regex must not contain a literal `|`**.
 
-Currently preserved: `BUILT_IN_SINK`, `HEADPHONE_SINK`, `SPEAKER_SINK`, `BLUETOOTH_SINK`
-in `hypr/scripts/audio-output-toggle.sh`; `config.mainMonitor` in
-`hypr/modules/config.lua`; the `path =` line of `hypr/hyprlock.conf` (its only one, in
-the `background` block).
+Currently preserved: `config.mainMonitor` in `hypr/modules/config.lua`, and the `path =`
+line of `hypr/hyprlock.conf` (its only one, in the `background` block). That is the whole
+table.
+
+**Retiring a preserved value needs a migration, not just a deleted entry.** This is the
+`retire_swaync()` lesson in a different key: `ORPHANS` deletes files and a dropped
+`PRESERVE` row stops defending one, but neither *moves* what the old machine knew into
+wherever the new release keeps it. `migrate_audio_icons()` is the worked example — see
+below.
+
+**The `audio` group is gone, and so is what it protected.** `hypr/scripts/audio-output-
+toggle.sh` used to declare `BUILT_IN_SINK` / `HEADPHONE_SINK` / `SPEAKER_SINK` /
+`BLUETOOTH_SINK`, because a sink's role cannot be inferred from its name and something had
+to say which was which. Both things those names decided — which outputs `SUPER+O` steps
+through, and which glyph each one draws — are chosen in the bar's audio menu now and
+persisted to `~/.cache/quickshell-audio.json`. That is **user state under `~/.cache`, not
+a config this repo deploys**, so nothing overwrites it and there is nothing to capture or
+restore. The general lesson is worth keeping: a value the machine has to be *told* is
+better asked for once in the UI that displays it than committed to the repo and then
+defended from the repo on every deploy.
+
+`migrate_audio_icons()` is what gets an existing machine there. Dropping those four
+declarations means `deploy_configs` is about to overwrite the **only** record of which
+sink is the headphones — an answer that is not recoverable afterwards and, by the very
+argument that created those variables, not guessable either. So it runs on the update path
+**before `deploy_configs`**, reads `HEADPHONE_SINK` and `BLUETOOTH_SINK` out of the live
+script with `sed` (not by sourcing it, which would run it), and seeds the `icon` of those
+two sinks in `~/.cache/quickshell-audio.json`. Five things about it:
+
+- **It is self-limiting rather than version-flagged.** The guard is that the *live* script
+  still declares `HEADPHONE_SINK=`; after one update the deployed one does not, so it is a
+  no-op for ever after. The regex is anchored to an assignment, so the comment in the new
+  script that mentions those names by way of history does not re-arm it.
+- **It never overwrites an icon already chosen**, only fills an empty one — so re-running
+  `install.sh` cannot undo a pick made in the menu since.
+- It checks `hypr/scripts/` and then `waybar/scripts/`, the two paths `LEGACY_MOVES` used
+  to name, so a machine that skipped a generation is still covered.
+- `BUILT_IN_SINK` and `SPEAKER_SINK` are deliberately **not** carried over. Their icon
+  would be `speaker`, which differs from the default `volume` only in looks, and
+  `BUILT_IN_SINK` is the one most likely to still hold the value this repo shipped rather
+  than anything true about that machine — seeding it would add a phantom `unplugged` row.
+- Writing that cache file is normally the bar's job alone. It is safe here because the bar
+  still running on an upgrading machine is the **old** one, which has no `AudioService` and
+  never touches the file; `reload_session` starts the new one at the end of `main()`, which
+  then reads what this wrote.
 
 **Add any new hardware-specific value to `PRESERVE`**, or it is clobbered every run.
 
 **If a preserved file ever moves, add it to `LEGACY_MOVES`.** A machine still running the
 previous layout does not have the new path yet, so its group is never prompted for, nothing
 is captured, and the committed values silently replace the machine's own.
-`migrate_legacy_paths()` seeds the new path from the old one before the capture step. This
-is how `waybar/scripts/audio-output-toggle.sh` → `hypr/scripts/audio-output-toggle.sh`
-survives on a machine upgrading from the waybar era. It only copies when the new path is
-absent, so a machine already on the current layout is untouched by a stale old copy.
+`migrate_legacy_paths()` seeds the new path from the old one before the capture step, and
+only when the new path is absent, so a machine already on the current layout is untouched
+by a stale old copy. The array is **empty** today: its one entry
+(`waybar/scripts/audio-output-toggle.sh` → `hypr/scripts/audio-output-toggle.sh`) existed
+only to carry the audio sink values across the waybar-era move, and nothing in that file is
+preserved any more. It is kept as the place the next move goes.
 
 Two hazards when adding patterns:
 
-- `replace_line.py` rewrites **every** matching line. `BUILT_IN_SINK` is assigned twice
-  in `audio-output-toggle.sh` (top level, and indented inside the toggle logic), so its
-  pattern is anchored to column 0 (`^BUILT_IN_SINK`). Anchor carefully.
+- `replace_line.py` rewrites **every** matching line, so anchor a pattern that could match
+  more than one. The worked example used to be `BUILT_IN_SINK`, assigned twice in
+  `audio-output-toggle.sh` — at the top and again indented inside the cycle logic — whose
+  pattern was therefore anchored to column 0 (`^BUILT_IN_SINK`). Both the second
+  assignment and the entry are gone now, but the hazard is not: it returns the moment a
+  preserved name appears twice in a file.
 - The restore helper lives in `install_lib/`:
   `replace_line.py <file> <pattern> <replacement> …` (empty replacement = skip).
 
@@ -118,8 +166,8 @@ old script paths are recoverable from commit `45cf455` if a codepoint or format 
 is ever needed.
 
 `config.bar` in `hypr/modules/config.lua` still selects which bar launches, read by
-`autostart.lua`, the `SUPER+R` bind in `binds.lua`, and the monitor-hotplug restart in
-`utils/monitor_utils.lua` (all now fall back to `"quickshell"`). Keeping it means swapping
+`autostart.lua` and the monitor-hotplug restart in `utils/monitor_utils.lua` (both now
+fall back to `"quickshell"`). Keeping it means swapping
 bars later is still a one-liner, but it is **not** in `PRESERVE`: with waybar gone there
 is only one value it can hold, so preserving it only made the `machine` prompt claim to
 ask about a choice that no longer exists.
@@ -258,13 +306,15 @@ header's own toggle stays as the discoverable way to do it; the right-click is t
 shortcut for when you already know.
 
 **Every pill that owns a menu opens it on the primary button** —
-`BluetoothPill`, `NetworkPill`, `NotificationPill` and `PowerPill` all do, and the media
-module's cover art does too. Only bluetooth and notifications bind the right button as
-well (adapter, DND); `NetworkPill`'s is unbound, since the wifi radio toggle already sits
-in `WifiMenu`'s header and nothing else on the network module wants a shortcut.
+`AudioPill`, `BluetoothPill`, `NetworkPill`, `NotificationPill` and `PowerPill` all do,
+and the media module's cover art does too. Only audio, bluetooth and notifications bind
+the right button as well (mute, adapter, DND); `NetworkPill`'s is unbound, since the wifi
+radio toggle already sits in `WifiMenu`'s header and nothing else on the network module
+wants a shortcut.
 
-Both dropdowns dismiss on a click anywhere outside via `HyprlandFocusGrab` (`windows: [root]`,
-`active: root.open`, `onCleared: close()`), as `PowerMenu` and `NotificationMenu` do. A
+All three dropdowns dismiss on a click anywhere outside via `HyprlandFocusGrab`
+(`windows: [root]`, `active: root.open`, `onCleared: close()`), as `PowerMenu` and
+`NotificationMenu` do. A
 layer-shell popup receives no event for an outside click on its own, so without the grab
 the only way to close the menu was to right-click the module again. The grab coexists with
 `WifiMenu`'s `grabFocus`, which the password field needs for keyboard input — verified
@@ -274,6 +324,97 @@ Devices whose name is a bare MAC are filtered out — they are BLE beacons and t
 usually a dozen of them. The row glyph is picked from the device's freedesktop `icon`
 (`input-gaming` → gamepad, `audio-*` → headphones, `phone` → phone), falling back to the
 bluetooth glyph.
+
+`AudioMenu.qml` is the **left**-click dropdown on the audio module, built to match
+`BluetoothMenu`. Outputs carry a **switch**, inputs a **radio button**, and the
+difference is the whole design: more than one output can be switched on at once, because
+the switches *are* the `SUPER+O` rotation, while there is only ever one default input.
+Clicking an output row is separate from its switch — the row makes that output the
+default right now, the switch decides whether `SUPER+O` will ever land on it. pavucontrol
+is the footer, where blueman's is in `BluetoothMenu`.
+
+`AudioService.qml` is a `pragma Singleton` owning the rotation, the icon choices and the
+file both are persisted to. It is a singleton for the reason `NotificationService` and
+`RecorderService` are: there is one `Bar` — and so one `AudioPill` and one `AudioMenu` —
+per monitor, they all have to agree, and only one of them may write the file.
+
+**The state file is `~/.cache/quickshell-audio.json`, and it has a second reader.**
+`hypr/scripts/audio-output-toggle.sh` is still what `SUPER+O` runs and still what performs
+the cycle; the bar only decides what is in it. That split is deliberate — the script keeps
+working with the bar down, it is already where the machine's sink roles are written, and
+the cycle then exists once rather than in both places. Its shape:
+
+```
+{ "outputs": [ { "name": …, "description": …, "enabled": true, "icon": … }, … ] }
+```
+
+**`icon` is why there is nothing machine-specific left in `audio-output-toggle.sh`.** That
+script used to declare `BUILT_IN_SINK` / `HEADPHONE_SINK` / `SPEAKER_SINK` /
+`BLUETOOTH_SINK` and `AudioService` used to `grep` two of them out of it, because a sink's
+role cannot be inferred from its name — on this machine the headphones are the PCI analog
+jack and the speakers are USB, and other machines invert that. The answer therefore had to
+be edited into a shell script, could only be one of two roles, and needed four `PRESERVE`
+entries to survive a deploy. It is a click in the menu now: the glyph on each output row
+is a button that drops a palette of six icons underneath it (`AudioService.iconChoices` —
+volume, speakers, headphones, bluetooth, display, TV), and the choice is remembered with
+everything else about that sink. The palette is laid out inline rather than as a popup —
+a second layer-shell surface over a menu that already holds the keyboard is a lot of
+machinery for six glyphs.
+
+`volume` is the default and the only choice that is not a fixed glyph: it means "not
+chosen", and `AudioPill` draws the volume ramp for it exactly as it always has. Any other
+choice is a fixed glyph, because an output you have named is better identified than
+measured. An unset icon is left **out** of the file rather than written as its inferred
+value, so the inference can improve later without machines being pinned to whatever it
+said on the day their record was created.
+
+`defaultIconKey` infers only what a name can actually settle — `bluez` → bluetooth,
+`hdmi`/`displayport` → display, everything else → volume. Headphones-versus-speakers is
+deliberately not guessed; that is the distinction the picker exists for.
+
+**The OSD gets the same icon.** `audio-output-toggle.sh` reads the chosen key back out and
+sends `-i audio-<key>-symbolic`, which `NotificationToasts.qml` matches to pick its glyph
+(Qt never renders the SVG behind an icon *name* — see **OSDs are not messages**). Without
+that the popup naming the new output would disagree with the pill showing it. The script
+carries its own copy of `defaultIconKey`'s inference for a sink with no record, so the two
+agree before anything has been picked either.
+
+Four things follow from how that file is read:
+
+- **A sink with no record counts as enabled.** A machine that has never opened the menu
+  still cycles everything, and a sink plugged in for the first time joins the rotation
+  rather than being silently skipped — the opposite default would make a new headset look
+  broken.
+- **Records outlive the sink.** A record is kept for a device that is not plugged in, with
+  the description it had, which is what lets an unplugged headset come back with its
+  switch as it was. Those rows show as `unplugged`, cannot be made the default, and are
+  right-click to forget — a right-click on one that *is* plugged in does nothing, since
+  the next save would re-seed it from the live node anyway.
+- **Every output switched off falls back to cycling all of them.** That is a state the
+  menu can reach, and a dead `SUPER+O` is a worse answer than ignoring the filter once.
+- Sinks are sorted by **node id**, which is the number `pactl` prints as the sink index —
+  so the menu lists outputs top-to-bottom in exactly the order the script cycles them.
+
+Two traps in the service:
+
+- **Nothing may be saved before the file has been read.** Sinks arrive one at a time as
+  PipeWire enumerates them at startup, so the first `onSinksChanged` fires long before
+  `onLoaded` — saving there would clobber the saved rotation with defaults. Hence the
+  `loaded` flag, set from `onLoaded` **and `onLoadFailed`**: no file yet is the normal
+  case on a new machine, and if that path does not unblock saving, saving never starts.
+- The save is behind an 800 ms timer for the same reason: a node's description lands after
+  the node itself, so a save per change is a burst of writes ending in the only complete
+  one.
+- **The bar saves from memory, not by merging with the file.** So a second instance left
+  running — easy to produce while testing, since `reload_session` is the only thing that
+  reliably kills the old one first — will happily write its own stale `records` back over
+  an edit made outside it, which would read as a switch turning itself off. There is one
+  bar per session in normal use, so this is a note on how to test the file safely (edit it
+  only while no bar is running), not a bug to fix.
+
+Note QML rejects a second handler for the same signal on the same object, which is worth
+remembering here: `onSinksChanged` is the one place both the debounced save and anything
+else reacting to a sink appearing have to live.
 
 `PiaPill.qml` specialises `ScriptPill`: `pia.sh` still drives the state, while a
 `piactl` call fills a hover panel with where the tunnel exits.
@@ -304,14 +445,16 @@ themselves when their tool is absent.** This matters because "not installed" and
 "installed but stopped" look identical from the outside: `systemctl is-active` prints
 `inactive` for a unit that does not exist (verified — it prints `inactive` and exits 4),
 and `tailscale status` fails the same way whether the daemon is down or the binary is
-missing. Left alone, a machine that declined both prompts would carry a permanently white
-`TS` and a `PIA` whose panel offered to start a unit that is not there — a right-click
-that asks for a password and then fails. So `pia.sh --service` checks `systemctl cat`
-first and prints its own word, **`absent`**, which blanks `PiaPill`'s label and empties
-`rightClickCommand`; `--start-service` refuses the same way rather than prompting.
+missing. Left alone, a machine that declined both prompts would carry a permanently
+white tailscale mark and a `PIA` whose panel offered to start a unit that is not there
+— a right-click that asks for a password and then fails. So `pia.sh --service` checks
+`systemctl cat` first and prints its own word, **`absent`**, which blanks `PiaPill`'s
+label and empties `rightClickCommand`; `--start-service` refuses the same way rather
+than prompting.
 `tailscale.sh --status` prints **nothing** when `command -v tailscale` fails, which clears
-`ScriptPill.rawAlt` and lets `Pill`'s empty-label rule hide the module. Neither script
-uninstalls or installs anything — they only decline to claim a state they cannot see.
+`ScriptPill.rawAlt` and so drops `TailscalePill`'s `active` (the logo is drawn, not
+labelled, so an empty label is not what hides it — see below). Neither script uninstalls
+or installs anything — they only decline to claim a state they cannot see.
 `piactl get region` reports the *selected* region, which is usually `auto` and so says
 nothing about where you landed. `hypr/scripts/pia-region.sh` resolves the real one by
 matching the exit IP against PIA's own published server list (first party, no
@@ -329,15 +472,36 @@ hostnames in pango markup and joins them with carriage returns. Disconnected, it
 is one "Disconnected" row; connected, it is "Connected", the exit node if one is routing,
 then the peers.
 
-**Both are just their letters — `TS` and `PIA`, green when connected and `Theme.text`
-when not.** They used to spell the state out in the bar (` Tailscale: on | Exit-node: …`,
-` PIA: Connected`), which was two of the widest modules on the strip saying what
-their own hover panels already say in full. The colour is now the entire readout, so the
-label is a plain string and `labelColor` carries the state — no `<font>` markup, and the
-`altText`/`altColors`/`prefix` machinery `ScriptPill` used to compose one is gone with it.
-`ScriptPill` now only polls and parses, exposing `rawText`/`rawAlt` for the subclass to
-draw. Note this drops the yellow *connecting* state PIA used to show; it is two colours by
-design, and the hover panel still names the transitional state.
+**Both are just their mark — the tailscale logo and the letters `PIA`, green when
+connected and `Theme.text` when not.** They used to spell the state out in the bar
+(` Tailscale: on | Exit-node: …`, ` PIA: Connected`), which was two of the widest modules
+on the strip saying what their own hover panels already say in full. The colour is now
+the entire readout, so `labelColor` carries the state — no `<font>` markup, and the
+`altText`/`altColors`/`prefix` machinery `ScriptPill` used to compose one is gone with
+it. `ScriptPill` now only polls and parses, exposing `rawText`/`rawAlt` for the subclass
+to draw. Note this drops the yellow *connecting* state PIA used to show; it is two
+colours by design, and the hover panel still names the transitional state.
+
+**Tailscale's mark is drawn, not written.** Nerd Fonts ships no tailscale glyph and
+nothing on the system installs the artwork, so `TailscalePill` lays out the 3x3 dot grid
+from tailscale's own favicon as a `Grid` of nine circular `Rectangle`s: the middle row
+plus the dot below it — the "t" — at full opacity, the other five behind it at 0.4, both
+taking `labelColor` so the module is still one colour saying one thing. The favicon's
+dots are radius 3 on a 9 pitch, a gap of half a dot; keep that ratio if the size changes
+or the grid stops reading as the logo and starts reading as a keypad.
+
+That is what the two hooks on `Pill` are for. A pill sizes and shows itself from its
+label, which a module drawing its own content has none of, so `Pill.contentWidth`
+(default -1, meaning "measure the text") and `Pill.hasContent` (default
+`label.length > 0`) let one override each. Without `hasContent` the module would be
+permanently hidden rather than merely blank, which is the same failure an empty label
+produces and much harder to read as a cause.
+
+**The visibility hook is `hasContent`, not `active`** — `NetworkPill` already uses
+`active` for its own active device, and one object carrying two unrelated `active`s is a
+trap waiting for whoever edits it next. The shadowing itself is harmless (verified: a
+derived property of the same name does *not* capture the base's `visible: hasContent`
+binding, which resolves against `Pill`'s own), so this is about the reader, not a bug.
 
 The palette in `Theme.qml` is still stored as **strings** rather than `color` values —
 QML converts on assignment, and `ScriptPill.altColors` was not the only thing that
@@ -354,33 +518,62 @@ Seven things to know before editing the QML:
   `Bluetooth.devices` stay empty until something actually binds to them; the modules
   hold a property referencing the service for this reason. Pipewire additionally needs
   `PwObjectTracker` for live volume/mute updates.
+- **`NetworkPill` is one glyph and no text**: the ethernet port or the wifi arcs when
+  something is up, the same two struck through when nothing is — which of those two the
+  disconnected state draws comes from `wifiCapable`, i.e. whether the machine has a wifi
+  device at all, connected or not (verified: `wlan0` stays in `Networking.devices` while
+  it is down, so nothing has to ask NetworkManager separately). All four are Material
+  Design Icons, the family `AudioPill` draws from and the one that has a slashed
+  counterpart for each state, so the shape says which medium and the slash says whether
+  it is up while `labelColor` still reddens the whole thing when nothing is connected.
+  The SSID, signal, IP and rates it used to spell out are all in the hover panel, which
+  is where you go for a number.
+- **`NetworkNode.signalStrength` is 0..1, not 0-100** (verified against a live scan:
+  0.92, 0.45). The old bar label appended a `%` to it directly and would have read
+  "0.92%" — it never showed, because this machine is wired and the wifi branch never
+  ran. `WifiMenu`'s meter had it right all along.
 - **`NetworkDevice.address` is the MAC, not the IP** — no IP is exposed anywhere on the
   device, so `NetworkPill` shells out to `ip -4 -br addr` when the active device changes.
   Networking exposes no byte counters either, so the hover panel's up/down rates come
   from `/sys/class/net/<iface>/statistics/{rx,tx}_bytes`, sampled once a second with
   `FileView` (no process spawn) and differenced. The baseline resets on an interface
   change so the first sample cannot report a bogus spike.
-- `AudioPill` reads which sink is headphones/bluetooth out of
-  `hypr/scripts/audio-output-toggle.sh` rather than guessing from the sink name.
-  Inferring it does not work: on this machine the headphones are the PCI analog jack
-  and the speakers are USB, and other machines invert that. Its hover panel names the
-  default output and input (`Pipewire.defaultAudioSink`/`defaultAudioSource`, shown by
-  `description` with `nickname`/`name` as fallbacks) plus each one's volume; both nodes
-  go in the `PwObjectTracker` so those stay live. Its glyphs are Material Design Icons
-  from the nerd font (volume off/low/medium/high, mute, headphones, bluetooth-audio) —
-  **not** the speaker/headphone emoji it used to draw. A real emoji codepoint is served
-  by the colour emoji font, which ignores `labelColor` and renders a glossy multicolour
-  blob beside the flat monochrome glyphs of every other module.
-  **Left-click mutes**; it used to switch sinks, which is now only `SUPER+O`
-  (`binds.lua`) — no loss, and that bind raises an OSD naming the new output, which the
-  click never did. Mute is set straight on the node (`audio.muted = !audio.muted`), the
-  way `onScrolled` already sets volume, rather than shelling out to
-  `volume-notify.sh mute`: no process, and no OSD, because the glyph you just clicked is
-  already the feedback. Scroll is still volume — **1% a notch, matching what the
-  `XF86AudioRaise/LowerVolume` keys do** through `volume-notify.sh`
-  (`wpctl set-volume … 1%+`), so a wheel notch and a key press are the same step; it was
-  5%, which made the wheel a coarser control than the keyboard for no reason. Right-click
-  is still pavucontrol.
+- **The panel's public IP is fetched on hover, never polled.** It is the one row that
+  has to be asked of somebody else's server, and the panel is its only consumer, so
+  `refreshPublicIp()` hangs off `onHoveredChanged` the way `PowerProfilePill`'s stats do.
+  `hypr/scripts/public-ip.sh` caches for ten minutes, so a run of hovers is a `cat`
+  apiece, and prints **nothing** rather than guessing — an empty answer means "ask again
+  later", so the module keeps its last good reading. Three details in that script:
+  it tries two providers (icanhazip, then ipify) because either can be down; it checks
+  the *shape* of the answer rather than curl's exit status, since a captive portal
+  answers every request successfully with a login page; and it prints a stale cache when
+  the network is down but **not** under `--force`. `--force` is only ever asked because
+  the link changed, which makes the cached address the one answer that is certainly
+  wrong — `onActiveChanged` clears `publicIp` and re-arms `publicIpStale` for exactly
+  that reason.
+- `AudioPill` draws the icon the audio menu has for the current sink (`AudioService`,
+  above), falling back to the volume ramp for the default `volume` choice. It used to
+  `grep` a role map out of `hypr/scripts/audio-output-toggle.sh`; nothing is inferred or
+  read from a script here any more. Its hover
+  panel names the default output and input (`Pipewire.defaultAudioSink` /
+  `defaultAudioSource`, shown by `description` with `nickname`/`name` as fallbacks) plus
+  each one's volume; both nodes go in the `PwObjectTracker` so those stay live. Its glyphs
+  are Material Design Icons from the nerd font (volume off/low/medium/high, mute,
+  headphones, bluetooth-audio) — **not** the speaker/headphone emoji it used to draw. A
+  real emoji codepoint is served by the colour emoji font, which ignores `labelColor` and
+  renders a glossy multicolour blob beside the flat monochrome glyphs of every other
+  module.
+  **Left-click opens `AudioMenu`, right-click mutes** — the same menu/shortcut split
+  `BluetoothPill` uses. The left button has been all three: switching sinks (before
+  `SUPER+O` got the OSD that names the new output), then mute, now the menu. Mute is set
+  straight on the node (`audio.muted = !audio.muted`), the way `onScrolled` already sets
+  volume, rather than shelling out to `volume-notify.sh mute`: no process, and no OSD,
+  because the glyph you just clicked is already the feedback. Scroll is still volume —
+  **1% a notch, matching what the `XF86AudioRaise/LowerVolume` keys do** through
+  `volume-notify.sh` (`wpctl set-volume … 1%+`), so a wheel notch and a key press are the
+  same step; it was
+  5%, which made the wheel a coarser control than the keyboard for no reason.
+  pavucontrol moved off the right-click into the menu's footer, beside blueman's.
 - **`ScriptPill` must escape control characters before `JSON.parse`.** `tailscale.sh`
   joins its peer list with raw carriage returns, which are illegal inside a JSON string;
   parsing them threw and blanked the module the instant tailscale came up. It also keeps
@@ -439,7 +632,7 @@ says its `canGoPrevious`/`canGoNext`/`canTogglePlaying` is false, and the menu c
 itself when `player` goes null — the module hides when nothing is playing, and a menu left
 open would hang off an invisible anchor.
 
-## The overlays — launcher, clipboard, wallpapers (SUPER+SPACE / V / W)
+## The overlays — launcher, clipboard, wallpapers, keybinds (SUPER+SPACE / V / W / K)
 
 **rofi is gone from the repo entirely** — `Hyprland_Setup/rofi/`, the `rofi`
 entry in `CONFIGS` and in `PACMAN_PKGS`, and `config.menu` in
@@ -454,11 +647,12 @@ whose `set_random` duplicated the apply logic in Lua and ran
 upgrading from the rofi layout; the rofi *package* is left installed, since
 `install.sh` uninstalls nothing.
 
-`OverlayPanel.qml` is the one window all three wear: dimmed backdrop, a centred
+`OverlayPanel.qml` is the one window all four wear: dimmed backdrop, a centred
 `base` card in a `surface1` border, a lavender title with a subtitle and a count
 beside it, a `surface0` filter box under that, and a hint line along the bottom.
-`WallpaperPicker.qml`, `AppLauncher.qml` and `ClipboardMenu.qml` supply only the
-body — a filmstrip, a list of apps, a list of clipboard entries.
+`WallpaperPicker.qml`, `AppLauncher.qml`, `ClipboardMenu.qml` and
+`KeybindsHelp.qml` supply only the body — a filmstrip, a list of apps, a list of
+clipboard entries, a two-column keybind table.
 
 The **geometry** lives in `OverlayPanel` for the same reason the colours do. The
 padding, the 58px header and the gaps above the body and the footer are what make
@@ -477,13 +671,13 @@ rest to the body as `navKey(event)`; a body **sets `event.accepted`** for the
 keys it handles (arrows, Home/End, Delete) and lets everything else fall through
 and type into the box. There is no second focus item to fight over.
 
-All three live **inside the bar process**, not in a `qs -p` of their own, so
+All four live **inside the bar process**, not in a `qs -p` of their own, so
 opening one is instant and decoded thumbnails stay in Qt's pixmap cache between
 openings. `shell.qml` holds each in a `LazyLoader` (`loading: true`, built in the
 background at startup) beside an `IpcHandler`; the keybinds are just `qs ipc call
-{wallpaper,launcher,clipboard} toggle`. The bar is the only quickshell instance
-and runs the default config path, so `qs ipc call` finds it with no `-c`.
-**Opening one closes the other two** (`closeOverlays()` in `shell.qml`): each
+{wallpaper,launcher,clipboard,keybinds} toggle`. The bar is the only quickshell
+instance and runs the default config path, so `qs ipc call` finds it with no
+`-c`. **Opening one closes the others** (`closeOverlays()` in `shell.qml`): each
 takes the keyboard with `WlrKeyboardFocus.Exclusive`, and two exclusive layer
 surfaces up at once leaves the keystrokes going to whichever the compositor
 happened to pick.
@@ -570,6 +764,40 @@ this way". Tile size is the two constants `grid.cellWidth`/`cellHeight` (roughly
 follows the desktop. `wallpaper-random.sh` (SUPER+SHIFT+W) and the picker both
 `exec` it. That `path =` line is the same one `PRESERVE` protects (group
 `wallpaper`, in `NO_PROMPT_GROUPS`), so a deploy does not undo a pick.
+
+### The keybind list (SUPER+K)
+
+`KeybindsHelp.qml` is the cheat sheet: every bind in `hypr/modules/binds.lua`
+with a sentence saying what it is *for*, grouped into seven sections, keycaps
+drawn as `surface0` chips in a fixed-width left column so every description
+starts at the same x.
+
+**The table is hand-written and has to be kept in step with `binds.lua`.** It is
+deliberately not generated from `hyprctl binds -j`: that reports the dispatcher
+and its argument (`exec, ~/.config/hypr/scripts/audio-output-toggle.sh`), which
+is what a bind *does*, not what it is *for* — and "what it is for" is the entire
+reason to open the panel. Hyprland's bind syntax has nowhere to hang a human
+description and the Lua wrapper adds none, so the prose has to live somewhere.
+`binds.lua` carries a comment beside the `SUPER+K` line pointing at it.
+
+It is **two columns sized to fit**, not a scrolling list. The first cut was one
+column of 38 rows in a fixed-height body, which clipped a row mid-word at the
+bottom edge — a reference you have to scroll blind through is a worse one than
+the file it summarises. `bodyHeight` is bound to the taller column's
+`implicitHeight`, so the card also shrinks as the filter narrows it rather than
+leaving a field of empty panel under three matching rows. (No binding loop: the
+columns are anchored to the body's top and take a fixed `columnWidth`, so
+nothing in them reads the height they set.)
+
+`splitAt` packs **whole sections** into the left column while moving the next one
+across still brings the two closer together. Splitting a section across the
+gutter would strand a heading at the foot of one column with its binds at the
+head of the other; the cost is that one tall section can leave the columns
+visibly uneven under a filter, which is the better trade.
+
+Unlike the other three there is nothing to activate, so there is no selected row,
+no per-row `MouseArea` and no `navKey` handler — Enter is just a second Escape,
+and every other key falls through to the filter box.
 
 ### Five traps shared by the three bodies
 
@@ -759,7 +987,7 @@ Four things worth knowing:
   thing is inert.
 
 
-## The screen recorder (SUPER+SHIFT+S)
+## The screen recorder (SUPER+CTRL+S)
 
 `hypr/scripts/screen-record.sh` is the whole backend — `--toggle` (slurp a region and
 start, or stop what is running), `--toggle-audio` (the same plus the default input,
@@ -1009,7 +1237,23 @@ JetBrainsMono the rest of the session uses.)
   (which owns the theme directory `deploy_configs` copies into) and `avahi` (whose unit
   `first_install_extras` enables) are there for that reason alone, not because anything
   deployed uses them. So are `libnotify` and `wl-clipboard`, which the deployed scripts
-  call directly and which otherwise arrive only as dependencies of thunar and cliphist.
+  call directly and which otherwise arrive only as dependencies of thunar and cliphist,
+  and `curl`, which `weather-forecast.sh`, `pia-region.sh` and `public-ip.sh` all fetch
+  with. `curl` cannot actually be missing — pacman itself hard-depends on it — but a
+  script calling a binary directly should not rely on arriving as somebody else's
+  dependency, which is the whole point of the rule.
+- **The nerd font is verified by codepoint, not by package version.** Several modules are
+  nothing but a glyph, and those glyphs are Material Design Icons from Nerd Fonts **v3**,
+  which lives at U+F0000 and above. v2 was entirely inside the BMP and has nothing at
+  those codepoints at all, so on the old font those modules draw tofu — or vanish
+  outright, since `Pill` hides a module whose label came out empty, which makes the
+  symptom look like a broken module rather than a missing font. `check_nerd_font()` tails
+  `install_packages` and probes two of them (`U+F0200` md-ethernet from `NetworkPill`,
+  `U+F057E` md-volume-high from `AudioPill`) with `fc-list ':charset=…'`. The glyph is
+  the thing that actually has to be there; a version string is only a proxy for it, and
+  says nothing at all about a hand-installed font shadowing the packaged one. It warns
+  and carries on, like the `papirus-folders` step — a wrong-looking bar is not a reason
+  to leave a deploy half-done.
 - **The committed `hyprlock.conf` background is an absolute path**, so it names the
   `$HOME` of whichever machine last committed it. A first install preserves nothing, so
   on another username that path does not resolve and the lock screen has no background.
@@ -1023,6 +1267,11 @@ JetBrainsMono the rest of the session uses.)
 - **A retired *daemon* needs more than a retired config.** `ORPHANS` deletes files;
   it does not stop a process or close a D-Bus activation path. `retire_swaync()` is the
   worked example — see **Notifications (quickshell)**.
+- **A retired *preserved value* needs more than a retired `PRESERVE` row.** Dropping the
+  row stops defending the value; the very next `deploy_configs` then overwrites it, and
+  on a machine that had a real answer there it is gone. If the new release keeps that
+  answer somewhere else, something has to carry it across **before** the copy.
+  `migrate_audio_icons()` is the worked example — see **Machine-specific values**.
 - **`reload_session()` is what makes a deploy take effect.** Hyprland parses its config
   at startup and quickshell parses its QML once, so without it new keybinds and a new bar
   wait for the next logout — which reads as the deploy having done nothing, and is exactly

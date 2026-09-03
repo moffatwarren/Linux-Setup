@@ -1,7 +1,7 @@
 import Quickshell
 import QtQuick
 
-// Shown only while a screen recording is running (SUPER+SHIFT+S): a red dot
+// Shown only while a screen recording is running (SUPER+CTRL+S): a red dot
 // and the elapsed time, click to stop. Hidden the rest of the time, which is
 // Pill's own behaviour on an empty label.
 //

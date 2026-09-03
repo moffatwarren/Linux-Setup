@@ -30,11 +30,11 @@ ShellRoot {
     // raise every warning twice on a two-screen machine.
     BatteryWatcher {}
 
-    // The three full-screen overlays -- SUPER+W wallpaper picker, SUPER+SPACE
-    // app launcher, SUPER+V clipboard history. They ride along in the bar
-    // process rather than each being its own `qs -p` so that opening one is
-    // instant: built once, in the background, then only shown and hidden.
-    // They share their window with each other via OverlayPanel.qml.
+    // The four full-screen overlays -- SUPER+W wallpaper picker, SUPER+SPACE
+    // app launcher, SUPER+V clipboard history, SUPER+K keybind list. They ride
+    // along in the bar process rather than each being its own `qs -p` so that
+    // opening one is instant: built once, in the background, then only shown
+    // and hidden. They share their window with each other via OverlayPanel.qml.
     LazyLoader {
         id: wallpaperPicker
         loading: true
@@ -56,12 +56,19 @@ ShellRoot {
         ClipboardMenu {}
     }
 
+    LazyLoader {
+        id: keybindsHelp
+        loading: true
+
+        KeybindsHelp {}
+    }
+
     // `qs ipc call <target> toggle`, which is what the keybinds in
     // hypr/modules/binds.lua run. The bar is the only quickshell instance and
     // it uses the default config path, so `qs ipc call` finds it with no -c.
     //
     // Each overlay takes the keyboard exclusively while open, so opening one
-    // closes the other two first -- two exclusive layer surfaces up at once
+    // closes the others first -- two exclusive layer surfaces up at once
     // leaves the keystrokes going to whichever the compositor picked.
     IpcHandler {
         target: "wallpaper"
@@ -87,6 +94,14 @@ ShellRoot {
         function close(): void { clipboardMenu.item?.close(); }
     }
 
+    IpcHandler {
+        target: "keybinds"
+
+        function toggle(): void { closeOverlays("keybinds"); keybindsHelp.item?.toggle(); }
+        function open(): void { closeOverlays("keybinds"); keybindsHelp.item?.show(); }
+        function close(): void { keybindsHelp.item?.close(); }
+    }
+
     // SUPER+N, in place of `swaync-client -t`. The menu belongs to a bar module
     // rather than to a window of its own, so this opens the one on the monitor
     // you are actually looking at; NotificationService.menuMonitor is what keeps
@@ -108,7 +123,7 @@ ShellRoot {
         function clear(): void { NotificationService.clearAll(); }
     }
 
-    // The screen recorder (SUPER+SHIFT+S) writes a state file and then calls
+    // The screen recorder (SUPER+CTRL+S) writes a state file and then calls
     // this, so the bar picks the change up on the event rather than by polling
     // the script. `stop` is here so the recording can be ended from a script or
     // a bind as well as by clicking the pill.
@@ -124,6 +139,7 @@ ShellRoot {
         if (except !== "wallpaper") wallpaperPicker.item?.close();
         if (except !== "launcher") appLauncher.item?.close();
         if (except !== "clipboard") clipboardMenu.item?.close();
+        if (except !== "keybinds") keybindsHelp.item?.close();
         // The notification menu grabs the keyboard too, so it has to go the same
         // way -- an overlay opened over it would be typing into a dead surface.
         NotificationService.closeMenu();
