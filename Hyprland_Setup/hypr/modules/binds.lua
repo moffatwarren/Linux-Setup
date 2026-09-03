@@ -21,7 +21,7 @@ hl.bind(config.mainMod .. " + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | swappy
 hl.bind(config.mainMod .. " + ALT + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | tesseract stdin stdout | wl-copy'), { bypass = true })
 -- One key starts and stops a region recording; the bar grows a red pill with
 -- the elapsed time while it runs (quickshell/RecorderPill.qml).
-hl.bind(config.mainMod .. " + SHIFT + S", hl.dsp.exec_cmd("~/.config/hypr/scripts/screen-record.sh --toggle"), { bypass = true })
+hl.bind(config.mainMod .. " + CTRL + S", hl.dsp.exec_cmd("~/.config/hypr/scripts/screen-record.sh --toggle"), { bypass = true })
 hl.bind(config.mainMod .. " + O", hl.dsp.exec_cmd("~/.config/hypr/scripts/audio-output-toggle.sh"), { bypass = true })
 hl.bind(config.mainMod .. " + W", hl.dsp.exec_cmd("qs ipc call wallpaper toggle"), { bypass = true })
 hl.bind(config.mainMod .. " + SHIFT + W", hl.dsp.exec_cmd("~/.config/hypr/scripts/wallpaper-random.sh"), { bypass = true })

@@ -57,7 +57,12 @@ PACMAN_PKGS=(
     wf-recorder
     gvfs gvfs-smb samba nvim mpv imv brightnessctl playerctl blueman gnome-text-editor swayimg imagemagick
     thunar-archive-plugin xarchiver unzip net-tools localsend spotify-launcher
-    tesseract tesseract-data-eng speedtest-cli brave-origin-bin paru
+    speedtest-cli brave-origin-bin paru
+    # SUPER+ALT+S (binds.lua) is OCR-to-clipboard: grim a region, read the
+    # text out of it, wl-copy that. The language data is a separate package
+    # and tesseract without it exits with "Error opening data file", so the
+    # keybind would silently copy nothing -- neither of these is optional.
+    tesseract tesseract-data-eng
     # GTK theming (thunar, the file chooser, gnome-text-editor). adw-gtk-theme
     # owns adw-gtk3-dark and cantarell-fonts the font, both named by
     # gtk-3.0/settings.ini; papirus-icon-theme is what Papirus-Dark resolves to.

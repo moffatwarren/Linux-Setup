@@ -26,8 +26,14 @@ THUMB_SIZE=256      # px, the cached thumbnail
 BINARY_RE='^\[\[ binary data ([0-9.]+ [A-Za-z]+) (png|jpe?g|gif|bmp|webp|tiff|ico) ([0-9]+x[0-9]+)'
 
 # The one entry whose id is $1, as cliphist's own "<id>\t<preview>" line.
+#
+# cliphist reads from a process substitution rather than a pipe, so the exit
+# status is grep's alone. `grep -m1` stops at the first match and closes its
+# input, which kills `cliphist list` -- still several hundred lines from done --
+# with SIGPIPE; in a pipeline, `pipefail` then reports 141 for a lookup that
+# actually succeeded, and do_copy's `|| return 1` swallowed every copy.
 entry_line() {
-    cliphist list | grep -am1 -P "^$1\t"
+    grep -am1 -P "^$1\t" < <(cliphist list)
 }
 
 do_list() {
