@@ -22,19 +22,20 @@ git clone <this repo>
 ```
 
 It installs the packages and deploys the configs, and handles both a first-time
-install and a routine update — there is no separate `update.sh`. It prompts, so
-run it interactively. Answering yes to "first install" adds the optional extras
-(avahi, the `xdg-terminal-exec` symlink, a global git identity, Tailscale, PIA);
-answering yes to the wallpaper prompt copies `wallpapers/` into `~/Pictures`.
+install and a routine update — there is no separate `update.sh`. **It asks one
+question**, "Do you want to get wallpapers?", which copies `wallpapers/` into
+`~/Pictures`; everything else runs unattended apart from `sudo`.
 
-On anything that is not a first install, the machine-specific values already on
-the system — the main monitor and the hyprlock background — are captured before
-the copy and written back after it, so a deploy cannot break display on a machine
-whose hardware differs from the committed values. Audio used to be on that list;
-its settings live in the bar's audio menu now, under `~/.cache`, where a deploy
-never reaches them. Updating a machine that predates that carries its old
-headphone and bluetooth sinks across into the menu as icons, once, so nothing
-has to be set up again.
+Nothing in it is specific to the machine it runs on. There is no first-install
+mode and no set-up to answer: audio outputs are configured in the bar's audio
+menu and stored under `~/.cache`, and the laptop screen is identified from its
+display connector at runtime rather than being named in a config file. The one
+value a deploy still carries across is the lock screen wallpaper, which
+`SUPER+W` writes into `hyprlock.conf`. Updating a machine that predates the
+audio menu carries its old headphone and bluetooth sinks into it as icons, once.
+
+Tailscale and PIA are not installed from here — see `tailscale_commands.txt` and
+`pia_install.txt`. Their bar modules hide themselves when the tool is absent.
 
 ## Pulling live changes back
 
@@ -65,6 +66,7 @@ values into the repo — review with `git diff` before committing.
 | `SUPER+CTRL+S` | record a region — press again to stop |
 | `SUPER+L` / `SUPER+SHIFT+L` | lock / lock and suspend |
 | `SUPER+O` | next audio output |
+| `SUPER+SHIFT+Z` | laptop screen off / on (needs an external monitor) |
 
 `Hyprland_Setup/hypr/modules/binds.lua` is the full list, and `SUPER+K` puts a
 readable copy of it on screen.
