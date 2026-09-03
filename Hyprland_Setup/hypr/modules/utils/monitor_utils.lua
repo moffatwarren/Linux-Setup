@@ -1,4 +1,3 @@
-local config = require("modules.config")
 local monitor_utils = {}
 
 -- The laptop's built-in screen: finding it, turning it off, turning it on.
@@ -141,19 +140,6 @@ function monitor_utils.toggle_panel()
 	else
 		monitor_utils.panel_on()
 	end
-end
-
-function monitor_utils.handle_new_monitor(monitor)
-	if not monitor then
-		return
-	end
-	-- Restart the bar so it draws on the monitor that just appeared. This was
-	-- building a dispatcher and dropping it on the floor -- exec_cmd only
-	-- describes the command, hl.dispatch is what runs it -- so hotplug had
-	-- silently not restarted the bar at all. `;` rather than `&&`, which
-	-- skipped the restart whenever killall found nothing to kill.
-	local bar = config.bar or "quickshell"
-	hl.dispatch(hl.dsp.exec_cmd("killall " .. bar .. "; setsid " .. bar .. " &"))
 end
 
 function monitor_utils.handle_remove_monitor(monitor)
