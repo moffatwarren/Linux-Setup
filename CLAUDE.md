@@ -519,8 +519,16 @@ QML. Image entries carry a cached thumbnail path instead of cliphist's
 `~/.cache/cliphist-thumbs` keyed by the cliphist id (never reused, so a cached
 file cannot go stale) and are pruned against the live history on each `--list`.
 
-Three things in that script are load-bearing:
+Five things in that script are load-bearing:
 
+- **`entry_line` reads `cliphist list` from a process substitution, not a pipe.**
+  `grep -m1` closes its input at the first match, killing `cliphist list` — still
+  hundreds of lines from done — with SIGPIPE; under `pipefail` the pipeline then
+  exits 141 for a lookup that *succeeded*. `do_copy`'s
+  `line=$(entry_line …) || return 1` read that as "not found", so **no `--copy`
+  ever worked**. The symptom is deceptive: every paste gives the newest entry, so
+  it reads as "only the most recent one can be copied" rather than as the copy
+  doing nothing at all. `< <(cliphist list)` makes the exit status grep's alone.
 - **Only the binary lines are ever read into a shell variable.** Clipboard text
   is arbitrary bytes and a bash string cannot hold a NUL, so slurping the whole
   history into one truncates entries *and* warns about it on every run. The text
