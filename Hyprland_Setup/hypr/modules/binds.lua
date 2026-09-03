@@ -100,5 +100,13 @@ hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { bypass = true,
 hl.bind("switch:on:Lid Switch", monitor_utils.panel_off, { locked = true })
 hl.bind("switch:off:Lid Switch", monitor_utils.panel_on, { locked = true })
 
-hl.on("monitor.added", monitor_utils.handle_new_monitor)
+-- No "monitor.added" handler on purpose. It used to restart the bar so the new
+-- screen got one, but quickshell's shell.qml is `Variants { model:
+-- Quickshell.screens }` -- it builds a Bar for a monitor appearing all by
+-- itself. Worse, this event ALSO fires for the monitors already connected when
+-- Hyprland starts, ~70ms before "hyprland.start" runs autostart.lua, so the
+-- restart raced the bar autostart has not launched yet: killall found nothing,
+-- setsid started one, and autostart then started a second. Two identical bars
+-- on every login. It was invisible until the dropped-dispatcher bug below it
+-- was fixed, which is what finally made the line run.
 hl.on("monitor.removed", monitor_utils.handle_remove_monitor)

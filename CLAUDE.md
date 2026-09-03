@@ -164,11 +164,21 @@ Four things in the Lua:
   so presence in it *is* the state. This used to be a Lua boolean, which went stale the
   moment anything changed a monitor by another route — a reload, a hotplug, `hyprctl` by
   hand.
-- `handle_new_monitor` restarts the bar on hotplug. It was building a dispatcher and
-  dropping it on the floor — `hl.dsp.exec_cmd` only *describes* a command, `hl.dispatch` is
-  what runs it — so hotplug had silently not restarted the bar at all. It also joined the
-  kill and the restart with `&&`, which skipped the restart whenever `killall` found
-  nothing to kill.
+- **There is no `monitor.added` handler, and adding one back is a trap.** It used to
+  restart the bar (`killall quickshell; setsid quickshell &`) so the new screen got one.
+  That is unnecessary — `shell.qml` is `Variants { model: Quickshell.screens }`, which
+  builds a `Bar` for a monitor appearing on its own — and it was actively harmful,
+  because **`monitor.added` also fires for the monitors already connected when Hyprland
+  starts**, about 70 ms *before* `hyprland.start` runs `autostart.lua`. So on every login
+  the handler's `killall` found nothing to kill, its `setsid` started a bar, and
+  `autostart.lua` then started a second one: **two identical bars, one of them orphaned to
+  `systemd --user`** (which is how you tell them apart in `ps` — the `setsid` one has
+  ppid 1-ish, the autostart one is a child of `/bin/sh -c "quickshell & awww-daemon &
+  hypridle"`). It was invisible for as long as the line was broken: `hl.dsp.exec_cmd` only
+  *describes* a command and `hl.dispatch` is what runs it, so the original dropped its
+  dispatcher on the floor and did nothing at all. Fixing that bug in `f7fd196` is what
+  made the duplicate bar appear, which is the lesson — a dead line is not a correct line,
+  and repairing one can be a behaviour change.
 
 ### `hyprctl dispatch` takes a Lua expression, and `hyprctl keyword` does not work at all
 
@@ -204,8 +214,8 @@ old script paths are recoverable from commit `45cf455` if a codepoint or format 
 is ever needed.
 
 `config.bar` in `hypr/modules/config.lua` still selects which bar launches, read by
-`autostart.lua` and the monitor-hotplug restart in `utils/monitor_utils.lua` (both now
-fall back to `"quickshell"`). Keeping it means swapping
+`autostart.lua` (which falls back to `"quickshell"`) — and by nothing else, now that the
+monitor-hotplug restart in `utils/monitor_utils.lua` is gone. Keeping it means swapping
 bars later is still a one-liner. It was never preserved across a deploy: with waybar gone
 there is only one value it can hold, so preserving it only made the old `machine` prompt
 claim to ask about a choice that no longer existed.
