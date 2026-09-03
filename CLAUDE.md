@@ -147,6 +147,25 @@ never fatal, and only on a machine that has a lid — if any of the three has be
 otherwise, because both failure modes are silent: a lid that suspends a docked laptop
 mid-work, or one that does nothing and cooks the machine in a bag.
 
+**A lid close within 30 s of a resume does nothing, and that is not a bug.**
+`HoldoffTimeoutSec` (logind.conf, default 30 s — confirmed live as
+`HoldoffTimeoutUSec=30000000`) makes logind ignore lid events for 30 s after startup or
+resume, so the kernel has time to probe hotplugged devices: without it a laptop woken in
+a dock would suspend itself again before it noticed the external monitor. This was
+reported as "the lid doesn't sleep any more" and is the easiest false alarm to raise,
+because the natural way to test the lid is to close it *right after* testing
+`SUPER+SHIFT+L` — which is the one window where it is guaranteed not to fire. Both
+closes in that report landed 9.5 s and 20 s after `Operation 'suspend' finished`.
+
+**`journalctl -b | grep -i "Lid closed"` is what tells the two apart.** logind logs
+`Lid closed.` when it *sees* the switch, whether or not it acts, so the line being
+present with no suspend after it means logind declined — holdoff, or a display it counts
+as a dock — while the line being absent means the event never reached logind at all
+(a udev `power-switch` tag problem, a different class of fault entirely). Check the four
+properties with
+`busctl get-property org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager HandleLidSwitch HandleLidSwitchDocked HandleLidSwitchExternalPower HoldoffTimeoutUSec`
+before touching anything — on this machine they are all default and all correct.
+
 Four things in the Lua:
 
 - **`panel_off()` refuses while the panel is the only enabled monitor.** That is the whole
