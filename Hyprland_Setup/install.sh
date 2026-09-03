@@ -656,7 +656,7 @@ reload_session() {
     echo "    quickshell restarted (bar + SUPER+SPACE / V / W overlays)"
 
     # hypridle reads hypridle.conf once, at startup, exactly as the bar reads its
-    # QML once -- so a changed idle timeout, lock command or dpms line would sit
+    # QML once -- so a changed idle timeout or lock command would sit
     # there doing nothing until the next logout, which reads as the deploy having
     # skipped the file. autostart.lua starts it at login; restart it here for the
     # same reason quickshell is restarted, and unconditionally so exactly one is
@@ -666,7 +666,7 @@ reload_session() {
         sleep 0.5
         setsid hypridle >/dev/null 2>&1 &
         disown
-        echo "    hypridle restarted (idle, lock and dpms rules)"
+        echo "    hypridle restarted (idle and lock rules)"
     fi
 
     check_notification_owner

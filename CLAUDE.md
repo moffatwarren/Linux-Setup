@@ -196,7 +196,15 @@ hyprctl dispatch 'hl.dsp.dpms({ state = "on" })'    → ok
 it needs a dispatcher *expression*. `PowerMenu.qml` already had this right
 (`hyprctl dispatch 'hl.dsp.exit()'`); **`hypridle.conf` did not**, and all three of its
 `hyprctl dispatch dpms on/off` lines had therefore never once run — the 360 s screen blank
-and the DPMS restore after a resume were both dead. Verified against 0.56.2 and fixed.
+and the DPMS restore after a resume were both dead. Verified against 0.56.2.
+
+The `dpms` line above is kept as the *syntax* example because it is the clearest one, but
+**do not take it as a suggestion to put DPMS back in `hypridle.conf`.** Repairing those
+three dead lines is what made the display unrecoverable after a suspend or an idle blank,
+on two machines; they have been removed rather than fixed. See **There is no DPMS in this
+file** under **Idle and lock (hypridle)** before touching this. It is the second time in
+this repo that reviving a dead line was itself the regression — `monitor.added` and its
+duplicate bar was the first.
 
 This is also why the panel logic is Lua and not a script in `hypr/scripts/` like the rest
 of this repo's work: a shell script *cannot* drive monitors here. `hl.monitor()` and
@@ -1118,27 +1126,50 @@ already needed.
 
 ## Idle and lock (hypridle)
 
-`hypr/hypridle.conf` is four rules and every path funnels through `lock_cmd`, whose
+`hypr/hypridle.conf` is two rules — a `lock_cmd`, a `before_sleep_cmd`, and a single
+300 s listener that locks. Every path funnels through `lock_cmd`, whose
 `pidof hyprlock ||` guard is what stops a second hyprlock stacking on the first.
 
 `before_sleep_cmd` **was `logindtl lock-session`** — `loginctl` misspelled, so it
 silently did nothing and a lid-close or `systemctl suspend` resumed straight to an
 unlocked desktop. The only thing that ever locked this machine was the manual
-`SUPER+SHIFT+L`, which runs hyprlock itself and so hid the bug.
+`SUPER+SHIFT+L`, which runs hyprlock itself and so hid the bug. That fix stands.
 
-Two things beyond the fix:
+### There is no DPMS in this file, and re-adding it is the trap
 
-- `after_sleep_cmd` turns DPMS back on. DPMS state does not reliably survive a
-  suspend/resume, so without it the screen can come back from a lid-close still blanked
-  — which reads as a machine that failed to wake. **All three of this file's dpms lines
-  were written as `hyprctl dispatch dpms on`, which under a Lua config is a syntax error
-  and had therefore never run** — so neither the blank nor the restore below has ever
-  worked. They are `hyprctl dispatch 'hl.dsp.dpms({ state = "on" })'` now; see
-  **`hyprctl dispatch` takes a Lua expression** above.
-- A second listener blanks the panel at 360 s, a minute after the 300 s lock. Separate
-  from the lock on purpose, so the screen is already showing hyprlock rather than the
-  desktop by the time it goes dark, and so the backlight is not left burning all night
-  behind a lock screen.
+This file used to carry three `hyprctl dispatch dpms on/off` lines — an
+`after_sleep_cmd` restore and a 360 s blank with its `on-resume`. Under a Lua config
+`hyprctl dispatch dpms on` compiles as `hl.dispatch(dpms on)` and is a syntax error, so
+**all three were dead for this config's entire history** and hypridle had never once
+driven DPMS. Commit `4fa4ae2` rewrote them into the correct Lua-expression form. They
+went live, and both paths that then started running left a machine with a black screen
+and no way back short of a hard reset:
+
+- **`after_sleep_cmd`** — resume from `SUPER+SHIFT+L` or a lid close came back with the
+  display dead. **On the laptop and on the desktop**, which is what rules out
+  `monitor_utils.lua`: `internal_panel()` finds no eDP/LVDS/DSI connector on a desktop,
+  so every entry point there returns early and the file is inert. `hypridle.conf` is the
+  only thing the two machines share that changed.
+- **the 360 s blank** — the screen went dark on idle exactly as designed, then would not
+  come back for any input. Reproduced accidentally, mid-session, and it cost a hard reset.
+
+The expression itself is *not* the problem — `hl.dsp.dpms({ state = "on" })` returns a
+real `HL.Dispatcher` (verified by `pcall` under `hyprctl eval` on 0.56.2). The mechanism
+was never pinned down, and pinning it down is not worth what the experiment costs: the
+failure mode is an unrecoverable display, so every attempt to observe it is an outage.
+What is certain is the blast radius, and that a backlight saving does not buy it.
+
+**So the lines are gone rather than restored to their broken form** — a dead line that
+looks live is exactly what produced this (see the `monitor.added` duplicate-bar story,
+which is the same lesson: *repairing* a dead line is a behaviour change, and the change
+can be the bug). The comment block in `hypridle.conf` says so at the point of temptation.
+
+If DPMS is ever wanted back, it has to be proven recoverable **first**, and only ever
+tested behind a detached timer that re-enables it unconditionally a few seconds later —
+otherwise the test is the outage. The cost of doing without it is that the panel stays
+powered behind hyprlock all night. That is the cheaper of the two failures.
+
+
 
 
 ## btop (Catppuccin Mocha)
@@ -1370,7 +1401,7 @@ JetBrainsMono the rest of the session uses.)
   kills and re-`setsid`s quickshell — unconditionally, so exactly one bar is left however
   the reload treated `exec-once` — and then does the same to **hypridle**, which
   reads `hypridle.conf` once at startup for the same reason the bar reads its QML once.
-  Without that a changed timeout, lock command or dpms line sits there until the next
+  Without that a changed timeout or lock command sits there until the next
   logout, which reads as the deploy having skipped the file. Every call is `|| true`: a
   cosmetic reload must not abort a finished deploy under `set -e`. It is the **last**
   step in `main()`, so the bar
