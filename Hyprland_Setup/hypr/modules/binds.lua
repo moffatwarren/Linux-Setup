@@ -32,7 +32,11 @@ hl.bind(config.mainMod .. " + SHIFT + N", hl.dsp.exec_cmd("qs ipc call notificat
 hl.bind(config.mainMod .. " + T", hl.dsp.exec_cmd(config.terminal .. " --class btop-float -e btop"), { bypass = true })
 hl.bind(config.mainMod .. " + G", hl.dsp.exec_cmd(config.browser .. ' --app="https://gemini.google.com/app"'),
 	{ bypass = true })
-hl.bind(config.mainMod .. " + SHIFT + Z", monitor_utils.toggle_monitor_on_off, { locked = true })
+-- Turns the laptop's built-in screen off/on. Which monitor that is comes from
+-- the DRM connector name (monitor-toggle.sh); there is nothing to configure.
+-- Does nothing on a desktop, or on a laptop with no external screen attached.
+hl.bind(config.mainMod .. " + SHIFT + Z", hl.dsp.exec_cmd("~/.config/hypr/scripts/monitor-toggle.sh"),
+	{ bypass = true, locked = true })
 
 -- Move window focus using arrow keys
 hl.bind(config.mainMod .. " + left", hl.dsp.focus({ direction = "left" }))
@@ -88,8 +92,13 @@ hl.bind("XF86AudioPause", hl.dsp.exec_cmd("playerctl play-pause"), { bypass = tr
 hl.bind("XF86AudioPlay", hl.dsp.exec_cmd("playerctl play-pause"), { bypass = true, locked = true })
 hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { bypass = true, locked = true })
 
-hl.bind("switch:on:Lid Switch", monitor_utils.turn_off_monitor, { locked = true })
-hl.bind("switch:off:Lid Switch", monitor_utils.turn_on_monitor, { locked = true })
+-- Closing the lid blanks the built-in panel, opening it brings it back. Same
+-- script, same rule: with no external screen attached, closing the lid does
+-- nothing here and logind's own lid handling (suspend) takes it instead.
+hl.bind("switch:on:Lid Switch", hl.dsp.exec_cmd("~/.config/hypr/scripts/monitor-toggle.sh --off"),
+	{ locked = true })
+hl.bind("switch:off:Lid Switch", hl.dsp.exec_cmd("~/.config/hypr/scripts/monitor-toggle.sh --on"),
+	{ locked = true })
 
 hl.on("monitor.added", monitor_utils.handle_new_monitor)
 hl.on("monitor.removed", monitor_utils.handle_remove_monitor)

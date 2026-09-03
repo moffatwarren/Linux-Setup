@@ -88,7 +88,7 @@ PACMAN_PKGS=(
     curl
     # Needed by install.sh itself rather than by anything it deploys: sddm owns
     # /usr/share/sddm/themes (deploy_configs copies voidsddm into it) and avahi
-    # owns the avahi-daemon unit first_install_extras enables. Both happen to be
+    # owns the avahi-daemon unit apply_system_tweaks enables. Both happen to be
     # present on a stock CachyOS install; neither is guaranteed on plain Arch,
     # and under `set -e` a missing one aborts the run part-way through.
     sddm avahi
@@ -101,54 +101,34 @@ PARU_PKGS=(
 )
 
 # ---------------------------------------------------------------------------
-# Machine-specific values preserved across an update.
-#   <path under ~/.config> | <regex> | <prompt group> | <handler>
-# Handler: "line" = whole line matching <regex> is captured and restored.
-# Fields split on "|", so a regex must not contain a literal "|".
+# There is no machine-specific value table any more, and no prompt to go with it.
 #
-# NOTE: "line" restores EVERY matching line, so anchor a pattern that could match
-# more than one. The audio-output-toggle.sh sink names that used to be the worked
-# example of this are gone -- see the group note below.
+# This used to be the subtle part of the script: PRESERVE named lines in deployed
+# configs that were true only of this hardware, and every deploy captured them
+# before the copy and wrote them back after, one y/N prompt per group. Three
+# things lived there, and each was removed by making the value answerable rather
+# than by defending it:
+#
+#   audio sinks -- which output SUPER+O steps to, and the glyph each one draws,
+#                  are chosen in the bar's audio menu and persisted to
+#                  ~/.cache/quickshell-audio.json (quickshell/AudioService.qml).
+#                  User state under ~/.cache, which a deploy never touches.
+#   mainMonitor -- the laptop's built-in panel is now identified by its DRM
+#                  connector name (hypr/scripts/monitor-toggle.sh). Nothing to
+#                  set: the kernel only ever calls a built-in panel eDP/LVDS/DSI.
+#                  The committed value was stale on the machine it came from,
+#                  which is the argument against hand-set hardware names in one
+#                  line.
+#   hyprlock bg -- still a real per-machine value, but the only one, so it is a
+#                  named pair of functions (save/restore_lock_wallpaper) rather
+#                  than a table, a handler dispatch and a Python helper. That
+#                  helper, install_lib/replace_line.py, went with the table.
+#
+# Anything hardware-specific added from here should follow the same order: make
+# it discoverable at runtime, then store what the user chose outside ~/.config,
+# and only then consider preserving a committed line.
 # ---------------------------------------------------------------------------
-PRESERVE=(
-    "hypr/hyprlock.conf|^\s*path\s*=|wallpaper|line"
-    "hypr/modules/config.lua|^\s*config\.mainMonitor\s*=|machine|line"
-)
 
-declare -A GROUP_PROMPT=(
-    [machine]="Overwrite monitor selection?"
-)
-
-# Groups kept without asking: on anything but a first install the live value
-# always wins, and no group listed here needs a GROUP_PROMPT entry. Only the
-# hyprlock background is in this position -- it is a personal choice, not a fix
-# to ship.
-NO_PROMPT_GROUPS=(wallpaper)
-
-# There used to be an `audio` group here, holding BUILT_IN_SINK / HEADPHONE_SINK
-# / SPEAKER_SINK / BLUETOOTH_SINK in hypr/scripts/audio-output-toggle.sh. Both
-# things those values decided now live in the bar's audio menu and are persisted
-# to ~/.cache/quickshell-audio.json (see quickshell/AudioService.qml): which
-# outputs SUPER+O steps through, and which glyph each one draws. That file is
-# user state under ~/.cache, not a config this repo deploys, so nothing overwrites
-# it and there is nothing left to preserve. Do not re-add the group without
-# re-adding the values -- capture_preserved silently skips a group whose files do
-# not exist, so a stale entry here is invisible rather than an error.
-
-# Files that moved between releases, as "<old path>|<new path>" under ~/.config.
-# On a machine still running the previous layout the new path does not exist
-# yet, so its machine-specific values would never be captured and would be
-# silently replaced by whatever this repo has committed. Seeding the new path
-# from the old one before the capture step keeps them.
-#
-# Empty since the audio sink values retired: the one entry
-# (waybar/scripts/audio-output-toggle.sh -> hypr/scripts/audio-output-toggle.sh)
-# existed only to carry them across the waybar-era move, and nothing in that file
-# is preserved any more. Kept as the place the next move goes.
-LEGACY_MOVES=()
-
-declare -A GROUP_MODE=()   # group -> "preserve" when the live value is kept
-declare -A PRESERVED=()    # "<rel>|<regex>" -> captured value
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -160,74 +140,12 @@ usage() {
 Usage: install.sh [OPTION]
 
   (no option)   Install packages and deploy this repo's configs to the live
-                system. Handles both first-time install and routine updates.
+                system. Handles both first-time install and routine updates;
+                the only question it asks is whether to copy in the wallpapers.
   --pull        Copy the LIVE configs back into this repo so changes made on
                 the machine can be reviewed and committed. Does not commit.
   --help        Show this message.
 EOF
-}
-
-preserve_groups() { printf '%s\n' "${PRESERVE[@]}" | cut -d'|' -f3 | awk '!seen[$0]++'; }
-preserve_files()  { printf '%s\n' "${PRESERVE[@]}" | cut -d'|' -f1 | awk '!seen[$0]++'; }
-
-group_has_live_file() {
-    local group="$1" entry rel regex g handler
-    for entry in "${PRESERVE[@]}"; do
-        IFS='|' read -r rel regex g handler <<<"$entry"
-        if [ "$g" = "$group" ] && [ -f "$HOME/.config/$rel" ]; then
-            return 0
-        fi
-    done
-    return 1
-}
-
-group_is_no_prompt() {
-    local group="$1" g
-    for g in "${NO_PROMPT_GROUPS[@]}"; do
-        if [ "$g" = "$group" ]; then
-            return 0
-        fi
-    done
-    return 1
-}
-
-# Ask, per group, whether to overwrite the machine-specific values it covers.
-prompt_preserve_groups() {
-    local group reply groups=()
-    # Read the list into an array first: a `while read < <(...)` loop would
-    # redirect stdin, and the `read -p` below would consume the group list
-    # instead of the user's answer.
-    mapfile -t groups < <(preserve_groups)
-    for group in "${groups[@]}"; do
-        if ! group_has_live_file "$group"; then
-            continue
-        fi
-        if group_is_no_prompt "$group"; then
-            GROUP_MODE[$group]=preserve
-            continue
-        fi
-        read -p "${GROUP_PROMPT[$group]} (y/N): " reply
-        if [[ ! "$reply" =~ ^[Yy]$ ]]; then
-            GROUP_MODE[$group]=preserve
-        fi
-    done
-}
-
-# Carry values over from a path that moved, so the capture below can find them.
-migrate_legacy_paths() {
-    local entry old new
-    # The array is empty today, and "${arr[@]}" on an empty array is an unbound
-    # variable under `set -u` before bash 4.4. Cheap, and says the empty case is
-    # expected rather than an oversight.
-    [ "${#LEGACY_MOVES[@]}" -gt 0 ] || return 0
-    for entry in "${LEGACY_MOVES[@]}"; do
-        IFS='|' read -r old new <<<"$entry"
-        if [ -f "$HOME/.config/$old" ] && [ ! -f "$HOME/.config/$new" ]; then
-            mkdir -p "$(dirname "$HOME/.config/$new")"
-            \cp -f "$HOME/.config/$old" "$HOME/.config/$new"
-            echo "    carried over $old -> $new"
-        fi
-    done
 }
 
 # One-shot: carry this machine's audio roles into the bar's audio menu.
@@ -316,46 +234,30 @@ migrate_audio_icons() {
     fi
 }
 
-# Capture live values BEFORE the configs get overwritten.
-capture_preserved() {
-    local entry rel regex group handler live
-    for entry in "${PRESERVE[@]}"; do
-        IFS='|' read -r rel regex group handler <<<"$entry"
-        if [ "${GROUP_MODE[$group]:-overwrite}" != preserve ]; then
-            continue
-        fi
-        live="$HOME/.config/$rel"
-        if [ ! -f "$live" ]; then
-            continue
-        fi
-        PRESERVED["$rel|$regex"]="$(grep -E "$regex" "$live" || true)"
-    done
+# The lock screen background is the one value still true only of this machine:
+# SUPER+W writes the chosen wallpaper into hyprlock.conf (wallpaper-set.sh), and
+# deploy_configs is about to copy the committed one over it. Captured before and
+# written back after -- the whole of what PRESERVE used to do generically.
+LOCK_WALLPAPER=""
+
+save_lock_wallpaper() {
+    local conf="$HOME/.config/hypr/hyprlock.conf"
+    [ -f "$conf" ] || return 0
+    LOCK_WALLPAPER="$(sed -n 's/^[[:space:]]*path[[:space:]]*=[[:space:]]*//p' "$conf" | head -1)"
 }
 
-# Write captured values back AFTER the configs have been overwritten.
-restore_preserved() {
-    local rel entry r regex group handler key args files=()
-    mapfile -t files < <(preserve_files)
-    for rel in "${files[@]}"; do
-        if [ ! -f "$HOME/.config/$rel" ]; then
-            continue
-        fi
-        args=()
-        for entry in "${PRESERVE[@]}"; do
-            IFS='|' read -r r regex group handler <<<"$entry"
-            if [ "$r" != "$rel" ]; then
-                continue
-            fi
-            key="$r|$regex"
-            if [ -z "${PRESERVED[$key]:-}" ]; then
-                continue
-            fi
-            args+=("$regex" "${PRESERVED[$key]}")
-        done
-        if [ "${#args[@]}" -gt 0 ]; then
-            python3 "$SCRIPT_DIR/install_lib/replace_line.py" "$HOME/.config/$rel" "${args[@]}"
-        fi
-    done
+restore_lock_wallpaper() {
+    local conf="$HOME/.config/hypr/hyprlock.conf"
+    [ -n "$LOCK_WALLPAPER" ] || return 0
+    [ -f "$conf" ] || return 0
+    # Only if it still resolves. A path from a machine that has since had the
+    # file deleted would leave a lock screen with no background at all, and
+    # normalize_hyprlock_wallpaper (which runs later) can do better than that.
+    [ -f "$LOCK_WALLPAPER" ] || return 0
+    # `&` is the one character sed expands in a replacement, as in
+    # wallpaper-set.sh, which writes this same line.
+    sed -i "s|^\\([[:space:]]*\\)path = .*|\\1path = ${LOCK_WALLPAPER//&/\\&}|" "$conf"
+    echo "    kept the live hyprlock background: $LOCK_WALLPAPER"
 }
 
 # ---------------------------------------------------------------------------
@@ -572,44 +474,32 @@ apply_gtk_theme() {
     fi
 }
 
-# Steps from the top-level *.txt notes that can actually be automated.
-# Each is optional and idempotent; the interactive tail of each is printed.
-first_install_extras() {
-    info "First-install setup"
+# System settings that are not a file under ~/.config, so deploy_configs cannot
+# do them. All three are idempotent, so they run on every deploy rather than
+# behind a "first install?" prompt -- the prompt only ever existed because these
+# sat beside the optional installers, and answering it wrong on a real first
+# install left a machine subtly unfinished with nothing to say so.
+#
+# The optional halves are gone with it: Tailscale and PIA are no longer installed
+# from here. Both are one pacman/paru line, both need an interactive login this
+# script could never do anyway, and both bar modules already hide themselves when
+# the tool is absent (see PiaPill/TailscalePill). tailscale_commands.txt and
+# pia_install.txt at the repo root are the notes. Global git identity is gone for
+# the same reason -- it is a `git config --global` line, not a desktop setting.
+apply_system_tweaks() {
+    info "Applying system settings"
+
+    # localsend and the file manager's network browsing want mDNS.
     sudo systemctl enable --now avahi-daemon
+    echo "    avahi-daemon enabled"
+
+    # What xdg-open hands a terminal request to. `-f` so a re-run is a no-op.
     sudo ln -sf /usr/bin/kitty /usr/bin/xdg-terminal-exec
+    echo "    xdg-terminal-exec -> kitty"
+
+    # gnome-text-editor keeps this in gsettings, not in a config file.
     gsettings set org.gnome.TextEditor draw-spaces "['space', 'tab', 'trailing']"
-
-    local reply name email
-    if ! git config --global user.name >/dev/null 2>&1; then
-        read -p "  Set global git identity now? (y/N): " reply
-        if [[ "$reply" =~ ^[Yy]$ ]]; then
-            read -p "    git user.name:  " name
-            read -p "    git user.email: " email
-            if [ -n "$name" ];  then git config --global user.name  "$name";  fi
-            if [ -n "$email" ]; then git config --global user.email "$email"; fi
-            git config --global credential.helper store
-        fi
-    fi
-
-    # tailscale_commands.txt -- installed from the Arch repo rather than the
-    # upstream `curl | sh`, which is meant for distros without a package.
-    read -p "  Install and enable Tailscale? (y/N): " reply
-    if [[ "$reply" =~ ^[Yy]$ ]]; then
-        sudo pacman -S --noconfirm --needed tailscale
-        sudo systemctl enable --now tailscaled
-        # --operator=$USER is what lets hypr/scripts/tailscale.sh run without sudo
-        echo "    Authenticate with:"
-        echo "      sudo tailscale up --accept-routes --exit-node-allow-lan-access --operator=$USER"
-    fi
-
-    # pia_install.txt
-    read -p "  Install PIA VPN? (y/N): " reply
-    if [[ "$reply" =~ ^[Yy]$ ]]; then
-        paru -S --noconfirm --skipreview --needed piavpn-bin
-        sudo systemctl enable --now piavpn.service
-        echo "    Open the PIA app and log in to finish setup."
-    fi
+    echo "    gnome-text-editor: show whitespace"
 }
 
 get_wallpapers() {
@@ -634,9 +524,9 @@ get_wallpapers() {
 # this machine's $HOME, and fall back to any wallpaper if that name is gone.
 #
 # Only the seed matters here: wallpaper-set.sh owns this line from then on, and
-# PRESERVE (group `wallpaper`, in NO_PROMPT_GROUPS) keeps it across later runs.
-# Deliberately does not go through wallpaper-set.sh, which needs the awww daemon
-# up -- during an install it is not.
+# save/restore_lock_wallpaper keeps it across later deploys. Deliberately does
+# not go through wallpaper-set.sh, which needs the awww daemon up -- during an
+# install it is not.
 normalize_hyprlock_wallpaper() {
     local conf="$HOME/.config/hypr/hyprlock.conf" current candidate
     if [ ! -f "$conf" ]; then
@@ -758,8 +648,7 @@ pull_configs() {
     cat <<EOF
 
 Pulled. Note this ADDS and OVERWRITES files but never deletes, and it brings
-machine-specific values (mainMonitor, hyprlock wallpaper) into the repo. Review
-before committing:
+this machine's hyprlock background into the repo. Review before committing:
 
     git -C $REPO_ROOT status
     git -C $REPO_ROOT diff
@@ -779,17 +668,12 @@ main() {
 
     install_packages
 
-    local resp_install
-    read -p "Is this the first install (y/N): " resp_install
-    if [[ "$resp_install" =~ ^[Yy]$ ]]; then
-        first_install_extras
-    else
-        migrate_legacy_paths
-        # Before deploy_configs, which overwrites the script it reads from.
-        migrate_audio_icons
-        prompt_preserve_groups
-        capture_preserved
-    fi
+    # Both read from files deploy_configs is about to overwrite, so both run
+    # first. Each is a no-op on a machine that has nothing to carry over, which
+    # is why neither is behind a "first install?" question -- there is no longer
+    # anything this script has to be told about the machine it is running on.
+    migrate_audio_icons
+    save_lock_wallpaper
 
     deploy_configs
     remove_orphans
@@ -797,13 +681,10 @@ main() {
     # reload_session, which restarts the bar and expects to be able to claim
     # org.freedesktop.Notifications.
     retire_swaync
-
-    if [[ ! "$resp_install" =~ ^[Yy]$ ]]; then
-        info "Restoring machine-specific values"
-        restore_preserved
-    fi
+    restore_lock_wallpaper
 
     fix_permissions
+    apply_system_tweaks
     apply_gtk_theme
     get_wallpapers
     # After get_wallpapers, so a first install has the images to point at.
