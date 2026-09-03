@@ -8,7 +8,9 @@ import QtQuick.Layouts
 // network without leaving the bar.
 //
 // Signal strength is drawn as four bars rather than a nerd font glyph -- the
-// private-use codepoints are easy to get wrong, and this scales cleanly.
+// private-use codepoints are easy to get wrong, and this scales cleanly -- plus
+// the percentage beside the name, for picking between two networks that both
+// light three bars.
 PopupWindow {
     id: root
 
@@ -48,7 +50,9 @@ PopupWindow {
     anchor.gravity: Edges.Bottom
     anchor.margins.top: 6
 
-    implicitWidth: 300
+    // 300 before the per-row percentage column; widened so an SSID still has
+    // room beside it rather than eliding a character earlier on every row.
+    implicitWidth: 340
     implicitHeight: body.implicitHeight + 20
     color: "transparent"
     visible: open
@@ -204,6 +208,22 @@ PopupWindow {
                             color: modelData.connected ? Theme.green : Theme.text
                             font.family: Theme.fontFamily
                             font.pixelSize: Theme.fontSize
+                        }
+
+                        // The same number NetworkPill's hover panel shows, on
+                        // the same thresholds, so the two cannot disagree.
+                        // signalStrength is 0..1, not 0-100. Right-aligned in a
+                        // fixed column so the lock and "saved" markers sit at
+                        // the same x on every row.
+                        Text {
+                            Layout.preferredWidth: 30
+                            horizontalAlignment: Text.AlignRight
+                            text: Math.round(modelData.signalStrength * 100) + "%"
+                            color: modelData.signalStrength >= 0.67 ? Theme.green
+                                 : modelData.signalStrength >= 0.34 ? Theme.yellow
+                                 : Theme.red
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSize - 2
                         }
 
                         // Lock for anything that is not an open network
