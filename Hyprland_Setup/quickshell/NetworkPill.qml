@@ -3,8 +3,11 @@ import Quickshell.Io
 import Quickshell.Networking
 import QtQuick
 
-// waybar: "network" -- wifi shows "{essid} ({signalStrength}%) ", ethernet
-// shows "{ipaddr}/{cidr}", disconnected shows "Disconnected ⚠".
+// One glyph, no text: which way the machine is on the network, and nothing
+// else. The SSID, signal, IP and rates it used to spell out (waybar drew the
+// essid and its strength on wifi, the address on ethernet) all live in the
+// hover panel, which is where you look when you want a number -- the bar
+// itself only has to answer "am I on, and over what".
 //
 // Quickshell's NetworkDevice.address is the MAC, not the IP, and no IP is
 // exposed anywhere on the device or its network object -- so the address is
@@ -20,6 +23,21 @@ Pill {
         // Prefer a wired link when both are up, matching typical desktop use.
         const wired = up.filter(d => d.type === DeviceType.Wired);
         return wired.length > 0 ? wired[0] : up[0];
+    }
+
+    // Whether this machine has wifi hardware at all, connected or not -- it is
+    // what separates a disconnected laptop from a disconnected desktop, and so
+    // which "nothing is up" glyph to draw. The device is listed while it is
+    // down (verified: wlan0 is in Networking.devices while disconnected), so
+    // there is nothing to ask NetworkManager separately.
+    readonly property bool wifiCapable: devices.some(d => d.type === DeviceType.Wifi)
+
+    // 0..1, not 0-100 -- the same scale WifiMenu's signal meter reads, and -1
+    // for "not on wifi". Verified against a live scan: 0.92, 0.45, not 92/45.
+    readonly property real wifiSignal: {
+        if (!active || active.type !== DeviceType.Wifi) return -1;
+        const net = active.network;
+        return net && net.signalStrength !== undefined ? net.signalStrength : -1;
     }
 
     property string ipAddress: ""
@@ -73,6 +91,10 @@ Pill {
 
     onActiveChanged: {
         refreshIp();
+        // Not merely stale but unknown: the old link's address is not this
+        // link's, and a wrong address is worse than a missing row.
+        publicIp = "";
+        publicIpStale = true;
         lastRx = -1;
         lastTx = -1;
         rxRate = 0;
@@ -87,6 +109,40 @@ Pill {
         }
     }
 
+    // --- public IP ----------------------------------------------------------
+    // Unlike the interface address this one has to be asked of somebody else's
+    // server, so it is fetched on hover rather than polled -- the panel is its
+    // only consumer, and an idle bar should ask nobody anything. public-ip.sh
+    // caches for ten minutes, so a run of hovers costs one `cat` apiece.
+    property string publicIp: ""
+    // A link change makes the cached address the one answer that is certainly
+    // wrong, so the next fetch has to go past the cache. It starts set because
+    // a cache surviving from a previous session is in exactly that position.
+    property bool publicIpStale: true
+
+    function refreshPublicIp() {
+        if (pubIpProc.running) return;
+        pubIpProc.command = ["bash", "-lc",
+            "~/.config/hypr/scripts/public-ip.sh" + (publicIpStale ? " --force" : "")];
+        pubIpProc.running = true;
+    }
+
+    Process {
+        id: pubIpProc
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const v = text.trim();
+                // The script prints nothing rather than guessing, so an empty
+                // answer means "ask again later", not "you have no address".
+                if (v.length === 0) return;
+                root.publicIp = v;
+                root.publicIpStale = false;
+            }
+        }
+    }
+
+    onHoveredChanged: if (hovered) refreshPublicIp()
+
     Timer {
         interval: 30000
         running: true
@@ -94,15 +150,19 @@ Pill {
         onTriggered: if (!ipProc.running) root.refreshIp()
     }
 
+    // Material Design Icons from the nerd font, as surrogate pairs (see
+    // CLAUDE.md) -- the family AudioPill draws from, and the one with a
+    // slashed counterpart for each of these states. The shape says which
+    // medium, the slash says whether it is up, and `labelColor` still turns
+    // the whole thing red when nothing is connected, as it did the old text.
     label: {
-        if (!active) return "Disconnected ⚠";
-        if (active.type === DeviceType.Wifi) {
-            const net = active.network;
-            const ssid = net ? String(net.name) : "Wi-Fi";
-            const sig = net && net.signalStrength !== undefined ? " (" + net.signalStrength + "%)" : "";
-            return ssid + sig + " \uf1eb";
-        }
-        return ipAddress.length > 0 ? ipAddress : (String(active.name) + " (No IP) \uf796");
+        if (active)
+            return active.type === DeviceType.Wifi
+                ? "\udb81\udda9"      // wifi
+                : "\udb80\ude00";     // ethernet
+        return wifiCapable
+            ? "\udb81\uddaa"          // wifi-off
+            : "\udb80\ude02";         // ethernet-cable-off
     }
     labelColor: active ? Theme.text : Theme.red
 
@@ -125,11 +185,25 @@ Pill {
         emptyText: root.active ? "" : "No active connection"
         rows: {
             if (!root.active) return [];
-            const out = [
-                { text: "\u2193 Download", detail: root.humanRate(root.rxRate), accent: Theme.green },
-                { text: "\u2191 Upload",   detail: root.humanRate(root.txRate), accent: Theme.sapphire }
-            ];
+            const out = [];
+            // Wifi leads with what the bar no longer says: which network, and
+            // how well. The strength takes an accent rather than a bare number
+            // because the bar's idiom is that the colour is the readout.
+            if (root.active.type === DeviceType.Wifi) {
+                const net = root.active.network;
+                out.push({ text: "Network", detail: net ? String(net.name) : "Wi-Fi" });
+                if (root.wifiSignal >= 0)
+                    out.push({
+                        text: "Signal",
+                        detail: Math.round(root.wifiSignal * 100) + "%",
+                        accent: root.wifiSignal >= 0.67 ? Theme.green
+                              : root.wifiSignal >= 0.34 ? Theme.yellow : Theme.red
+                    });
+            }
+            out.push({ text: "\u2193 Download", detail: root.humanRate(root.rxRate), accent: Theme.green });
+            out.push({ text: "\u2191 Upload",   detail: root.humanRate(root.txRate), accent: Theme.sapphire });
             if (root.ipAddress.length > 0) out.push({ text: "IP", detail: root.ipAddress });
+            if (root.publicIp.length > 0) out.push({ text: "Public IP", detail: root.publicIp });
             out.push({ text: "MAC", detail: String(root.active.address) });
             return out;
         }

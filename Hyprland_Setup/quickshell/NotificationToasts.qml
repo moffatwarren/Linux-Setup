@@ -148,6 +148,15 @@ PanelWindow {
                             if (icon.indexOf("muted") !== -1) return "\udb81\udf5f";        // volume-mute
                             if (icon.indexOf("headphone") !== -1 || icon.indexOf("headset") !== -1)
                                 return "\udb80\udecb";                                      // headphones
+                            // audio-<key>-symbolic, from audio-output-toggle.sh:
+                            // the key is the icon the bar's audio menu has for
+                            // that output (AudioService.iconChoices), passed
+                            // through so the OSD names the output the same way
+                            // the pill does.
+                            if (icon.indexOf("bluetooth") !== -1) return "\udb80\udcb1";
+                            if (icon.indexOf("speaker") !== -1) return "\udb81\udcc3";
+                            if (icon.indexOf("display") !== -1) return "\udb83\udf5f";
+                            if (icon.indexOf("tv") !== -1) return "\udb81\udd02";
                             if (icon.indexOf("volume-low") !== -1) return "\udb81\udd7f";
                             if (icon.indexOf("volume-medium") !== -1) return "\udb81\udd80";
                             return "\udb81\udd7e";                                          // volume-high

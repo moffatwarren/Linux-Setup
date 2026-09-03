@@ -28,9 +28,13 @@ run it interactively. Answering yes to "first install" adds the optional extras
 answering yes to the wallpaper prompt copies `wallpapers/` into `~/Pictures`.
 
 On anything that is not a first install, the machine-specific values already on
-the system — audio sink IDs, the main monitor, the hyprlock background — are
-captured before the copy and written back after it, so a deploy cannot break
-audio or display on a machine whose hardware differs from the committed values.
+the system — the main monitor and the hyprlock background — are captured before
+the copy and written back after it, so a deploy cannot break display on a machine
+whose hardware differs from the committed values. Audio used to be on that list;
+its settings live in the bar's audio menu now, under `~/.cache`, where a deploy
+never reaches them. Updating a machine that predates that carries its old
+headphone and bluetooth sinks across into the menu as icons, once, so nothing
+has to be set up again.
 
 ## Pulling live changes back
 
@@ -55,20 +59,35 @@ values into the repo — review with `git diff` before committing.
 | `SUPER+RETURN` / `SPACE` / `E` / `B` | terminal / launcher / files / browser |
 | `SUPER+W` / `SUPER+SHIFT+W` | wallpaper picker / random wallpaper |
 | `SUPER+V` | clipboard history |
+| `SUPER+K` | this keybind list, on screen |
 | `SUPER+N` / `SUPER+SHIFT+N` | notification centre / mute notifications |
 | `SUPER+S` / `SUPER+ALT+S` | screenshot / screenshot to text (OCR) |
-| `SUPER+SHIFT+S` | record a region — press again to stop |
+| `SUPER+CTRL+S` | record a region — press again to stop |
 | `SUPER+L` / `SUPER+SHIFT+L` | lock / lock and suspend |
+| `SUPER+O` | next audio output |
 
-`Hyprland_Setup/hypr/modules/binds.lua` is the full list.
+`Hyprland_Setup/hypr/modules/binds.lua` is the full list, and `SUPER+K` puts a
+readable copy of it on screen.
 
 The bar is also the notification daemon — there is no separate one. The bell
 module, right of the network one, shows whether notifications are muted and how
 many are unread; clicking it opens the list, and right-clicking it mutes.
 
-`SUPER+SHIFT+S` selects a region and starts recording it. A red pill with the
+Clicking the audio module opens the output and input picker; right-clicking it
+mutes. Each output has a switch beside it, and `SUPER+O` steps through the ones
+switched on — so a monitor's HDMI audio can be left out of the rotation without
+being hidden. Inputs take a radio button, since only one can be the default.
+
+Clicking an output's icon opens a small palette — volume, speakers, headphones,
+bluetooth, display, TV — and that becomes its icon in the bar and in the popup
+`SUPER+O` raises. Worth setting once: nothing can tell headphones from speakers
+by the sink name, so a wired headset otherwise just gets the generic volume icon.
+
+All of it is remembered, including for a device that is unplugged.
+
+`SUPER+CTRL+S` selects a region and starts recording it. A red pill with the
 elapsed time appears in the bar while it runs, and stops the recording when
-clicked — as does pressing `SUPER+SHIFT+S` again. Recordings land in
+clicked — as does pressing `SUPER+CTRL+S` again. Recordings land in
 `~/Videos/recordings`, and the path of a finished one is put on the clipboard.
 
 The launcher, the clipboard history and the wallpaper picker are one interface

@@ -4,7 +4,7 @@ import Quickshell
 import Quickshell.Io
 import QtQuick
 
-// State for the screen recorder bound to SUPER+SHIFT+S. hypr/scripts/
+// State for the screen recorder bound to SUPER+CTRL+S. hypr/scripts/
 // screen-record.sh is the whole backend; this only reads what it wrote.
 //
 // A FileView rather than a Process on a timer, for the reason NetworkPill

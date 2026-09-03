@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Region screen recording, bound to SUPER+SHIFT+S in hypr/modules/binds.lua.
+# Region screen recording, bound to SUPER+CTRL+S in hypr/modules/binds.lua.
 # One key starts and stops it: --toggle picks a region with slurp and starts
 # wf-recorder, or stops the recording already running.
 #

@@ -52,7 +52,7 @@ ORPHANS=(
 PACMAN_PKGS=(
     kitty hyprland quickshell hyprlock hypridle awww ttf-font-awesome
     ttf-jetbrains-mono-nerd swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look
-    # wf-recorder is the SUPER+SHIFT+S screen recorder (hypr/scripts/screen-record.sh);
+    # wf-recorder is the SUPER+CTRL+S screen recorder (hypr/scripts/screen-record.sh);
     # it reuses the slurp above for the region select.
     wf-recorder
     gvfs gvfs-smb samba nvim mpv imv brightnessctl playerctl blueman gnome-text-editor swayimg imagemagick
@@ -81,6 +81,11 @@ PACMAN_PKGS=(
     # script calling them directly should not rely on that.
     jq libpulse wireplumber pavucontrol power-profiles-daemon networkmanager
     qt6-imageformats libnotify wl-clipboard
+    # curl is what weather-forecast.sh, pia-region.sh and public-ip.sh all fetch
+    # with. It is a hard dependency of pacman itself, so it cannot actually be
+    # missing here -- listed anyway, because a script calling a binary directly
+    # should not rely on arriving as somebody else's dependency.
+    curl
     # Needed by install.sh itself rather than by anything it deploys: sddm owns
     # /usr/share/sddm/themes (deploy_configs copies voidsddm into it) and avahi
     # owns the avahi-daemon unit first_install_extras enables. Both happen to be
@@ -101,35 +106,46 @@ PARU_PKGS=(
 # Handler: "line" = whole line matching <regex> is captured and restored.
 # Fields split on "|", so a regex must not contain a literal "|".
 #
-# NOTE: "line" restores EVERY matching line. BUILT_IN_SINK is also assigned
-# indented inside the toggle logic, so it is anchored to column 0.
+# NOTE: "line" restores EVERY matching line, so anchor a pattern that could match
+# more than one. The audio-output-toggle.sh sink names that used to be the worked
+# example of this are gone -- see the group note below.
 # ---------------------------------------------------------------------------
 PRESERVE=(
     "hypr/hyprlock.conf|^\s*path\s*=|wallpaper|line"
-    "hypr/scripts/audio-output-toggle.sh|^BUILT_IN_SINK\s*=|audio|line"
-    "hypr/scripts/audio-output-toggle.sh|^\s*HEADPHONE_SINK\s*=|audio|line"
-    "hypr/scripts/audio-output-toggle.sh|^\s*SPEAKER_SINK\s*=|audio|line"
-    "hypr/scripts/audio-output-toggle.sh|^\s*BLUETOOTH_SINK\s*=|audio|line"
     "hypr/modules/config.lua|^\s*config\.mainMonitor\s*=|machine|line"
 )
 
 declare -A GROUP_PROMPT=(
-    [audio]="Overwrite audio sink values?"
     [machine]="Overwrite monitor selection?"
 )
 
 # Groups kept without asking: on anything but a first install the live value
-# always wins. The hyprlock wallpaper is a personal choice, not a fix to ship.
+# always wins, and no group listed here needs a GROUP_PROMPT entry. Only the
+# hyprlock background is in this position -- it is a personal choice, not a fix
+# to ship.
 NO_PROMPT_GROUPS=(wallpaper)
+
+# There used to be an `audio` group here, holding BUILT_IN_SINK / HEADPHONE_SINK
+# / SPEAKER_SINK / BLUETOOTH_SINK in hypr/scripts/audio-output-toggle.sh. Both
+# things those values decided now live in the bar's audio menu and are persisted
+# to ~/.cache/quickshell-audio.json (see quickshell/AudioService.qml): which
+# outputs SUPER+O steps through, and which glyph each one draws. That file is
+# user state under ~/.cache, not a config this repo deploys, so nothing overwrites
+# it and there is nothing left to preserve. Do not re-add the group without
+# re-adding the values -- capture_preserved silently skips a group whose files do
+# not exist, so a stale entry here is invisible rather than an error.
 
 # Files that moved between releases, as "<old path>|<new path>" under ~/.config.
 # On a machine still running the previous layout the new path does not exist
 # yet, so its machine-specific values would never be captured and would be
 # silently replaced by whatever this repo has committed. Seeding the new path
 # from the old one before the capture step keeps them.
-LEGACY_MOVES=(
-    "waybar/scripts/audio-output-toggle.sh|hypr/scripts/audio-output-toggle.sh"
-)
+#
+# Empty since the audio sink values retired: the one entry
+# (waybar/scripts/audio-output-toggle.sh -> hypr/scripts/audio-output-toggle.sh)
+# existed only to carry them across the waybar-era move, and nothing in that file
+# is preserved any more. Kept as the place the next move goes.
+LEGACY_MOVES=()
 
 declare -A GROUP_MODE=()   # group -> "preserve" when the live value is kept
 declare -A PRESERVED=()    # "<rel>|<regex>" -> captured value
@@ -200,6 +216,10 @@ prompt_preserve_groups() {
 # Carry values over from a path that moved, so the capture below can find them.
 migrate_legacy_paths() {
     local entry old new
+    # The array is empty today, and "${arr[@]}" on an empty array is an unbound
+    # variable under `set -u` before bash 4.4. Cheap, and says the empty case is
+    # expected rather than an oversight.
+    [ "${#LEGACY_MOVES[@]}" -gt 0 ] || return 0
     for entry in "${LEGACY_MOVES[@]}"; do
         IFS='|' read -r old new <<<"$entry"
         if [ -f "$HOME/.config/$old" ] && [ ! -f "$HOME/.config/$new" ]; then
@@ -208,6 +228,92 @@ migrate_legacy_paths() {
             echo "    carried over $old -> $new"
         fi
     done
+}
+
+# One-shot: carry this machine's audio roles into the bar's audio menu.
+#
+# hypr/scripts/audio-output-toggle.sh used to declare HEADPHONE_SINK and
+# BLUETOOTH_SINK, and the bar read them to decide which glyph an output got.
+# Both are now a per-sink choice in the menu, persisted to the cache file below.
+# The catch is that this repo no longer ships those declarations, so
+# deploy_configs is about to overwrite the ONLY record of which sink is which on
+# a machine upgrading from the old layout -- and unlike everything else that
+# happens on an update, nothing would say so. The answer is not recoverable
+# afterwards, and it is not guessable: a sink's role cannot be inferred from its
+# name, which is why those variables existed.
+#
+# So: read them out before the copy, and seed the icon of any sink that does not
+# already have one. Runs before deploy_configs for that reason.
+#
+# Self-limiting rather than flagged: after one update the deployed script has no
+# such declarations, so the grep finds nothing and this is a no-op for ever
+# after. It also never overwrites an icon already chosen in the menu.
+#
+# The cache file is normally written only by the bar (AudioService.qml), and on
+# an upgrading machine that is safe here: the bar still running is the OLD one,
+# which has no AudioService and never touches this file. reload_session restarts
+# it at the end of main(), so the new bar reads what this wrote.
+migrate_audio_icons() {
+    local legacy="" state="$HOME/.cache/quickshell-audio.json" tmp
+    local candidate headphone="" bluetooth=""
+
+    # hypr/ first, then the waybar-era path -- the same two LEGACY_MOVES named,
+    # so a machine that skipped a generation is still covered.
+    for candidate in "$HOME/.config/hypr/scripts/audio-output-toggle.sh" \
+                     "$HOME/.config/waybar/scripts/audio-output-toggle.sh"; do
+        if [ -f "$candidate" ] && grep -qE '^[[:space:]]*HEADPHONE_SINK[[:space:]]*=' "$candidate"; then
+            legacy="$candidate"
+            break
+        fi
+    done
+    # No old-style script: a new machine, or one already migrated.
+    [ -n "$legacy" ] || return 0
+
+    command -v jq >/dev/null 2>&1 || return 0
+
+    # sed rather than sourcing the file, which would run it.
+    headphone="$(sed -nE 's/^[[:space:]]*HEADPHONE_SINK[[:space:]]*=[[:space:]]*"?([^"]*)"?.*/\1/p' \
+                 "$legacy" | head -1)"
+    bluetooth="$(sed -nE 's/^[[:space:]]*BLUETOOTH_SINK[[:space:]]*=[[:space:]]*"?([^"]*)"?.*/\1/p' \
+                 "$legacy" | head -1)"
+
+    # BUILT_IN_SINK and SPEAKER_SINK are deliberately not carried over. Their
+    # icon would be `speaker`, which differs from the default `volume` only in
+    # looks, and BUILT_IN_SINK is the one most likely to still hold the value
+    # this repo shipped rather than anything true about this machine -- seeding
+    # it would add a phantom "unplugged" row for a sink that never existed here.
+    [ -n "$headphone" ] || [ -n "$bluetooth" ] || return 0
+
+    info "Carrying audio icons into the bar's audio menu"
+
+    # ~/.cache exists on any machine this can run on, but a failed redirect
+    # here would abort the whole deploy under `set -e`, before deploy_configs.
+    mkdir -p "$(dirname "$state")"
+    [ -f "$state" ] || printf '{ "outputs": [] }\n' > "$state"
+
+    tmp="$(mktemp)"
+    if jq --arg hp "$headphone" --arg bt "$bluetooth" '
+          # Add a record for a sink we have never seen, or fill in the icon of
+          # one that has no choice yet. Never overwrite a choice already made.
+          def seed($name; $icon):
+            if $name == "" then .
+            elif [.outputs[]?.name] | index($name) then
+              .outputs |= map(if .name == $name and (.icon // "") == ""
+                              then .icon = $icon else . end)
+            else .outputs += [{ name: $name, description: $name,
+                                enabled: true, icon: $icon }]
+            end;
+          (.outputs //= []) | seed($hp; "headphones") | seed($bt; "bluetooth")
+       ' "$state" > "$tmp" 2>/dev/null; then
+        mv "$tmp" "$state"
+        [ -n "$headphone" ] && echo "    headphones -> $headphone"
+        [ -n "$bluetooth" ] && echo "    bluetooth  -> $bluetooth"
+        echo "    change either from the audio menu (left-click the audio pill)"
+    else
+        rm -f "$tmp"
+        echo "    WARNING: could not update $state -- pick the icons from the"
+        echo "             audio menu instead (left-click the audio pill)."
+    fi
 }
 
 # Capture live values BEFORE the configs get overwritten.
@@ -259,6 +365,51 @@ install_packages() {
     info "Installing packages"
     sudo pacman -S --noconfirm --needed "${PACMAN_PKGS[@]}"
     paru -S --noconfirm --skipreview --needed "${PARU_PKGS[@]}"
+
+    check_nerd_font
+}
+
+# Several bar modules are nothing but a glyph -- the network icons, the audio
+# icons, the notification bell, the weather conditions -- and those glyphs are
+# Material Design Icons from Nerd Fonts **v3**, which lives at U+F0000 and above.
+# v2 was entirely inside the BMP and has nothing at those codepoints at all, so
+# on the old font those modules draw tofu or, worse, nothing: `Pill` hides a
+# module whose label came out empty, so the symptom can be a module that has
+# simply vanished rather than one that looks wrong.
+#
+# ttf-jetbrains-mono-nerd (PACMAN_PKGS) is v3 on any current Arch and `pacman -S
+# --needed` upgrades an out-of-date package, so this only fires for a font
+# installed by hand that shadows the packaged one, or a package database old
+# enough that pacman had nothing newer to offer. It warns rather than aborting:
+# a wrong-looking bar is not a reason to leave a deploy half-done.
+#
+# Probed by codepoint rather than by package version, because the version is a
+# proxy and the glyph is the thing that actually has to be there.
+check_nerd_font() {
+    command -v fc-list >/dev/null 2>&1 || return 0
+
+    local cp missing=()
+    # md-ethernet (NetworkPill) and md-volume-high (AudioPill): one from each of
+    # the modules whose entire label is a single v3 glyph.
+    for cp in f0200 f057e; do
+        if ! fc-list ":charset=$cp:family=JetBrainsMono Nerd Font" 2>/dev/null | grep -q .; then
+            missing+=("U+${cp^^}")
+        fi
+    done
+
+    if [ "${#missing[@]}" -eq 0 ]; then
+        echo "    nerd font: Nerd Fonts v3 glyphs present"
+        return 0
+    fi
+
+    echo "    WARNING: JetBrainsMono Nerd Font is missing ${missing[*]}."
+    echo "             Those are Nerd Fonts v3 codepoints, so this font is v2 --"
+    echo "             the icon-only bar modules (network, audio, notifications,"
+    echo "             weather) will draw tofu or drop out of the bar entirely."
+    echo "             Try, in order:"
+    echo "               fc-cache -f                                  # just a cold cache"
+    echo "               sudo pacman -Syu ttf-jetbrains-mono-nerd     # stale package"
+    echo "               fc-list | grep -i 'jetbrainsmono nerd'       # a hand-installed v2 shadowing it"
 }
 
 deploy_configs() {
@@ -607,8 +758,8 @@ pull_configs() {
     cat <<EOF
 
 Pulled. Note this ADDS and OVERWRITES files but never deletes, and it brings
-machine-specific values (audio sinks, mainMonitor, hyprlock wallpaper) into the
-repo. Review before committing:
+machine-specific values (mainMonitor, hyprlock wallpaper) into the repo. Review
+before committing:
 
     git -C $REPO_ROOT status
     git -C $REPO_ROOT diff
@@ -634,6 +785,8 @@ main() {
         first_install_extras
     else
         migrate_legacy_paths
+        # Before deploy_configs, which overwrites the script it reads from.
+        migrate_audio_icons
         prompt_preserve_groups
         capture_preserved
     fi

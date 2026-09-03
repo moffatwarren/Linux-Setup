@@ -2,9 +2,9 @@ import Quickshell
 import Quickshell.Io
 import QtQuick
 
-// Just the letters "TS", green when tailscale is up and the bar's normal text
+// The tailscale mark, green when tailscale is up and the bar's normal text
 // colour when it is not -- everything else moved into the hover panel, so the
-// module costs two characters of bar rather than the waybar-era
+// module costs one glyph of bar rather than the waybar-era
 // " Tailscale: on | Exit-node: …".
 //
 // tailscale.sh is reused unchanged for the state and the exit node. The peer
@@ -23,9 +23,45 @@ ScriptPill {
     doubleClickCommand: "~/.config/hypr/scripts/tailscale.sh --toggle"
     rightClickCommand: "~/.config/hypr/scripts/tailscale.sh --getFile"
 
-    // Hidden until the first poll lands: Pill drops a module with no label.
-    label: rawAlt.length > 0 ? "TS" : ""
+    // The logo is drawn rather than labelled, so `hasContent` carries what an
+    // empty label used to: hidden until the first poll lands.
+    label: ""
+    hasContent: rawAlt.length > 0
+    contentWidth: logo.implicitWidth
     labelColor: connected ? Theme.green : Theme.text
+
+    // Nerd Fonts ships no tailscale glyph and nothing on this system installs
+    // the artwork, so the mark is drawn: the 3x3 dot grid from tailscale's own
+    // favicon, in which the middle row plus the dot below it form the "t" at
+    // full opacity and the remaining five sit behind it at 0.4. Both take
+    // `labelColor`, so the module is still one colour saying one thing.
+    //
+    // The favicon's dots are radius 3 on a 9 pitch, i.e. a gap of half a dot;
+    // keep that ratio if the size is ever changed, or the grid stops reading
+    // as the logo and starts reading as a keypad.
+    Grid {
+        id: logo
+        anchors.centerIn: parent
+        columns: 3
+        spacing: 2
+
+        Repeater {
+            // Row-major from the top left; true = part of the "t".
+            model: [false, false, false,
+                    true,  true,  true,
+                    false, true,  false]
+
+            Rectangle {
+                required property var modelData
+                width: 4
+                height: 4
+                radius: width / 2
+                antialiasing: true
+                color: root.labelColor
+                opacity: modelData ? 1.0 : 0.4
+            }
+        }
+    }
 
     property var peers: []
 

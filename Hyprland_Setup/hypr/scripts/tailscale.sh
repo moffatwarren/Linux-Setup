@@ -19,11 +19,13 @@ get_file() {
 
 case $1 in
 --status)
-  # Printing nothing clears ScriptPill's rawAlt, and Pill hides a module with an
-  # empty label. tailscale is an optional extra in install.sh, so a machine that
-  # declined it would otherwise carry a TS pill stuck permanently at "off" --
-  # the "stopped" branch below cannot tell "installed and down" from "not
-  # installed", since `tailscale status` fails identically either way.
+  # Printing nothing clears ScriptPill's rawAlt, which drops TailscalePill's
+  # `hasContent` and so takes the module out of the bar. (It draws the tailscale
+  # logo rather than a label, so an empty label is no longer what hides it.)
+  # tailscale is an optional extra in install.sh, so a machine that declined it
+  # would otherwise carry a pill stuck permanently at "off" -- the "stopped"
+  # branch below cannot tell "installed and down" from "not installed", since
+  # `tailscale status` fails identically either way.
   if ! command -v tailscale >/dev/null 2>&1; then
     exit 0
   fi
