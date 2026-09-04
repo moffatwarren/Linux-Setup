@@ -21,9 +21,14 @@ import QtQuick
 //
 // A sink with no record at all counts as enabled, so a machine that has never
 // opened the menu still cycles everything -- and a sink that appears for the
-// first time joins the rotation rather than being silently skipped. Records are
-// kept for sinks that are not currently present, which is what lets a
-// headset unplugged and plugged back in come back with its toggle as it was.
+// first time joins the rotation rather than being silently skipped.
+//
+// A record outlives its sink: unplugging a headset does not drop what its
+// switch was set to, so plugging it back in restores the rotation as it was.
+// The menu, though, lists only what is plugged in -- a row for an absent output
+// is a switch that changes nothing, since SUPER+O steps through present sinks
+// and can never land on it. So `records` is the memory and `outputs` is the
+// menu, and they are deliberately not the same list.
 //
 // `icon` is the glyph the bar draws for that output, picked in the menu. It
 // replaced reading HEADPHONE_SINK/BLUETOOTH_SINK out of audio-output-toggle.sh,
@@ -108,36 +113,15 @@ Singleton {
         save();
     }
 
-    // Only reachable for a sink that is not currently present -- forgetting one
-    // that is would just re-seed it from the live node on the next save.
-    function forget(name) {
-        const next = Object.assign({}, records);
-        delete next[name];
-        records = next;
-        save();
-    }
-
-    // Every output the menu lists: what is plugged in now, then what has been
-    // seen before and is not. `node` is null for the latter, which is what the
-    // menu keys "cannot be made the default" off.
-    readonly property var outputs: {
-        const out = [];
-        const present = ({});
-        for (var i = 0; i < sinks.length; i++) {
-            const node = sinks[i];
-            const name = String(node.name);
-            present[name] = true;
-            out.push({ name: name, description: nodeLabel(node), node: node,
-                       enabled: isEnabled(name), icon: iconKey(name), present: true });
-        }
-        for (const name in records) {
-            if (present[name]) continue;
-            out.push({ name: name, description: records[name].description || name,
-                       node: null, enabled: isEnabled(name), icon: iconKey(name),
-                       present: false });
-        }
-        return out;
-    }
+    // What the menu lists: the sinks that are plugged in right now, with the
+    // toggle state remembered for each. Outputs that have been seen before and
+    // are not here are still in `records` -- they are just not shown, because
+    // their switch could not affect anything until they are back.
+    readonly property var outputs: sinks.map(node => {
+        const name = String(node.name);
+        return { name: name, description: nodeLabel(node), node: node,
+                 enabled: isEnabled(name), icon: iconKey(name) };
+    })
 
     readonly property int enabledCount: outputs.filter(o => o.enabled).length
 
