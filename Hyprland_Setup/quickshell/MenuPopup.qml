@@ -196,10 +196,10 @@ PopupWindow {
         // surface the instant the menu closes, so there is nothing left to
         // animate out. That is deliberate, not an oversight.
         transform: Translate {
-            y: root.open ? 0 : -8
-            Behavior on y { NumberAnimation { duration: 130; easing.type: Easing.OutCubic } }
+            y: root.open ? 0 : -6
+            Behavior on y { NumberAnimation { duration: 85; easing.type: Easing.OutCubic } }
         }
         opacity: root.open ? 1 : 0
-        Behavior on opacity { NumberAnimation { duration: 130; easing.type: Easing.OutCubic } }
+        Behavior on opacity { NumberAnimation { duration: 85; easing.type: Easing.OutCubic } }
     }
 }
