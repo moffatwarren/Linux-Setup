@@ -46,6 +46,14 @@ hl.window_rule({
 })
 
 hl.window_rule({
+	name = "float-update",
+	match = { class = "update-floating" },
+	size = "900 650",
+	center = true,
+	float = true,
+})
+
+hl.window_rule({
 	name = "float-blueman",
 	match = { class = "blueman-manager" },
 	size = "800 700",
