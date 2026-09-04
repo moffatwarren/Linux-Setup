@@ -31,6 +31,18 @@ Row {
         else mediaMenu.open = true;
     }
 
+    function togglePlay() {
+        if (root.player && root.player.canTogglePlaying) root.player.togglePlaying();
+    }
+
+    function previousTrack() {
+        if (root.player && root.player.canGoPrevious) root.player.previous();
+    }
+
+    function nextTrack() {
+        if (root.player && root.player.canGoNext) root.player.next();
+    }
+
     // Anchored to the whole module, so the menu is centred under art + title
     // however wide the track name happens to be.
     MediaMenu {
@@ -74,7 +86,15 @@ Row {
         // Declared after MultiEffect so it sits on top and receives the clicks.
         MouseArea {
             anchors.fill: parent
-            onClicked: root.toggleMenu()
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onClicked: mouse => {
+                if (mouse.button === Qt.RightButton) root.togglePlay();
+                else root.toggleMenu();
+            }
+            onWheel: wheel => {
+                if (wheel.angleDelta.y > 0) root.previousTrack();
+                else if (wheel.angleDelta.y < 0) root.nextTrack();
+            }
         }
     }
 
@@ -85,5 +105,10 @@ Row {
         // most of the module's width, so this is what hands off on hover.
         menu: mediaMenu
         onClicked: root.toggleMenu()
+        onRightClicked: root.togglePlay()
+        onScrolled: delta => {
+            if (delta > 0) root.previousTrack();
+            else if (delta < 0) root.nextTrack();
+        }
     }
 }

@@ -8,6 +8,7 @@ hl.bind(config.mainMod .. " + SHIFT + L", hl.dsp.exec_cmd("hyprlock & sleep 0.5 
 hl.bind(config.mainMod .. " + F", hl.dsp.window.fullscreen({ mode = "maximized" }), { bypass = true })
 hl.bind(config.mainMod .. " + SHIFT + F", hl.dsp.window.fullscreen({ mode = "fullscreen" }), { bypass = true })
 hl.bind(config.mainMod .. " + ALT + F", hl.dsp.window.float({ action = "toggle" }), { bypass = true })
+hl.bind(config.mainMod .. " + P", hl.dsp.window.pin(), { bypass = true })
 hl.bind(config.mainMod .. " + J", hl.dsp.layout("togglesplit")) -- dwindle only
 -- App launcher, clipboard history, wallpaper picker and the keybind list are
 -- all quickshell overlays living in the bar process (see
@@ -43,6 +44,18 @@ hl.bind(config.mainMod .. " + left", hl.dsp.focus({ direction = "left" }))
 hl.bind(config.mainMod .. " + right", hl.dsp.focus({ direction = "right" }))
 hl.bind(config.mainMod .. " + up", hl.dsp.focus({ direction = "up" }))
 hl.bind(config.mainMod .. " + down", hl.dsp.focus({ direction = "down" }))
+
+-- Move / swap window position in direction using mainMod + SHIFT + arrow keys
+hl.bind(config.mainMod .. " + SHIFT + left", hl.dsp.window.move({ direction = "left" }))
+hl.bind(config.mainMod .. " + SHIFT + right", hl.dsp.window.move({ direction = "right" }))
+hl.bind(config.mainMod .. " + SHIFT + up", hl.dsp.window.move({ direction = "up" }))
+hl.bind(config.mainMod .. " + SHIFT + down", hl.dsp.window.move({ direction = "down" }))
+
+-- Resize active window using mainMod + CTRL + arrow keys
+hl.bind(config.mainMod .. " + CTRL + left", hl.dsp.window.resize({ x = -25, y = 0, relative = true }), { repeating = true, bypass = true })
+hl.bind(config.mainMod .. " + CTRL + right", hl.dsp.window.resize({ x = 25, y = 0, relative = true }), { repeating = true, bypass = true })
+hl.bind(config.mainMod .. " + CTRL + up", hl.dsp.window.resize({ x = 0, y = -25, relative = true }), { repeating = true, bypass = true })
+hl.bind(config.mainMod .. " + CTRL + down", hl.dsp.window.resize({ x = 0, y = 25, relative = true }), { repeating = true, bypass = true })
 
 -- Workspaces 1-9 (Using a Lua loop to keep the config clean!)
 for i = 1, 10 do
