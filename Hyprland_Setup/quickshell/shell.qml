@@ -123,6 +123,18 @@ ShellRoot {
         function clear(): void { NotificationService.clearAll(); }
     }
 
+    // Pending package updates. Nothing in this repo calls it yet -- the module
+    // polls on its own -- but it is what lets an upgrade run outside the bar
+    // tell the bar it happened, so a pacman PostTransaction hook can drop the
+    // count the moment a terminal upgrade finishes instead of waiting for the
+    // ten-minute revalidate. Same shape as the recorder's poke below.
+    IpcHandler {
+        target: "updates"
+
+        function refresh(): void { UpdateService.check(true); }
+        function revalidate(): void { UpdateService.revalidate(); }
+    }
+
     // The screen recorder (SUPER+CTRL+S) writes a state file and then calls
     // this, so the bar picks the change up on the event rather than by polling
     // the script. `stop` is here so the recording can be ended from a script or

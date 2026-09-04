@@ -1,4 +1,5 @@
 import Quickshell
+import Quickshell.Hyprland
 import QtQuick
 import QtQuick.Layouts
 
@@ -17,6 +18,18 @@ PopupWindow {
     // name long enough to stretch the panel across the screen. 0 = no cap.
     property int maxDetailWidth: 0
     property int delayMs: 300
+    // Opt-in, for a client that opens this on a click rather than on hover.
+    // A hover panel is dismissed by moving the pointer, so it needs none of
+    // this; one you opened deliberately has to close deliberately, which means
+    // Escape and a click anywhere outside -- and a layer-shell surface gets no
+    // event for an outside click on its own. Off by default, so the modules
+    // that still hover (recorder, updates) are untouched.
+    property bool dismissable: false
+
+    // Raised when the panel should close itself: the focus grab cleared, or
+    // Escape. The client owns the flag driving `requested`, so it does the
+    // closing -- this only reports.
+    signal dismissed()
 
     readonly property bool hasContent: rows.length > 0 || emptyText.length > 0
 
@@ -33,6 +46,17 @@ PopupWindow {
     property bool delayPassed: false
     visible: requested && hasContent && delayPassed
 
+    // Take the keyboard while open so Escape can be answered. A hover panel
+    // must never do this -- it would steal focus from whatever is under the
+    // pointer for as long as you pass over the pill.
+    grabFocus: dismissable && visible
+
+    HyprlandFocusGrab {
+        windows: [root]
+        active: root.dismissable && root.requested
+        onCleared: root.dismissed()
+    }
+
     onRequestedChanged: {
         if (requested) openTimer.restart();
         else { openTimer.stop(); delayPassed = false; }
@@ -47,6 +71,8 @@ PopupWindow {
 
     Rectangle {
         anchors.fill: parent
+        focus: root.dismissable
+        Keys.onEscapePressed: root.dismissed()
         radius: 12
         color: Theme.base
         border.width: 1
