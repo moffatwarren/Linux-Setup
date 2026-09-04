@@ -32,6 +32,38 @@ Rectangle {
     radius: height / 2
     color: Theme.pill
 
+    function scrollWorkspace(delta) {
+        if (workspaces && workspaces.length > 1) {
+            let activeIndex = -1;
+            for (let i = 0; i < workspaces.length; i++) {
+                if (workspaces[i].active) {
+                    activeIndex = i;
+                    break;
+                }
+            }
+            if (activeIndex === -1) activeIndex = 0;
+
+            let targetIndex;
+            if (delta > 0) {
+                targetIndex = (activeIndex - 1 + workspaces.length) % workspaces.length;
+            } else if (delta < 0) {
+                targetIndex = (activeIndex + 1) % workspaces.length;
+            } else {
+                return;
+            }
+            workspaces[targetIndex].activate();
+        } else {
+            const dir = delta > 0 ? "e-1" : "e+1";
+            Quickshell.execDetached(["hyprctl", "dispatch", `hl.dsp.focus({ workspace = "${dir}" })`]);
+        }
+    }
+
+    MouseArea {
+        anchors.fill: parent
+        z: -1
+        onWheel: wheel => root.scrollWorkspace(wheel.angleDelta.y)
+    }
+
     Row {
         id: row
         anchors.centerIn: parent
@@ -68,6 +100,7 @@ Rectangle {
                         anchors.fill: parent
                         hoverEnabled: true
                         onClicked: modelData.activate()
+                        onWheel: wheel => root.scrollWorkspace(wheel.angleDelta.y)
                     }
                 }
             }

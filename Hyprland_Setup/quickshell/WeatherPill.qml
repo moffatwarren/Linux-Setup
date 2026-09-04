@@ -35,12 +35,10 @@ Pill {
              + Math.round(current.temp) + "°" + unit;
     }
 
-    // Left-click opens the forecast, the way every other pill that owns a
-    // drop-down does. The right button is unbound: forcing a re-fetch was its
-    // one job and it is a button in the forecast's footer now, the way the
-    // clock's double-click became a link in CalendarPopup's.
+    // Left-click opens the forecast; right-click forces an immediate background re-fetch.
     menu: forecast
     onClicked: root.menuOpen ? forecast.requestClose() : root.openMenu()
+    onRightClicked: root.refresh()
 
     function refresh() {
         // The command is bound to `force`, so it must not be rewritten under a
