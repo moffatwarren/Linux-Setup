@@ -120,7 +120,6 @@ to filter, arrows to move, Enter to pick, Escape to cancel. In the clipboard,
 ```
 Hyprland_Setup/
   install.sh          the only entry point (deploy + --pull)
-  install_lib/        python helpers used BY install.sh; not deployed
   hypr/               hyprland, hyprlock, hypridle + the shell scripts
   quickshell/         the bar, the overlays and notifications, one file per module
   gtk-3.0/ gtk-4.0/   Catppuccin Mocha over adw-gtk3-dark (thunar, dialogs)
@@ -130,5 +129,5 @@ wallpapers/           copied to ~/Pictures/wallpapers on request
 *.txt                 personal command reference notes
 ```
 
-`CLAUDE.md` documents the internals — the preserve mechanism, the bar modules and
+`CLAUDE.md` documents the internals — the architecture, the bar modules and
 the traps found while building them.

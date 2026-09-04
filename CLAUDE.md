@@ -2015,9 +2015,9 @@ the rest.
 ## Not code
 
 The top-level `*.txt` files are personal command references. The automatable parts of
-`tailscale_commands.txt` and `pia_install.txt` are now in `install.sh`; the rest
-(`git_command.txt`, `hypctl_commands.txt`, `nmcli.txt`, `systmctl_command.txt`,
+`tailscale_commands.txt` and `pia_install.txt` were kept manual; all of them
+(`git_command.txt`, `hyprctl_commands.txt`, `nmcli.txt`, `systemctl_commands.txt`,
 `write_iso_commands.txt`, and the troubleshooting half of `package_management.txt`) are
 lookup notes and deliberately stay manual. `README.md` is the human-facing half of this
 file — install, `--pull`, the keybinds and the directory layout. Keep the two in step;
-the internals (the preserve mechanism, the bar modules, the traps) live here, not there.
+the internals (the architecture, the bar modules, the traps) live here, not there.
