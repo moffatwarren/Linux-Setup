@@ -46,6 +46,11 @@ PopupWindow {
     signal dismissed()
     onDismissed: if (root.closeOnDismiss) root.open = false;
 
+    // Every key the frame does not claim itself, offered to the consumer -- the
+    // same idiom OverlayPanel uses to hand its body `navKey`. A handler sets
+    // `event.accepted` for the keys it takes; MediaMenu takes Space.
+    signal keyPressed(var event)
+
     // Asked by MenuService to get out of the way for another menu. A function,
     // not a signal, precisely because a function CAN be overridden where a
     // signal handler cannot.
@@ -58,6 +63,7 @@ PopupWindow {
     property int reanchor: 0
     onOpenChanged: {
         if (root.open) root.reanchor++;
+        if (!root.open) root.barJoined = false;
         if (!root.managed) return;
         if (root.open) MenuService.claim(root);
         else MenuService.release(root);
@@ -115,14 +121,28 @@ PopupWindow {
     visible: root.open
     grabFocus: root.grabsFocus && root.open
 
-    // The BAR is in this list as well as the popup, and that is load-bearing
-    // twice over. Hyprland's focus grab constrains pointer focus to the grabbed
-    // surfaces, so with only [root] the bar receives no hover events at all
-    // while a menu is open and the hand-off in Pill.qml could never fire. It
-    // also means clicking a different module switches menus rather than
-    // dismissing this one and reopening that one.
+    // The popup takes the keyboard ALONE, and the bar joins only afterwards.
+    //
+    // Both halves are measured, and they pull opposite ways. The bar has to be
+    // in this list or it receives no hover events at all while a menu is open,
+    // and the hand-off in Pill.qml cannot fire. But a grab that STARTS as
+    // [root, barWindow] never gives the popup keyboard focus -- probed on
+    // frame.activeFocus: [root] has it 100 ms after opening; [root, barWindow]
+    // is still false after 3 s, in either order, armed late or immediately; and
+    // with no grab at all it never arrives either, so the grab is what grants
+    // focus in the first place. Hyprland hands keyboard focus to whichever
+    // grabbed surface the pointer is under, and the bar is a layer surface with
+    // keyboard_interactivity none, so focus lands there and goes nowhere.
+    //
+    // Adding the bar AFTER focus has landed keeps it: verified, activeFocus
+    // stays true across the change. So `barJoined` latches on the frame
+    // actually having the keyboard rather than on a timer -- a timer would be a
+    // guess at how long focus takes, and joining early is not a slow hand-off,
+    // it is a menu that never answers Escape.
+    property bool barJoined: false
+
     HyprlandFocusGrab {
-        windows: root.barWindow ? [root, root.barWindow] : [root]
+        windows: (root.barJoined && root.barWindow) ? [root, root.barWindow] : [root]
         active: root.grabsFocus && root.open
         onCleared: root.dismissed()
     }
@@ -131,7 +151,24 @@ PopupWindow {
         id: frame
         anchors.fill: parent
         focus: root.grabsFocus
-        Keys.onEscapePressed: root.dismissed()
+        // The moment the keyboard is really here, let the bar into the grab so
+        // hovering another module can hand off. Latched, not bound: bound, the
+        // pointer moving onto the bar would drop focus, drop the bar out of the
+        // grab, regain focus, re-add it -- an oscillation.
+        onActiveFocusChanged: if (frame.activeFocus) root.barJoined = true;
+
+        // Escape belongs to the frame; everything else is the consumer's. It
+        // has to be one onPressed rather than onEscapePressed plus something
+        // else, because key events propagate UP from the focus item -- a
+        // handler declared on a child of this frame would never see them.
+        Keys.onPressed: event => {
+            if (event.key === Qt.Key_Escape) {
+                root.dismissed();
+                event.accepted = true;
+                return;
+            }
+            root.keyPressed(event);
+        }
 
         color: Theme.base
         radius: Theme.popupRadius
