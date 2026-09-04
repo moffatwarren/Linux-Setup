@@ -51,6 +51,14 @@ MenuPopup {
         if (player && player.canGoNext) player.next();
     }
 
+    function formatTime(seconds: real): string {
+        if (isNaN(seconds) || seconds < 0) return "0:00";
+        const s = seconds > 100000 ? Math.floor(seconds / 1000000) : Math.floor(seconds);
+        const m = Math.floor(s / 60);
+        const sec = s % 60;
+        return m + ":" + (sec < 10 ? "0" : "") + sec;
+    }
+
     ColumnLayout {
         id: body
         anchors.left: parent.left
@@ -129,6 +137,68 @@ MenuPopup {
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSize - 2
             elide: Text.ElideRight
+        }
+
+        // Track Position & Seek Progress Bar
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.topMargin: 2
+            spacing: 6
+            visible: root.player !== null && root.player.length > 0
+
+            Text {
+                text: root.formatTime(root.player ? root.player.position : 0)
+                color: Theme.subtext0
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSize - 3
+            }
+
+            Rectangle {
+                id: sliderTrack
+                Layout.fillWidth: true
+                implicitHeight: 6
+                radius: 3
+                color: Theme.surface0
+
+                Rectangle {
+                    id: sliderProgress
+                    height: parent.height
+                    radius: 3
+                    color: sliderMouse.containsMouse ? Theme.mauve : Theme.blue
+                    width: {
+                        if (!root.player || !root.player.length || root.player.length <= 0) return 0;
+                        const pos = Math.max(0, Math.min(root.player.position, root.player.length));
+                        return parent.width * (pos / root.player.length);
+                    }
+                    Behavior on width {
+                        enabled: !sliderMouse.pressed
+                        NumberAnimation { duration: 150 }
+                    }
+                }
+
+                MouseArea {
+                    id: sliderMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: root.player && root.player.canSeek ? Qt.PointingHandCursor : Qt.ArrowCursor
+
+                    function doSeek(mouseX) {
+                        if (!root.player || !root.player.canSeek || !root.player.length || sliderTrack.width <= 0) return;
+                        const pct = Math.max(0, Math.min(1, mouseX / sliderTrack.width));
+                        root.player.position = pct * root.player.length;
+                    }
+
+                    onClicked: mouse => doSeek(mouse.x)
+                    onPositionChanged: mouse => { if (pressed) doSeek(mouse.x); }
+                }
+            }
+
+            Text {
+                text: root.formatTime(root.player ? root.player.length : 0)
+                color: Theme.subtext0
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSize - 3
+            }
         }
 
         RowLayout {

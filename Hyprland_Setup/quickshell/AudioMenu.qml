@@ -30,6 +30,7 @@ MenuPopup {
     readonly property var sink: Pipewire.defaultAudioSink
     readonly property var sinkAudio: sink ? sink.audio : null
     readonly property var source: Pipewire.defaultAudioSource
+    readonly property var sourceAudio: source ? source.audio : null
 
     // Wider than BluetoothMenu: sink descriptions run long ("Navi 48 HDMI/DP
     // Audio Controller Digital Stereo (HDMI 2) [27E3QKS]"), and a row here has
@@ -286,12 +287,36 @@ MenuPopup {
         }
 
         // --- inputs -----------------------------------------------------
-        Text {
+        RowLayout {
+            Layout.fillWidth: true
             Layout.topMargin: 3
-            text: "Input"
-            color: Theme.subtext0
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSize - 3
+
+            Text {
+                text: "Input"
+                color: Theme.subtext0
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSize - 3
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Text {
+                text: {
+                    if (!root.sourceAudio) return "\u2014";
+                    return root.sourceAudio.muted
+                        ? "muted" : Math.round(root.sourceAudio.volume * 100) + "%";
+                }
+                color: !root.sourceAudio ? Theme.overlay0
+                     : root.sourceAudio.muted ? Theme.red : Theme.green
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSize - 3
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: if (root.sourceAudio) root.sourceAudio.muted = !root.sourceAudio.muted
+                }
+            }
         }
 
         Repeater {
@@ -327,11 +352,12 @@ MenuPopup {
                     // Only one input can be the default, so this is a radio
                     // button rather than the outputs' switch.
                     Rectangle {
-                        implicitWidth: 14
-                        implicitHeight: 14
+                        implicitWidth: 16
+                        implicitHeight: 16
                         radius: height / 2
+                        color: inRow.isDefault ? Theme.blue : Theme.surface1
                         border.width: 1
-                        border.color: inRow.isDefault ? Theme.blue : Theme.surface2
+                        border.color: inRow.isDefault ? Theme.blue : Theme.overlay0
 
                         Rectangle {
                             anchors.centerIn: parent
@@ -339,7 +365,7 @@ MenuPopup {
                             height: 8
                             radius: height / 2
                             visible: inRow.isDefault
-                            color: Theme.blue
+                            color: Theme.crust
                         }
                     }
 
@@ -350,6 +376,35 @@ MenuPopup {
                         color: inRow.isDefault ? Theme.green : Theme.text
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSize
+                    }
+
+                    // Mic mute toggle button for this input source
+                    Rectangle {
+                        implicitWidth: 22
+                        implicitHeight: 20
+                        radius: 5
+                        color: micBtnMouse.containsMouse ? Theme.surface1 : "transparent"
+
+                        Text {
+                            anchors.centerIn: parent
+                            readonly property bool isMuted: modelData.audio ? modelData.audio.muted : false
+                            text: isMuted ? "\udb80\udf6d" : "\udb80\udf6c"
+                            color: isMuted ? Theme.red : (inRow.isDefault ? Theme.green : Theme.subtext0)
+                            font.family: Theme.fontFamily
+                            font.pixelSize: Theme.fontSize
+                        }
+
+                        MouseArea {
+                            id: micBtnMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (modelData.audio) {
+                                    modelData.audio.muted = !modelData.audio.muted;
+                                }
+                            }
+                        }
                     }
                 }
             }
