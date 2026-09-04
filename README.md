@@ -89,6 +89,22 @@ The menu lists only the outputs that are plugged in, but the settings for one
 that is not are remembered — unplug a headset and plug it back in and it
 returns with its switch and its icon as you left them.
 
+Clicking the battery module opens its detail panel — charge, whether it is
+charging, and how long is left. Click it again, press Escape, or click anywhere
+else to close it.
+
+A small box just left of the power button says whether there are
+packages to update: dim and closed when there is nothing, yellow and open with
+a count when there is. Clicking it opens the list of what is waiting, split
+into repository and AUR packages, with a `Check` button and the age of the
+reading. Escape or a click outside closes it.
+
+It is a readout and nothing more — updating is still `paru -Syu` in a terminal,
+by choice, and nothing in the menu will do it for you. `Check` re-checks, as
+does right-clicking the pill, which is how the count catches up after an
+upgrade the bar knew nothing about; it also re-checks itself every ten minutes
+while anything is pending, and syncs properly every six hours.
+
 `SUPER+CTRL+S` selects a region and starts recording it. A red pill with the
 elapsed time appears in the bar while it runs, and stops the recording when
 clicked — as does pressing `SUPER+CTRL+S` again. Recordings land in

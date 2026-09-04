@@ -118,6 +118,25 @@ PACMAN_PKGS=(
     # stop relying on -- without it the PIA menu's Region row silently reads
     # `Automatic` for ever, since the script prints nothing rather than guessing.
     python
+    # pacman-contrib owns `checkupdates`, which is the entire backend of the
+    # update module (hypr/scripts/updates.sh). It is not a convenience: asking
+    # "what is pending" any other way means `pacman -Sy`, which refreshes the
+    # sync databases without upgrading and so leaves the machine one
+    # single-package install away from a partial upgrade. checkupdates syncs a
+    # COPY of the database under /tmp instead and needs no privilege. Without
+    # it the script prints nothing rather than guessing, so the pill simply
+    # never appears -- which reads as a broken module rather than a missing
+    # package, hence this line.
+    pacman-contrib
+    # fakeroot is checkupdates' own hard requirement, and pacman-contrib does
+    # NOT depend on it (verified: pacman-contrib depends on `pacman` alone).
+    # `checkupdates` dies with "Cannot find the fakeroot binary" -- exit 1, on
+    # stderr, which updates.sh discards -- so the whole module silently never
+    # appears. Nothing else here drags it in either: paru depends on git and
+    # pacman only, and on this machine fakeroot is present solely because
+    # base-devel is, which is a group no line in this file installs. Exactly the
+    # "arrived as somebody else's dependency" trap this list exists to close.
+    fakeroot
     # Needed by install.sh itself rather than by anything it deploys: sddm owns
     # /usr/share/sddm/themes (deploy_configs copies voidsddm into it) and avahi
     # owns the avahi-daemon unit apply_system_tweaks enables. Both happen to be
@@ -323,11 +342,15 @@ check_nerd_font() {
     command -v fc-list >/dev/null 2>&1 || return 0
 
     local cp missing=()
-    # md-ethernet (NetworkPill), md-volume-high (AudioPill) and md-lock
-    # (PiaPill): one from each of the modules whose entire label is a single v3
-    # glyph. PIA joined them when it stopped spelling out the letters "PIA" and
-    # became a padlock that opens and closes with the tunnel.
-    for cp in f0200 f057e f033e; do
+    # md-ethernet (NetworkPill), md-volume-high (AudioPill), md-lock (PiaPill)
+    # and md-package_variant_closed (UpdatePill): one from each of the modules
+    # whose entire label is a single v3 glyph. PIA joined them when it stopped
+    # spelling out the letters "PIA" and became a padlock that opens and closes
+    # with the tunnel; the update module was there from the start, and it is the
+    # worst of them to lose silently -- an empty label hides the pill, so a v2
+    # font makes "there are 40 updates waiting" look identical to "everything is
+    # fine".
+    for cp in f0200 f057e f033e f03d7; do
         if ! fc-list ":charset=$cp:family=JetBrainsMono Nerd Font" 2>/dev/null | grep -q .; then
             missing+=("U+${cp^^}")
         fi

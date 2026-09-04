@@ -86,6 +86,8 @@ PanelWindow {
 
         BatteryPill {}
 
+        UpdatePill {}
+
         PowerPill {}
     }
 }

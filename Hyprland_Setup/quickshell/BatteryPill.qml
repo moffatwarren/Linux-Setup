@@ -5,6 +5,14 @@ import QtQuick
 // waybar: "battery" -- icon ramp, red under 30%, charging bolt.
 // Hidden entirely on machines with no battery (this desktop reports none),
 // which is what the empty label achieves via Pill.visible.
+//
+// Left-click opens the detail panel. It was a hover panel, and moving it onto
+// the button is the same trade CalendarPopup and ForecastPopup made: a panel
+// that appears because the pointer crossed the pill also vanishes because the
+// pointer left it, so it cannot be read at leisure and cannot be dismissed by
+// any means except moving away. Opened by a click it dismisses like every other
+// drop-down here -- Escape, or a click anywhere outside -- which is what
+// ListPopup's `dismissable` turns on.
 Pill {
     id: root
 
@@ -29,9 +37,22 @@ Pill {
         return h > 0 ? h + "h " + m + "m" : m + "m";
     }
 
+    // The flag lives on the popup rather than on the pill, the way ClockPill
+    // drives CalendarPopup.
+    onClicked: if (present) panel.open = !panel.open
+
     ListPopup {
+        id: panel
+
+        property bool open: false
+
         anchorItem: root
-        requested: root.hovered && root.present
+        dismissable: true
+        // No open delay: the 300 ms exists to stop a panel flashing up as the
+        // pointer crosses the pill, and a panel you asked for should not wait.
+        delayMs: 0
+        requested: panel.open && root.present
+        onDismissed: panel.open = false
         title: root.battery && root.battery.model ? String(root.battery.model) : "Battery"
         rows: {
             if (!root.present) return [];
