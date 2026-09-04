@@ -321,16 +321,54 @@ floor until the binding was given explicit reads of the item's x/y/width/height 
 on. The `reanchor` counter beside them is bumped on the way open, for a move none of those
 catch (a module to the left changing width while the menu was shut).
 
-**The bar is in `HyprlandFocusGrab.windows` alongside the popup, and that is load-bearing
-twice.** Hyprland's focus grab constrains pointer focus to the grabbed surfaces, so with
-only `[root]` the bar receives no hover events at all while a menu is open and the hand-off
-below could never fire. It also means clicking a *different* module switches menus rather
-than dismissing this one and reopening that one. The cost is that a click on bar dead space
-no longer dismisses; Escape and a click anywhere else still do.
+**The popup takes the keyboard alone, and the bar joins `HyprlandFocusGrab.windows`
+only afterwards.** The two requirements pull opposite ways and both are measured:
+
+| `windows` | keyboard (`frame.activeFocus`) | hover on the bar |
+|---|---|---|
+| `[root]` | **true, ~100 ms** | none at all |
+| `[root, barWindow]` from the start | **never** — false after 3 s | works |
+| no grab at all | **never** | works |
+
+So the bar must be in the list or the hand-off cannot fire, the grab is what grants
+keyboard focus in the first place, and a grab that *starts* with the bar in it never
+hands focus over — in either order, armed late or immediately. Hyprland gives keyboard
+focus to whichever grabbed surface the pointer is under, and the bar is a layer surface
+with `keyboard_interactivity none`, so focus lands there and goes nowhere. `frame.focus`
+stays `true` throughout, which is what makes it look like anything but a focus problem:
+the symptom is that Escape and `MediaMenu`'s Space do nothing until you move the pointer
+off the bar, which reads as a lag.
+
+**Adding the bar *after* focus has landed keeps it** (verified: `activeFocus` stays true
+across the change), so `barJoined` latches on `frame.activeFocus` actually becoming true —
+measured at ~10 ms. It is a latch on the real thing rather than a timer, because a timer
+is a guess at how long focus takes on an unknown machine and joining early does not
+produce a slow hand-off, it produces a menu that never answers Escape. It must not be a
+plain *binding* on `activeFocus` either: the pointer moving onto the bar drops focus,
+which would drop the bar out of the grab, which regains focus, which re-adds it — an
+oscillation. It is cleared when the menu closes.
+
+**That measurement is also a warning about how to test a grab.** `hl.dsp.cursor.move`
+generates no hover events at all while *any* focus grab is active, whatever is in its window
+list — verified: the bar logged nothing under `[root, barWindow]`, the configuration in
+which hover hand-off is known to work with a real mouse. So a synthetic cursor cannot answer
+"does the bar still get hover events", and the question has to be settled with a hand on the
+mouse.
 
 **Only the opening direction animates** — a `Translate` from -8 plus opacity, 130 ms. There
 is no closing animation because `visible: open` unmaps the surface the instant the menu
 closes, so there is nothing left to animate. Deliberate, not an oversight.
+
+**Keys reach the consumer through a signal, because they cannot reach it any other
+way.** The frame is the focus item, and QML propagates key events *up* from the focus item
+to its parents — never down — so a `Keys` handler declared on a child of the frame (which
+is where every menu's body lives) would simply never fire. `MenuPopup` therefore claims
+Escape in one `Keys.onPressed` and offers everything else as `keyPressed(event)`, the same
+idiom `OverlayPanel` uses to hand its body `navKey`; a consumer sets `event.accepted` for
+what it takes. **`MediaMenu` takes Space as play/pause** — the transport control you reach
+for without aiming at a button. Nothing else claims a key today, and `WifiMenu` is the one
+to be careful around: its password field takes focus while it is up, so keys go to the
+field and the frame never sees them, which is correct.
 
 Two hooks exist for the popups that do not own their own `open`:
 

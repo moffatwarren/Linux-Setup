@@ -28,6 +28,17 @@ MenuPopup {
     // otherwise hang off an invisible anchor with dead buttons.
     onPlayerChanged: if (player === null) requestClose();
 
+    // Space is play/pause while this menu is up -- the transport control you
+    // reach for without aiming at a button. Accepted either way, so it cannot
+    // fall through to anything else; togglePlay() is already a no-op for a
+    // player that says it cannot be toggled.
+    onKeyPressed: event => {
+        if (event.key === Qt.Key_Space) {
+            root.togglePlay();
+            event.accepted = true;
+        }
+    }
+
     function previousTrack() {
         if (player && player.canGoPrevious) player.previous();
     }
