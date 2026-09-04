@@ -17,6 +17,10 @@ MenuPopup {
 
     // The clock's date, so the grid follows midnight without a timer of its own.
     property date date: new Date()
+    property date displayDate: date
+
+    onOpenChanged: if (open) displayDate = date
+    onDateChanged: displayDate = date
 
     signal calendarRequested()
 
@@ -25,6 +29,12 @@ MenuPopup {
 
     // Sunday-first unless the locale says otherwise.
     readonly property int firstDayOfWeek: Qt.locale().firstDayOfWeek
+
+    function changeMonth(delta) {
+        const y = displayDate.getFullYear();
+        const m = displayDate.getMonth() + delta;
+        displayDate = new Date(y, m, 1);
+    }
 
     readonly property var weekdays: {
         const out = [];
@@ -40,9 +50,10 @@ MenuPopup {
     // months' days so every week is complete. Trailing weeks that fall entirely
     // outside the month are dropped, so a short month does not leave a blank row.
     readonly property var days: {
-        const d = root.date;
+        const d = root.displayDate;
         const year = d.getFullYear();
         const month = d.getMonth();
+        const today = root.date;
         const lead = (new Date(year, month, 1).getDay() - root.firstDayOfWeek + 7) % 7;
         // Day 0 of the next month is the last day of this one.
         const length = new Date(year, month + 1, 0).getDate();
@@ -55,7 +66,7 @@ MenuPopup {
             out.push({
                 day: cell.getDate(),
                 inMonth: cell.getMonth() === month,
-                isToday: cell.getDate() === d.getDate() && cell.getMonth() === month,
+                isToday: cell.getDate() === today.getDate() && cell.getMonth() === today.getMonth() && cell.getFullYear() === today.getFullYear(),
                 isWeekend: dow === 0 || dow === 6
             });
         }
@@ -70,15 +81,72 @@ MenuPopup {
         anchors.centerIn: parent
         spacing: 6
 
-        // Month and year, with the full date underneath -- the pill itself
-        // only has room for the numeric form.
-        Text {
-            Layout.alignment: Qt.AlignHCenter
-            text: Qt.formatDate(root.date, "MMMM yyyy")
-            color: Theme.lavender
-            font.family: Theme.fontFamily
-            font.pixelSize: Theme.fontSize + 1
-            font.bold: true
+        // Month and year navigation header
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 4
+
+            Rectangle {
+                implicitWidth: 24; implicitHeight: 24; radius: 6
+                color: prevMouse.containsMouse ? Theme.surface0 : "transparent"
+                Text {
+                    anchors.centerIn: parent
+                    text: "\uf060"
+                    color: Theme.lavender
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize - 2
+                }
+                MouseArea {
+                    id: prevMouse; anchors.fill: parent; hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.changeMonth(-1)
+                }
+            }
+
+            Text {
+                Layout.fillWidth: true
+                horizontalAlignment: Text.AlignHCenter
+                text: Qt.formatDate(root.displayDate, "MMMM yyyy")
+                color: Theme.lavender
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSize + 1
+                font.bold: true
+            }
+
+            Rectangle {
+                visible: root.displayDate.getMonth() !== root.date.getMonth() || root.displayDate.getFullYear() !== root.date.getFullYear()
+                implicitWidth: 24; implicitHeight: 24; radius: 6
+                color: todayMouse.containsMouse ? Theme.surface0 : "transparent"
+                Text {
+                    anchors.centerIn: parent
+                    text: "\uf13d"
+                    color: Theme.blue
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize - 1
+                }
+                MouseArea {
+                    id: todayMouse; anchors.fill: parent; hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.displayDate = root.date
+                }
+            }
+
+            Rectangle {
+                implicitWidth: 24; implicitHeight: 24; radius: 6
+                color: nextMouse.containsMouse ? Theme.surface0 : "transparent"
+                Text {
+                    anchors.centerIn: parent
+                    text: "\uf061"
+                    color: Theme.lavender
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize - 2
+                }
+                MouseArea {
+                    id: nextMouse; anchors.fill: parent; hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.changeMonth(1)
+                }
+            }
         }
 
         Text {
