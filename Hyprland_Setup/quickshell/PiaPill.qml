@@ -158,18 +158,18 @@ ScriptPill {
     }
     onConnectedChanged: { if (!connected) actualRegion = ""; refreshDetails(); }
 
-    onClicked: {
-        if (!menu.open) {
-            // The 20 s tick is far too slow for a menu you just asked for, and
-            // the region list is a process nothing else runs.
-            refreshDetails();
-            PiaService.refreshRegions();
-        }
-        menu.open = !menu.open;
+    menu: piaMenu
+    openMenu: () => {
+        // The 20 s tick is far too slow for a menu you just asked for, and
+        // the region list is a process nothing else runs.
+        root.refreshDetails();
+        PiaService.refreshRegions();
+        piaMenu.open = true;
     }
+    onClicked: root.menuOpen ? piaMenu.requestClose() : root.openMenu()
 
     PiaMenu {
-        id: menu
+        id: piaMenu
         anchorItem: root
 
         serviceState: root.serviceState

@@ -33,11 +33,14 @@ Pill {
               : root.count > 0 ? Theme.yellow
               : Theme.teal
 
+    menu: notifMenu
+    // `open` is bound to the service below, so nothing here may assign it.
+    openMenu: () => NotificationService.showMenu(root.monitorName)
     onClicked: NotificationService.toggleMenu(root.monitorName)
     onRightClicked: NotificationService.toggleDnd()
 
     NotificationMenu {
-        id: menu
+        id: notifMenu
         anchorItem: root
         // One menu across all bars: the service holds which monitor owns it, so
         // a second monitor's pill cannot open a duplicate.

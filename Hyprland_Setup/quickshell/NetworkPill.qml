@@ -244,15 +244,18 @@ Pill {
     // both put their menu on the primary button. The right button is unbound
     // here -- the wifi radio toggle lives in the menu header, unlike the
     // bluetooth adapter, which has it on both.
-    onClicked: {
-        if (!wifiMenu.open) {
-            refreshPublicIp();
-            // The status block is about to be looked at, and the 30 s tick is
-            // too slow for a signal reading you just asked for.
-            refreshWifiInfo();
-        }
-        wifiMenu.open = !wifiMenu.open;
+    menu: wifiMenu
+    // Defined here rather than in onClicked so the hover hand-off takes exactly
+    // the same path a click does -- a menu arrived at by hover must not show a
+    // stale IP and a stale signal reading.
+    openMenu: () => {
+        root.refreshPublicIp();
+        // The status block is about to be looked at, and the 30 s tick is
+        // too slow for a signal reading you just asked for.
+        root.refreshWifiInfo();
+        wifiMenu.open = true;
     }
+    onClicked: root.menuOpen ? wifiMenu.requestClose() : root.openMenu()
 
     WifiMenu {
         id: wifiMenu

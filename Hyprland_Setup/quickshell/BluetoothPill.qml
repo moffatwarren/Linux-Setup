@@ -25,7 +25,8 @@ Pill {
     // Right-click toggles the adapter without opening anything -- the same
     // menu/shortcut split NotificationPill uses (left opens the centre, right
     // mutes). The menu's header toggle stays as the discoverable way to do it.
-    onClicked: btMenu.open = !btMenu.open
+    menu: btMenu
+    onClicked: root.menuOpen ? btMenu.requestClose() : root.openMenu()
     onRightClicked: if (adapter) adapter.enabled = !adapter.enabled
 
     BluetoothMenu {

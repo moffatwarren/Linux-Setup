@@ -82,7 +82,9 @@ PanelWindow {
 
                 width: column.width
                 implicitHeight: (toast.osd ? osdBody.implicitHeight : fullBody.implicitHeight) + 16
-                radius: 14
+                // The bar's own popup radius: a toast is not anchored to a
+                // module, but it should not be a third rounding either.
+                radius: Theme.popupRadius
                 color: Theme.base
                 border.width: 1
                 // A critical notification tints its whole frame, not just the

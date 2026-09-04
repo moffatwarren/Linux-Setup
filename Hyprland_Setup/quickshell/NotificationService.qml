@@ -200,6 +200,10 @@ Singleton {
 
     function closeMenu() { root.menuMonitor = ""; }
 
+    // Unconditional open, for the bar's hover hand-off: crossing the module
+    // with another menu already up must open this one, never toggle it shut.
+    function showMenu(monitor) { root.menuMonitor = monitor; }
+
     // ---- formatting --------------------------------------------------------
 
     // "now" / "3 min" / "2 h" / "4 d" -- what the menu puts down the right-hand

@@ -1,5 +1,4 @@
 import Quickshell
-import Quickshell.Hyprland
 import Quickshell.Networking
 import QtQuick
 import QtQuick.Layouts
@@ -18,11 +17,8 @@ import QtQuick.Layouts
 // private-use codepoints are easy to get wrong, and this scales cleanly -- plus
 // the percentage beside the name, for picking between two networks that both
 // light three bars.
-PopupWindow {
+MenuPopup {
     id: root
-
-    property Item anchorItem: null
-    property bool open: false
 
     // --- the active link, all computed by NetworkPill ----------------------
     property bool hasActive: false
@@ -97,20 +93,12 @@ PopupWindow {
     // The network awaiting a password, if any.
     property var pendingNetwork: null
 
-    anchor.item: anchorItem
-    anchor.edges: Edges.Bottom
-    anchor.gravity: Edges.Bottom
-    anchor.margins.top: 6
-
     // 300 before the per-row percentage column; widened so an SSID still has
     // room beside it rather than eliding a character earlier on every row.
     implicitWidth: 340
     implicitHeight: body.implicitHeight + 20
-    color: "transparent"
-    visible: open
     // Held whenever the menu is open, so Escape closes it and the password
     // field can receive key events.
-    grabFocus: open
 
     // Scanning is opt-in, behind the Scan button, exactly as BluetoothMenu's
     // discovery is. It used to start the instant the menu opened, so every
@@ -147,17 +135,9 @@ PopupWindow {
 
     // Take the keyboard back from the password field when it goes away, so
     // the next Escape closes the menu.
-    onPendingNetworkChanged: if (pendingNetwork === null) frame.forceActiveFocus()
+    onPendingNetworkChanged: if (pendingNetwork === null) root.panel.forceActiveFocus()
 
-    // Dismiss when the user clicks anywhere outside the menu. A layer-shell
-    // popup gets no such event on its own; Hyprland's focus grab reports it.
-    HyprlandFocusGrab {
-        windows: [root]
-        active: root.open
-        onCleared: root.close()
-    }
-
-    function close() {
+    function requestClose() {
         pendingNetwork = null;
         open = false;
     }
@@ -165,327 +145,265 @@ PopupWindow {
     function activate(net) {
         if (net.connected) {
             net.disconnect();
-            close();
+            requestClose();
         } else if (net.known || net.security === WifiSecurityType.Open) {
             net.connect();
-            close();
+            requestClose();
         } else {
             // Secured and never joined before -- ask for the passphrase.
             pendingNetwork = net;
         }
     }
 
-    Rectangle {
-        id: frame
-        anchors.fill: parent
-        // The password field steals focus while it is up; its own Escape
-        // handler cancels the entry and hands focus back here (explicitly,
-        // below -- a `focus` binding would be fighting the field's own).
-        focus: true
-        Keys.onEscapePressed: root.close()
-        radius: 12
-        color: Theme.base
-        border.width: 1
-        border.color: Theme.surface1
+    ColumnLayout {
+        id: body
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: Theme.popupPad
+        spacing: 6
 
-        ColumnLayout {
-            id: body
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.margins: 10
-            spacing: 6
+        // The title names the interface that is actually carrying traffic,
+        // which on a machine with both is the first thing worth knowing --
+        // the pill is one glyph and cannot say `eth0` or `wlan0`.
+        RowLayout {
+            Layout.fillWidth: true
 
-            // The title names the interface that is actually carrying traffic,
-            // which on a machine with both is the first thing worth knowing --
-            // the pill is one glyph and cannot say `eth0` or `wlan0`.
-            RowLayout {
-                Layout.fillWidth: true
-
-                Text {
-                    text: root.hasActive && root.deviceName.length > 0
-                          ? root.deviceName : "Network"
-                    color: Theme.lavender
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSize
-                    font.bold: true
-                }
-
-                Item { Layout.fillWidth: true }
-
-                // The wifi radio, which is a property of the machine rather
-                // than of the active link -- so it stays here on a wired box
-                // whose title says `eth0`.
-                Text {
-                    text: "Wi-Fi " + (Networking.wifiEnabled ? "on" : "off")
-                    color: Networking.wifiEnabled ? Theme.green : Theme.overlay0
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSize - 1
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: Networking.wifiEnabled = !Networking.wifiEnabled
-                    }
-                }
-            }
-
-            Rectangle {
-                Layout.fillWidth: true
-                implicitHeight: 1
-                color: Theme.surface1
-            }
-
-            // --- the status block, ex-hover-panel ---------------------------
             Text {
-                Layout.fillWidth: true
-                visible: !root.hasActive
-                text: "No active connection"
-                color: Theme.subtext0
+                text: root.hasActive && root.deviceName.length > 0
+                      ? root.deviceName : "Network"
+                color: Theme.lavender
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSize
+                font.bold: true
             }
 
-            Repeater {
-                model: root.statusRows
+            Item { Layout.fillWidth: true }
 
-                RowLayout {
-                    required property var modelData
-                    Layout.fillWidth: true
-                    spacing: 16
+            // The wifi radio, which is a property of the machine rather
+            // than of the active link -- so it stays here on a wired box
+            // whose title says `eth0`.
+            Text {
+                text: "Wi-Fi " + (Networking.wifiEnabled ? "on" : "off")
+                color: Networking.wifiEnabled ? Theme.green : Theme.overlay0
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSize - 1
 
-                    Text {
-                        text: modelData.text
-                        color: Theme.text
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSize
-                    }
-
-                    Item { Layout.fillWidth: true }
-
-                    Text {
-                        // Capped so a long SSID elides instead of stretching
-                        // the menu, the job ListPopup's maxDetailWidth did.
-                        Layout.maximumWidth: 190
-                        text: modelData.detail
-                        elide: Text.ElideRight
-                        horizontalAlignment: Text.AlignRight
-                        color: modelData.accent
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSize
-                    }
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: Networking.wifiEnabled = !Networking.wifiEnabled
                 }
             }
+        }
 
-            // --- the networks -----------------------------------------------
-            // This row is visible whenever the radio is on rather than only
-            // when networks have been found: it carries the Scan button, and
-            // gating it on the list would hide the only control that refreshes
-            // it -- the same trap BluetoothMenu's "Nearby" header had.
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: 1
+            color: Theme.surface1
+        }
+
+        // --- the status block, ex-hover-panel ---------------------------
+        Text {
+            Layout.fillWidth: true
+            visible: !root.hasActive
+            text: "No active connection"
+            color: Theme.subtext0
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize
+        }
+
+        Repeater {
+            model: root.statusRows
+
             RowLayout {
+                required property var modelData
                 Layout.fillWidth: true
-                Layout.topMargin: 2
-                visible: Networking.wifiEnabled
+                spacing: 16
 
                 Text {
-                    text: "Networks"
-                    color: Theme.subtext0
+                    text: modelData.text
+                    color: Theme.text
                     font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSize - 3
+                    font.pixelSize: Theme.fontSize
                 }
 
                 Item { Layout.fillWidth: true }
 
-                Rectangle {
-                    implicitWidth: scanLabel.implicitWidth + 16
-                    implicitHeight: 20
-                    radius: 6
-                    color: scanMouse.containsMouse ? Theme.surface1 : Theme.surface0
-                    border.width: 1
-                    border.color: Theme.surface2
-
-                    Text {
-                        id: scanLabel
-                        // Reads the device's own scannerEnabled, not the
-                        // request, so a scan NetworkManager refused cannot
-                        // leave the button claiming to be running.
-                        text: root.scanning ? "Scanning\u2026" : "Scan"
-                        color: root.scanning ? Theme.yellow : Theme.text
-                        anchors.centerIn: parent
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSize - 2
-                    }
-
-                    MouseArea {
-                        id: scanMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.scanRequested = !root.scanRequested
-                    }
+                Text {
+                    // Capped so a long SSID elides instead of stretching
+                    // the menu, the job ListPopup's maxDetailWidth did.
+                    Layout.maximumWidth: 190
+                    text: modelData.detail
+                    elide: Text.ElideRight
+                    horizontalAlignment: Text.AlignRight
+                    color: modelData.accent
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize
                 }
             }
+        }
+
+        // --- the networks -----------------------------------------------
+        // This row is visible whenever the radio is on rather than only
+        // when networks have been found: it carries the Scan button, and
+        // gating it on the list would hide the only control that refreshes
+        // it -- the same trap BluetoothMenu's "Nearby" header had.
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.topMargin: 2
+            visible: Networking.wifiEnabled
 
             Text {
-                Layout.fillWidth: true
-                visible: root.networks.length === 0
-                text: !Networking.wifiEnabled ? "Wi-Fi is off"
-                    : root.scanning ? "Searching\u2026"
-                    : "No networks yet \u2014 press Scan"
+                text: "Networks"
                 color: Theme.subtext0
                 font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize - 1
+                font.pixelSize: Theme.fontSize - 3
             }
 
-            Repeater {
-                model: root.networks
+            Item { Layout.fillWidth: true }
 
-                Rectangle {
-                    required property var modelData
-
-                    Layout.fillWidth: true
-                    implicitHeight: 24
-                    radius: 6
-                    color: rowMouse.containsMouse ? Theme.surface0 : "transparent"
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 6
-                        anchors.rightMargin: 6
-                        spacing: 8
-
-                        // Four-bar signal meter
-                        Row {
-                            spacing: 2
-                            Repeater {
-                                model: 4
-                                Rectangle {
-                                    required property int index
-                                    width: 3
-                                    height: 4 + index * 3
-                                    y: 13 - height
-                                    radius: 1
-                                    color: (modelData.signalStrength * 4) > index
-                                        ? (modelData.connected ? Theme.green : Theme.text)
-                                        : Theme.surface2
-                                }
-                            }
-                        }
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: modelData.name
-                            elide: Text.ElideRight
-                            color: modelData.connected ? Theme.green : Theme.text
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSize
-                        }
-
-                        // The same number NetworkPill's hover panel shows, on
-                        // the same thresholds, so the two cannot disagree.
-                        // signalStrength is 0..1, not 0-100. Right-aligned in a
-                        // fixed column so the lock and "saved" markers sit at
-                        // the same x on every row.
-                        Text {
-                            Layout.preferredWidth: 30
-                            horizontalAlignment: Text.AlignRight
-                            text: Math.round(modelData.signalStrength * 100) + "%"
-                            color: modelData.signalStrength >= 0.67 ? Theme.green
-                                 : modelData.signalStrength >= 0.34 ? Theme.yellow
-                                 : Theme.red
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSize - 2
-                        }
-
-                        // Lock for anything that is not an open network
-                        Text {
-                            visible: modelData.security !== WifiSecurityType.Open
-                            text: "\uf023"
-                            color: Theme.overlay0
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSize - 2
-                        }
-
-                        Text {
-                            visible: modelData.known && !modelData.connected
-                            text: "saved"
-                            color: Theme.overlay0
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSize - 2
-                        }
-                    }
-
-                    MouseArea {
-                        id: rowMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
-                        onClicked: mouse => {
-                            if (mouse.button === Qt.RightButton) {
-                                if (modelData.known) modelData.forget();
-                            } else {
-                                root.activate(modelData);
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Passphrase entry, shown only for a secured network we have not joined
-            ColumnLayout {
-                Layout.fillWidth: true
-                visible: root.pendingNetwork !== null
-                spacing: 4
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: 1
-                    color: Theme.surface1
-                }
+            Rectangle {
+                implicitWidth: scanLabel.implicitWidth + 16
+                implicitHeight: 20
+                radius: 6
+                color: scanMouse.containsMouse ? Theme.surface1 : Theme.surface0
+                border.width: 1
+                border.color: Theme.surface2
 
                 Text {
-                    text: root.pendingNetwork ? "Password for " + root.pendingNetwork.name : ""
-                    color: Theme.subtext0
+                    id: scanLabel
+                    // Reads the device's own scannerEnabled, not the
+                    // request, so a scan NetworkManager refused cannot
+                    // leave the button claiming to be running.
+                    text: root.scanning ? "Scanning\u2026" : "Scan"
+                    color: root.scanning ? Theme.yellow : Theme.text
+                    anchors.centerIn: parent
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSize - 2
                 }
 
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: 24
-                    radius: 6
-                    color: Theme.surface0
-                    border.width: 1
-                    border.color: Theme.surface2
+                MouseArea {
+                    id: scanMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.scanRequested = !root.scanRequested
+                }
+            }
+        }
 
-                    TextInput {
-                        id: pskField
-                        anchors.fill: parent
-                        anchors.leftMargin: 8
-                        anchors.rightMargin: 8
-                        verticalAlignment: TextInput.AlignVCenter
-                        echoMode: TextInput.Password
-                        color: Theme.text
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSize
-                        selectByMouse: true
-                        focus: root.pendingNetwork !== null
+        Text {
+            Layout.fillWidth: true
+            visible: root.networks.length === 0
+            text: !Networking.wifiEnabled ? "Wi-Fi is off"
+                : root.scanning ? "Searching\u2026"
+                : "No networks yet \u2014 press Scan"
+            color: Theme.subtext0
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize - 1
+        }
 
-                        onAccepted: {
-                            if (text.length > 0 && root.pendingNetwork) {
-                                root.pendingNetwork.connectWithPsk(text);
-                                text = "";
-                                root.close();
+        Repeater {
+            model: root.networks
+
+            Rectangle {
+                required property var modelData
+
+                Layout.fillWidth: true
+                implicitHeight: 24
+                radius: 6
+                color: rowMouse.containsMouse ? Theme.surface0 : "transparent"
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 6
+                    anchors.rightMargin: 6
+                    spacing: 8
+
+                    // Four-bar signal meter
+                    Row {
+                        spacing: 2
+                        Repeater {
+                            model: 4
+                            Rectangle {
+                                required property int index
+                                width: 3
+                                height: 4 + index * 3
+                                y: 13 - height
+                                radius: 1
+                                color: (modelData.signalStrength * 4) > index
+                                    ? (modelData.connected ? Theme.green : Theme.text)
+                                    : Theme.surface2
                             }
                         }
-                        Keys.onEscapePressed: {
-                            text = "";
-                            root.pendingNetwork = null;
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: modelData.name
+                        elide: Text.ElideRight
+                        color: modelData.connected ? Theme.green : Theme.text
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSize
+                    }
+
+                    // The same number NetworkPill's hover panel shows, on
+                    // the same thresholds, so the two cannot disagree.
+                    // signalStrength is 0..1, not 0-100. Right-aligned in a
+                    // fixed column so the lock and "saved" markers sit at
+                    // the same x on every row.
+                    Text {
+                        Layout.preferredWidth: 30
+                        horizontalAlignment: Text.AlignRight
+                        text: Math.round(modelData.signalStrength * 100) + "%"
+                        color: modelData.signalStrength >= 0.67 ? Theme.green
+                             : modelData.signalStrength >= 0.34 ? Theme.yellow
+                             : Theme.red
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSize - 2
+                    }
+
+                    // Lock for anything that is not an open network
+                    Text {
+                        visible: modelData.security !== WifiSecurityType.Open
+                        text: "\uf023"
+                        color: Theme.overlay0
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSize - 2
+                    }
+
+                    Text {
+                        visible: modelData.known && !modelData.connected
+                        text: "saved"
+                        color: Theme.overlay0
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSize - 2
+                    }
+                }
+
+                MouseArea {
+                    id: rowMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onClicked: mouse => {
+                        if (mouse.button === Qt.RightButton) {
+                            if (modelData.known) modelData.forget();
+                        } else {
+                            root.activate(modelData);
                         }
                     }
                 }
             }
+        }
+
+        // Passphrase entry, shown only for a secured network we have not joined
+        ColumnLayout {
+            Layout.fillWidth: true
+            visible: root.pendingNetwork !== null
+            spacing: 4
 
             Rectangle {
                 Layout.fillWidth: true
@@ -493,22 +411,70 @@ PopupWindow {
                 color: Theme.surface1
             }
 
-            // Escape hatch for anything this menu does not cover
             Text {
-                text: "Open nmtui…"
-                color: nmtuiMouse.containsMouse ? Theme.lavender : Theme.subtext0
+                text: root.pendingNetwork ? "Password for " + root.pendingNetwork.name : ""
+                color: Theme.subtext0
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSize - 2
+            }
 
-                MouseArea {
-                    id: nmtuiMouse
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: 24
+                radius: 6
+                color: Theme.surface0
+                border.width: 1
+                border.color: Theme.surface2
+
+                TextInput {
+                    id: pskField
                     anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        Quickshell.execDetached(["kitty", "--class", "nmtui-floating", "-e", "nmtui"]);
-                        root.close();
+                    anchors.leftMargin: 8
+                    anchors.rightMargin: 8
+                    verticalAlignment: TextInput.AlignVCenter
+                    echoMode: TextInput.Password
+                    color: Theme.text
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize
+                    selectByMouse: true
+                    focus: root.pendingNetwork !== null
+
+                    onAccepted: {
+                        if (text.length > 0 && root.pendingNetwork) {
+                            root.pendingNetwork.connectWithPsk(text);
+                            text = "";
+                            root.requestClose();
+                        }
                     }
+                    Keys.onEscapePressed: {
+                        text = "";
+                        root.pendingNetwork = null;
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            implicitHeight: 1
+            color: Theme.surface1
+        }
+
+        // Escape hatch for anything this menu does not cover
+        Text {
+            text: "Open nmtui…"
+            color: nmtuiMouse.containsMouse ? Theme.lavender : Theme.subtext0
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize - 2
+
+            MouseArea {
+                id: nmtuiMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    Quickshell.execDetached(["kitty", "--class", "nmtui-floating", "-e", "nmtui"]);
+                    root.requestClose();
                 }
             }
         }

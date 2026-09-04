@@ -43,7 +43,12 @@ Pill {
 
     ListPopup {
         anchorItem: root
+        // The one popup on this bar that is still a hover panel, so it takes no
+        // part in the one-at-a-time arbitration -- and hides while a real menu
+        // is up, rather than drawing a readout across it.
+        managed: false
         requested: root.hovered && RecorderService.recording
+                   && MenuService.current === null
         title: "Recording"
         rows: [
             { text: "Elapsed", detail: root.clock(root.elapsed), accent: Theme.red },

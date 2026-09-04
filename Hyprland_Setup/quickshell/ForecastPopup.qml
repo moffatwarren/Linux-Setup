@@ -11,11 +11,9 @@ import QtQuick.Layouts
 // Opened by a click, not by hover, so it dismisses the way every other
 // drop-down on this bar does -- Escape, or a click anywhere outside via
 // HyprlandFocusGrab.
-PopupWindow {
+MenuPopup {
     id: root
 
-    property Item anchorItem: null
-    property bool open: false
     property string place: ""
     // [{ date: "2026-08-31", code: 3, max: 22.5, min: 11, pop: 2 }, …] straight
     // from weather-forecast.sh; every field but `date` may be absent.
@@ -69,28 +67,8 @@ PopupWindow {
         return pop >= 60 ? Theme.blue : pop >= 20 ? Theme.subtext0 : Theme.overlay0;
     }
 
-    anchor.item: anchorItem
-    anchor.edges: Edges.Bottom
-    anchor.gravity: Edges.Bottom
-    anchor.margins.top: 6
-
     implicitWidth: body.implicitWidth + 28
     implicitHeight: body.implicitHeight + 24
-    color: "transparent"
-
-    visible: open
-    // Take the keyboard while open so Escape can close the panel.
-    grabFocus: open
-
-    // Dismiss on a click anywhere outside, as PowerMenu and the network,
-    // bluetooth and audio menus do.
-    HyprlandFocusGrab {
-        windows: [root]
-        active: root.open
-        onCleared: root.close()
-    }
-
-    function close() { open = false; }
 
     Timer {
         interval: 30000
@@ -141,185 +119,175 @@ PopupWindow {
         text: "\ue371 100%"
     }
 
-    Rectangle {
-        anchors.fill: parent
-        focus: true
-        Keys.onEscapePressed: root.close()
-        radius: 12
-        color: Theme.base
-        border.width: 1
-        border.color: Theme.surface1
+    ColumnLayout {
+        id: body
+        anchors.centerIn: parent
+        spacing: 5
 
-        ColumnLayout {
-            id: body
-            anchors.centerIn: parent
-            spacing: 5
+        Text {
+            text: "7-day forecast"
+            color: Theme.lavender
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize
+            font.bold: true
+        }
 
-            Text {
-                text: "7-day forecast"
-                color: Theme.lavender
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize
-                font.bold: true
-            }
+        Text {
+            text: root.place
+            visible: root.place.length > 0
+            color: Theme.subtext0
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize - 1
+        }
 
-            Text {
-                text: root.place
-                visible: root.place.length > 0
-                color: Theme.subtext0
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize - 1
-            }
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.topMargin: 2
+            implicitHeight: 1
+            color: Theme.surface1
+        }
 
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.topMargin: 2
-                implicitHeight: 1
-                color: Theme.surface1
-            }
+        Text {
+            text: root.emptyText
+            visible: root.days.length === 0 && root.emptyText.length > 0
+            color: Theme.subtext0
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize
+        }
 
-            Text {
-                text: root.emptyText
-                visible: root.days.length === 0 && root.emptyText.length > 0
-                color: Theme.subtext0
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize
-            }
+        // Day | icon | condition | high | low | chance of precipitation.
+        // High and low are separate fixed-width cells so their digits line
+        // up down the column rather than drifting with the number above.
+        Repeater {
+            model: root.days
 
-            // Day | icon | condition | high | low | chance of precipitation.
-            // High and low are separate fixed-width cells so their digits line
-            // up down the column rather than drifting with the number above.
-            Repeater {
-                model: root.days
+            Row {
+                id: dayRow
+                required property var modelData
+                required property int index
 
-                Row {
-                    id: dayRow
-                    required property var modelData
-                    required property int index
+                readonly property var cond: root.condition(modelData.code)
+                readonly property bool isToday: index === 0
 
-                    readonly property var cond: root.condition(modelData.code)
-                    readonly property bool isToday: index === 0
-
-                    spacing: 10
-
-                    Text {
-                        width: Math.ceil(dayMetrics.advanceWidth)
-                        text: root.dayLabel(dayRow.modelData.date, dayRow.index)
-                        color: dayRow.isToday ? Theme.lavender : Theme.text
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSize
-                        font.bold: dayRow.isToday
-                    }
-
-                    Text {
-                        width: Math.ceil(iconMetrics.advanceWidth)
-                        horizontalAlignment: Text.AlignHCenter
-                        text: dayRow.cond.icon
-                        color: dayRow.cond.color
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSize + 2
-                    }
-
-                    Text {
-                        width: Math.ceil(condMetrics.advanceWidth)
-                        text: dayRow.cond.text
-                        elide: Text.ElideRight
-                        color: Theme.subtext1
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSize
-                    }
-
-                    Text {
-                        width: Math.ceil(tempMetrics.advanceWidth)
-                        horizontalAlignment: Text.AlignRight
-                        text: root.temp(dayRow.modelData.max)
-                        color: Theme.peach
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSize
-                    }
-
-                    Text {
-                        width: Math.ceil(tempMetrics.advanceWidth)
-                        horizontalAlignment: Text.AlignRight
-                        text: root.temp(dayRow.modelData.min)
-                        color: Theme.sapphire
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSize
-                    }
-
-                    // A droplet, so the column labels itself without the table
-                    // needing a header row.
-                    Text {
-                        width: Math.ceil(popMetrics.advanceWidth)
-                        horizontalAlignment: Text.AlignRight
-                        text: dayRow.modelData.pop === undefined
-                              ? "" : "\ue371 " + dayRow.modelData.pop + "%"
-                        color: dayRow.modelData.pop === undefined
-                               ? Theme.overlay0 : root.popColor(dayRow.modelData.pop)
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSize
-                    }
-                }
-            }
-
-            // Provenance line: how old the reading is, and the button that
-            // forces a new one. That was the pill's right-click, which this row
-            // could only describe in words -- a gesture you had to open the
-            // panel to discover, for something the panel can simply carry.
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.topMargin: 2
-                implicitHeight: 1
-                color: Theme.surface1
-            }
-
-            RowLayout {
-                id: footer
-                Layout.fillWidth: true
-                spacing: 12
+                spacing: 10
 
                 Text {
-                    // The age stays put through a refresh: the button is where
-                    // the in-progress state is said now, so this row does not
-                    // have to stop saying the one thing it is here to say.
-                    text: "Updated " + root.agoText(root.updatedAt)
-                    visible: root.updatedAt > 0
-                    color: Theme.overlay0
+                    width: Math.ceil(dayMetrics.advanceWidth)
+                    text: root.dayLabel(dayRow.modelData.date, dayRow.index)
+                    color: dayRow.isToday ? Theme.lavender : Theme.text
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize
+                    font.bold: dayRow.isToday
+                }
+
+                Text {
+                    width: Math.ceil(iconMetrics.advanceWidth)
+                    horizontalAlignment: Text.AlignHCenter
+                    text: dayRow.cond.icon
+                    color: dayRow.cond.color
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize + 2
+                }
+
+                Text {
+                    width: Math.ceil(condMetrics.advanceWidth)
+                    text: dayRow.cond.text
+                    elide: Text.ElideRight
+                    color: Theme.subtext1
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize
+                }
+
+                Text {
+                    width: Math.ceil(tempMetrics.advanceWidth)
+                    horizontalAlignment: Text.AlignRight
+                    text: root.temp(dayRow.modelData.max)
+                    color: Theme.peach
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize
+                }
+
+                Text {
+                    width: Math.ceil(tempMetrics.advanceWidth)
+                    horizontalAlignment: Text.AlignRight
+                    text: root.temp(dayRow.modelData.min)
+                    color: Theme.sapphire
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize
+                }
+
+                // A droplet, so the column labels itself without the table
+                // needing a header row.
+                Text {
+                    width: Math.ceil(popMetrics.advanceWidth)
+                    horizontalAlignment: Text.AlignRight
+                    text: dayRow.modelData.pop === undefined
+                          ? "" : "\ue371 " + dayRow.modelData.pop + "%"
+                    color: dayRow.modelData.pop === undefined
+                           ? Theme.overlay0 : root.popColor(dayRow.modelData.pop)
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize
+                }
+            }
+        }
+
+        // Provenance line: how old the reading is, and the button that
+        // forces a new one. That was the pill's right-click, which this row
+        // could only describe in words -- a gesture you had to open the
+        // panel to discover, for something the panel can simply carry.
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.topMargin: 2
+            implicitHeight: 1
+            color: Theme.surface1
+        }
+
+        RowLayout {
+            id: footer
+            Layout.fillWidth: true
+            spacing: 12
+
+            Text {
+                // The age stays put through a refresh: the button is where
+                // the in-progress state is said now, so this row does not
+                // have to stop saying the one thing it is here to say.
+                text: "Updated " + root.agoText(root.updatedAt)
+                visible: root.updatedAt > 0
+                color: Theme.overlay0
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSize - 2
+            }
+
+            Item { Layout.fillWidth: true }
+
+            // The same chip BluetoothMenu and WifiMenu use for Scan.
+            Rectangle {
+                implicitWidth: refreshLabel.implicitWidth + 16
+                implicitHeight: 20
+                radius: 6
+                color: refreshMouse.containsMouse ? Theme.surface1 : Theme.surface0
+                border.width: 1
+                border.color: Theme.surface2
+
+                Text {
+                    id: refreshLabel
+                    anchors.centerIn: parent
+                    text: root.refreshing ? "Refreshing…" : "Refresh"
+                    color: root.refreshing ? Theme.yellow : Theme.text
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSize - 2
                 }
 
-                Item { Layout.fillWidth: true }
-
-                // The same chip BluetoothMenu and WifiMenu use for Scan.
-                Rectangle {
-                    implicitWidth: refreshLabel.implicitWidth + 16
-                    implicitHeight: 20
-                    radius: 6
-                    color: refreshMouse.containsMouse ? Theme.surface1 : Theme.surface0
-                    border.width: 1
-                    border.color: Theme.surface2
-
-                    Text {
-                        id: refreshLabel
-                        anchors.centerIn: parent
-                        text: root.refreshing ? "Refreshing…" : "Refresh"
-                        color: root.refreshing ? Theme.yellow : Theme.text
-                        font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSize - 2
-                    }
-
-                    MouseArea {
-                        id: refreshMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        // The panel owns no state and runs no process; the pill
-                        // is what knows how to fetch, the split TailscaleMenu
-                        // and PiaMenu use. It stays open on a click -- the
-                        // point of the button is to watch the numbers land.
-                        onClicked: root.refreshRequested()
-                    }
+                MouseArea {
+                    id: refreshMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    // The panel owns no state and runs no process; the pill
+                    // is what knows how to fetch, the split TailscaleMenu
+                    // and PiaMenu use. It stays open on a click -- the
+                    // point of the button is to watch the numbers land.
+                    onClicked: root.refreshRequested()
                 }
             }
         }
