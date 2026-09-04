@@ -67,8 +67,8 @@ end
 hl.bind(config.mainMod .. " + SHIFT + mouse:272", hl.dsp.window.move({ monitor = "+1" }))
 
 -- Scroll through existing workspaces with mouse scroll
-hl.bind(config.mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e-1" }), { bypass = true })
-hl.bind(config.mainMod .. " + mouse_up", hl.dsp.focus({ workspace = "e+1" }), { bypass = true })
+hl.bind(config.mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }), { bypass = true })
+hl.bind(config.mainMod .. " + mouse_up", hl.dsp.focus({ workspace = "e-1" }), { bypass = true })
 
 -- Move/resize windows with main mod + mouse drag
 hl.bind(config.mainMod .. " + mouse:272", hl.dsp.window.drag(), { mouse = true })
