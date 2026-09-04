@@ -40,8 +40,9 @@ case "${1:-}" in
     # --revalidate is the cheap half: no network at all, just drop the entries
     # this machine has since installed. See revalidate() below.
     --revalidate) MODE=revalidate ;;
+    --upgrade)    MODE=upgrade ;;
     "")           ;;
-    *)            echo "usage: ${0##*/} [--force|--revalidate]" >&2; exit 1 ;;
+    *)            echo "usage: ${0##*/} [--force|--revalidate|--upgrade]" >&2; exit 1 ;;
 esac
 
 # Freshness is the cache's own `updated` field rather than its mtime, which is
@@ -130,6 +131,17 @@ case "$MODE" in
         printf '%s\n' "$out" > "$CACHE"
         printf '%s\n' "$out"
         exit 0
+        ;;
+    upgrade)
+        trap 'command -v qs >/dev/null 2>&1 && qs ipc call updates refresh >/dev/null 2>&1 || true' EXIT
+        paru -Syu
+        exit_code=$?
+        echo
+        if command -v qs >/dev/null 2>&1; then
+            qs ipc call updates refresh >/dev/null 2>&1 || true
+        fi
+        read -r -n1 -p "Press any key to close."
+        exit $exit_code
         ;;
 esac
 

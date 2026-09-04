@@ -2,16 +2,10 @@ import QtQuick
 
 // Pending package updates: a box glyph and a count, opening UpdateMenu.
 //
-// Nothing anywhere in the module runs the upgrade, deliberately -- that is done
-// by hand in a terminal, and the menu is a readout with a Check button, not a
-// control panel.
-//
-// That is not just a scoping decision. An upgrade needs a password and this
-// session runs no polkit agent (the wall PiaMenu's Start-service button already
-// hit), and pacman asks real questions mid-transaction -- replaces, conflicts,
-// [Y/n] -- which a Process in the bar has no way to answer and would simply
-// hang on. If a click is ever wanted here it has to open a kitty, the way
-// pia.sh --start-service does, never run the transaction in-process.
+// Left-click opens UpdateMenu, which shows the list of pending packages,
+// a Check button to re-scan, and an Update button to launch paru -Syu in
+// an interactive floating terminal. Once the upgrade completes, the bar
+// automatically re-checks for any remaining updates.
 //
 // Left-click opens UpdateMenu, the way every pill that owns a menu does.
 // Right-click re-checks without opening anything -- the menu/shortcut split

@@ -82,6 +82,42 @@ MenuPopup {
 
             Item { Layout.fillWidth: true }
 
+            // Upgrade button (runs paru -Syu in a floating kitty terminal)
+            Rectangle {
+                implicitWidth: updateLabel.implicitWidth + 16
+                implicitHeight: 20
+                radius: 6
+                color: updateMouse.containsMouse
+                    ? (root.count > 0 ? Theme.green : Theme.surface1)
+                    : Theme.surface0
+                border.width: 1
+                border.color: root.count > 0 ? Theme.green : Theme.surface2
+
+                Text {
+                    id: updateLabel
+                    anchors.centerIn: parent
+                    text: "Update"
+                    color: updateMouse.containsMouse
+                        ? (root.count > 0 ? Theme.crust : Theme.text)
+                        : (root.count > 0 ? Theme.green : Theme.subtext0)
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize - 3
+                    font.bold: root.count > 0
+                }
+
+                MouseArea {
+                    id: updateMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        root.requestClose();
+                        Quickshell.execDetached(["kitty", "--class", "update-floating", "-e",
+                            Quickshell.env("HOME") + "/.config/hypr/scripts/updates.sh", "--upgrade"]);
+                    }
+                }
+            }
+
             // The re-check, which was the pill's left button before the
             // menu took it. Its label reads UpdateService.refreshing --
             // the state, not the request -- so a check that is already
