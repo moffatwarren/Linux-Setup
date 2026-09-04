@@ -33,6 +33,22 @@ toggle_status() {
   fi
 }
 
+# piactl only talks to the daemon; it cannot bring up a tunnel on its own.
+# `piactl connect` fails outright unless the GUI client is running or background
+# mode is enabled (`piactl background enable`) -- see `piactl --help`. That is a
+# silent dead button in a menu, so every failure is reported. The hint is only
+# attached to a connect, since that is the one that has this precondition.
+report_failure() {
+  local action="$1" err="$2" hint="${3:-}"
+  local body="${err:-piactl gave no reason.}"
+  [ -n "$hint" ] && body="${body}"$'\n'"${hint}"
+  # No -i, for the reason BatteryWatcher sends none: a themed *-symbolic icon
+  # has a near-black fill baked into the SVG and is invisible on the toast's
+  # `base` card. With no icon NotificationToasts draws its own glyph in the
+  # urgency accent -- a red warning triangle, which is what this should be.
+  notify-send -u critical "PIA: ${action} failed" "$body"
+}
+
 case "$1" in
   --status)
     STATE=$(pia_status)
@@ -96,8 +112,62 @@ case "$1" in
       exit 1
     fi
     ;;
+  --connect)
+    if ! ERR=$($PIACTL connect 2>&1); then
+      report_failure "Connect" "$ERR" \
+        "piactl needs the PIA client running, or background mode: piactl background enable"
+      exit 1
+    fi
+    ;;
+  --disconnect)
+    if ! ERR=$($PIACTL disconnect 2>&1); then
+      report_failure "Disconnect" "$ERR"
+      exit 1
+    fi
+    ;;
+  --regions)
+    # Raw region ids, one per line, "auto" first -- exactly as piactl prints
+    # them. The menu turns `us-salt-lake-city` into `US Salt Lake City`, the
+    # way the weather and stats modules format their scripts' raw numbers.
+    # Empty output (daemon down) is a normal answer, not an error.
+    $PIACTL get regions 2>/dev/null || true
+    ;;
+  --set-region)
+    # Selecting a region does not move a live tunnel: `piactl connect` doubles
+    # as "reconnect to apply new settings" (`piactl --help`), so it is run
+    # either way -- to apply the change when connected, and because picking a
+    # place to connect to means you want to be connected to it when not.
+    if [ -z "${2:-}" ]; then
+      echo "Usage: $0 --set-region <region-id>" >&2
+      exit 1
+    fi
+    if ! ERR=$($PIACTL set region "$2" 2>&1); then
+      report_failure "Region" "$ERR"
+      exit 1
+    fi
+    if ! ERR=$($PIACTL connect 2>&1); then
+      report_failure "Connect" "$ERR" \
+        "piactl needs the PIA client running, or background mode: piactl background enable"
+      exit 1
+    fi
+    ;;
+  --open-client)
+    # The GUI, for everything this menu deliberately does not carry: the full
+    # region list, settings, the account. Launched the way the shipped
+    # /usr/share/applications/piavpn.desktop does -- XDG_SESSION_TYPE=X11 and
+    # from its own directory. The client is a Qt app that expects X11, so it
+    # runs under XWayland; dropping that env is how it fails to start with
+    # nothing on screen to say why.
+    CLIENT="/opt/piavpn/bin/pia-client"
+    if [ ! -x "$CLIENT" ]; then
+      notify-send -u critical "PIA" "PIA client not found at ${CLIENT}."
+      exit 1
+    fi
+    cd "$(dirname "$CLIENT")" || exit 1
+    XDG_SESSION_TYPE=X11 setsid -f "$CLIENT" >/dev/null 2>&1
+    ;;
   *)
-    echo "Usage: $0 {--status|--toggle|--service|--start-service}"
+    echo "Usage: $0 {--status|--toggle|--connect|--disconnect|--regions|--set-region <id>|--service|--start-service|--open-client}"
     exit 1
     ;;
 esac

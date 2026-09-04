@@ -84,8 +84,17 @@ PACMAN_PKGS=(
     adw-gtk-theme cantarell-fonts papirus-icon-theme
     # Called by the deployed scripts/bars rather than by install.sh itself:
     # jq (tailscale.sh), libpulse+wireplumber (pactl/wpctl in the audio and
-    # volume scripts), pavucontrol (audio right-click), power-profiles-daemon
-    # (the power profile module), networkmanager (the network module + nmtui),
+    # volume scripts), pavucontrol (from the audio menu's footer),
+    # power-profiles-daemon (the power profile module and its menu -- the
+    # package needs NO `systemctl enable`, and adding one would be a mistake to
+    # copy: it ships /usr/share/dbus-1/system-services/net.hadess.PowerProfiles
+    # .service with SystemdService=power-profiles-daemon.service, so the unit is
+    # D-Bus activated the moment the bar reads a profile. Verified on this
+    # machine, which reports the unit `disabled` and `active` at the same time),
+    # networkmanager (the network module: nmtui in WifiMenu's footer, and the
+    # `nmcli ... --rescan no` that NetworkPill reads the connected SSID and
+    # signal with, now that scanning is opt-in and NetworkDevice.networks is
+    # therefore empty),
     # qt6-imageformats (webp/avif thumbnails in the SUPER+W wallpaper picker --
     # Qt ships only jpg/png/gif out of the box), libnotify (notify-send in the
     # OSD and wallpaper scripts -- the bar renders them, but the scripts still
@@ -101,6 +110,14 @@ PACMAN_PKGS=(
     # missing here -- listed anyway, because a script calling a binary directly
     # should not rely on arriving as somebody else's dependency.
     curl
+    # python is that same rule, and this one is not hypothetical: pia-region.sh
+    # matches the exit IP against PIA's published server list in a python3
+    # heredoc, because the alternative is parsing a 2 MB JSON document in jq on
+    # every poll. Nothing else here calls an interpreter. It arrives with half
+    # the desktop in practice, and "in practice" is what this list exists to
+    # stop relying on -- without it the PIA menu's Region row silently reads
+    # `Automatic` for ever, since the script prints nothing rather than guessing.
+    python
     # Needed by install.sh itself rather than by anything it deploys: sddm owns
     # /usr/share/sddm/themes (deploy_configs copies voidsddm into it) and avahi
     # owns the avahi-daemon unit apply_system_tweaks enables. Both happen to be
@@ -306,9 +323,11 @@ check_nerd_font() {
     command -v fc-list >/dev/null 2>&1 || return 0
 
     local cp missing=()
-    # md-ethernet (NetworkPill) and md-volume-high (AudioPill): one from each of
-    # the modules whose entire label is a single v3 glyph.
-    for cp in f0200 f057e; do
+    # md-ethernet (NetworkPill), md-volume-high (AudioPill) and md-lock
+    # (PiaPill): one from each of the modules whose entire label is a single v3
+    # glyph. PIA joined them when it stopped spelling out the letters "PIA" and
+    # became a padlock that opens and closes with the tunnel.
+    for cp in f0200 f057e f033e; do
         if ! fc-list ":charset=$cp:family=JetBrainsMono Nerd Font" 2>/dev/null | grep -q .; then
             missing+=("U+${cp^^}")
         fi
@@ -322,7 +341,7 @@ check_nerd_font() {
     echo "    WARNING: JetBrainsMono Nerd Font is missing ${missing[*]}."
     echo "             Those are Nerd Fonts v3 codepoints, so this font is v2 --"
     echo "             the icon-only bar modules (network, audio, notifications,"
-    echo "             weather) will draw tofu or drop out of the bar entirely."
+    echo "             weather, PIA) will draw tofu or drop out of the bar entirely."
     echo "             Try, in order:"
     echo "               fc-cache -f                                  # just a cold cache"
     echo "               sudo pacman -Syu ttf-jetbrains-mono-nerd     # stale package"

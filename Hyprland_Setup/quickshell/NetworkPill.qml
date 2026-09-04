@@ -5,9 +5,14 @@ import QtQuick
 
 // One glyph, no text: which way the machine is on the network, and nothing
 // else. The SSID, signal, IP and rates it used to spell out (waybar drew the
-// essid and its strength on wifi, the address on ethernet) all live in the
-// hover panel, which is where you look when you want a number -- the bar
-// itself only has to answer "am I on, and over what".
+// essid and its strength on wifi, the address on ethernet) are the status block
+// at the top of WifiMenu -- the bar itself only has to answer "am I on, and
+// over what", and the numbers are one click away.
+//
+// This file still works all of that out; the menu only draws it. That is why
+// the throughput sampler and the two IP lookups stay here rather than moving
+// into WifiMenu: the rate counters have to be sampled continuously to have a
+// delta at all, and a menu that is shut most of the time cannot do that.
 //
 // Quickshell's NetworkDevice.address is the MAC, not the IP, and no IP is
 // exposed anywhere on the device or its network object -- so the address is
@@ -32,26 +37,81 @@ Pill {
     // there is nothing to ask NetworkManager separately.
     readonly property bool wifiCapable: devices.some(d => d.type === DeviceType.Wifi)
 
-    // The WifiNetwork the active device is actually on. NetworkDevice exposes
-    // no `network` property -- only `networks`, the list of everything in range
-    // (verified against quickshell-network.qmltypes: type, name, networks,
-    // address, connected, state, nmManaged, autoconnect, and nothing else) --
-    // so the current one is the connected member of that list. Reading a
-    // `.network` that does not exist is not an error in QML, just undefined,
-    // which is why this failed silently: the panel showed the fallback "Wi-Fi"
-    // instead of the SSID and dropped the Signal row entirely.
-    readonly property var activeNetwork: {
-        if (!active || active.type !== DeviceType.Wifi) return null;
-        const on = active.networks.values.filter(n => n.connected);
-        return on.length > 0 ? on[0] : null;
+    // --- the network this machine is actually on ----------------------------
+    // NetworkDevice exposes no `network` property -- only `networks`, the list
+    // of everything in range (verified against quickshell-network.qmltypes:
+    // type, name, networks, address, connected, state, nmManaged, autoconnect,
+    // and nothing else). The obvious answer is therefore the connected member
+    // of `networks`, and it does not work, because **`networks` is populated
+    // only while `scannerEnabled` is true.** Verified on this machine: with the
+    // scanner off it is empty even though NetworkManager itself is holding 41
+    // access points (`nmcli device wifi list --rescan no`); turning the scanner
+    // on filled it inside 1.5 s and turning it off emptied it again. Since
+    // WifiMenu stopped scanning on open, nothing enables the scanner unless the
+    // Scan button is pressed -- so a `networks`-derived SSID and signal would
+    // simply vanish from the status block, which is the one place they are now
+    // shown.
+    //
+    // So they are read from NetworkManager's own cache instead, the same way
+    // the IP already is. `--rescan no` is what makes that a read and not a
+    // scan: it returns what NM last saw and never puts the radio to work.
+    property string wifiSsid: ""
+    // 0..1, to match the scale WifiMenu's meter draws its rows on. nmcli
+    // reports 0-100, hence the divide; -1 means "not on wifi".
+    property real wifiSignal: -1
+
+    // `nmcli -t` separates fields with ":" and escapes any colon *inside* a
+    // value as "\:", so the split has to respect the backslash -- an SSID with
+    // one in it would otherwise take the signal column with it. Written as a
+    // scan rather than `split(/(?<!\\):/)` because **QML's JS engine does not
+    // support lookbehind and does not say so**: verified on this Qt, that regex
+    // throws nothing and simply never matches, so `split` hands back the whole
+    // line as one field and the signal parses as NaN. Unescapes as it goes.
+    function splitEscaped(line) {
+        const out = [];
+        var cur = "";
+        for (var i = 0; i < line.length; i++) {
+            const c = line.charAt(i);
+            if (c === "\\" && i + 1 < line.length) { cur += line.charAt(++i); continue; }
+            if (c === ":") { out.push(cur); cur = ""; continue; }
+            cur += c;
+        }
+        out.push(cur);
+        return out;
     }
 
-    // 0..1, not 0-100 -- the same scale WifiMenu's signal meter reads, and -1
-    // for "not on wifi". Verified against a live scan: 0.92, 0.45, not 92/45.
-    // signalStrength is a WifiNetwork property, not a NetworkDevice one.
-    readonly property real wifiSignal: {
-        const net = activeNetwork;
-        return net && net.signalStrength !== undefined ? net.signalStrength : -1;
+    function refreshWifiInfo() {
+        if (!active || active.type !== DeviceType.Wifi) {
+            wifiSsid = "";
+            wifiSignal = -1;
+            return;
+        }
+        if (!wifiInfoProc.running) wifiInfoProc.running = true;
+    }
+
+    Process {
+        id: wifiInfoProc
+        command: ["bash", "-lc",
+                  "nmcli -t -f IN-USE,SIGNAL,SSID device wifi list --rescan no 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const lines = text.split("\n");
+                for (var i = 0; i < lines.length; i++) {
+                    if (lines[i].charAt(0) !== "*") continue;
+                    const f = root.splitEscaped(lines[i]);
+                    const pct = parseInt(f[1], 10);
+                    root.wifiSignal = isNaN(pct) ? -1 : Math.max(0, Math.min(1, pct / 100));
+                    // Everything after the signal column, since an SSID may
+                    // contain a colon of its own.
+                    root.wifiSsid = f.slice(2).join(":");
+                    return;
+                }
+                // Connected but NM lists no in-use AP: keep nothing rather than
+                // the previous network's name.
+                root.wifiSsid = "";
+                root.wifiSignal = -1;
+            }
+        }
     }
 
     property string ipAddress: ""
@@ -66,12 +126,6 @@ Pill {
     property real lastTx: -1
 
     readonly property string ifacePath: active ? "/sys/class/net/" + active.name + "/statistics/" : ""
-
-    function humanRate(bytesPerSec) {
-        if (bytesPerSec < 1024) return Math.round(bytesPerSec) + " B/s";
-        if (bytesPerSec < 1024 * 1024) return (bytesPerSec / 1024).toFixed(1) + " KiB/s";
-        return (bytesPerSec / (1024 * 1024)).toFixed(2) + " MiB/s";
-    }
 
     FileView { id: rxFile; path: root.ifacePath.length > 0 ? root.ifacePath + "rx_bytes" : ""; blockLoading: true }
     FileView { id: txFile; path: root.ifacePath.length > 0 ? root.ifacePath + "tx_bytes" : ""; blockLoading: true }
@@ -105,6 +159,7 @@ Pill {
 
     onActiveChanged: {
         refreshIp();
+        refreshWifiInfo();
         // Not merely stale but unknown: the old link's address is not this
         // link's, and a wrong address is worse than a missing row.
         publicIp = "";
@@ -114,7 +169,7 @@ Pill {
         rxRate = 0;
         txRate = 0;
     }
-    Component.onCompleted: refreshIp()
+    Component.onCompleted: { refreshIp(); refreshWifiInfo(); }
 
     Process {
         id: ipProc
@@ -125,9 +180,11 @@ Pill {
 
     // --- public IP ----------------------------------------------------------
     // Unlike the interface address this one has to be asked of somebody else's
-    // server, so it is fetched on hover rather than polled -- the panel is its
-    // only consumer, and an idle bar should ask nobody anything. public-ip.sh
-    // caches for ten minutes, so a run of hovers costs one `cat` apiece.
+    // server, so it is fetched when the menu opens rather than polled -- the
+    // menu is its only consumer, and an idle bar should ask nobody anything.
+    // public-ip.sh caches for ten minutes, so a run of openings costs one `cat`
+    // apiece. It was on hover, which is the same rule against the panel this
+    // block replaced.
     property string publicIp: ""
     // A link change makes the cached address the one answer that is certainly
     // wrong, so the next fetch has to go past the cache. It starts set because
@@ -155,13 +212,15 @@ Pill {
         }
     }
 
-    onHoveredChanged: if (hovered) refreshPublicIp()
 
     Timer {
         interval: 30000
         running: true
         repeat: true
-        onTriggered: if (!ipProc.running) root.refreshIp()
+        onTriggered: {
+            if (!ipProc.running) root.refreshIp();
+            root.refreshWifiInfo();
+        }
     }
 
     // Material Design Icons from the nerd font, as surrogate pairs (see
@@ -185,41 +244,29 @@ Pill {
     // both put their menu on the primary button. The right button is unbound
     // here -- the wifi radio toggle lives in the menu header, unlike the
     // bluetooth adapter, which has it on both.
-    onClicked: wifiMenu.open = !wifiMenu.open
+    onClicked: {
+        if (!wifiMenu.open) {
+            refreshPublicIp();
+            // The status block is about to be looked at, and the 30 s tick is
+            // too slow for a signal reading you just asked for.
+            refreshWifiInfo();
+        }
+        wifiMenu.open = !wifiMenu.open;
+    }
 
     WifiMenu {
         id: wifiMenu
         anchorItem: root
-    }
 
-    ListPopup {
-        anchorItem: root
-        requested: root.hovered && !wifiMenu.open
-        title: root.active ? String(root.active.name) : "Network"
-        emptyText: root.active ? "" : "No active connection"
-        rows: {
-            if (!root.active) return [];
-            const out = [];
-            // Wifi leads with what the bar no longer says: which network, and
-            // how well. The strength takes an accent rather than a bare number
-            // because the bar's idiom is that the colour is the readout.
-            if (root.active.type === DeviceType.Wifi) {
-                const net = root.activeNetwork;
-                out.push({ text: "Network", detail: net ? String(net.name) : "Wi-Fi" });
-                if (root.wifiSignal >= 0)
-                    out.push({
-                        text: "Signal",
-                        detail: Math.round(root.wifiSignal * 100) + "%",
-                        accent: root.wifiSignal >= 0.67 ? Theme.green
-                              : root.wifiSignal >= 0.34 ? Theme.yellow : Theme.red
-                    });
-            }
-            out.push({ text: "\u2193 Download", detail: root.humanRate(root.rxRate), accent: Theme.green });
-            out.push({ text: "\u2191 Upload",   detail: root.humanRate(root.txRate), accent: Theme.sapphire });
-            if (root.ipAddress.length > 0) out.push({ text: "IP", detail: root.ipAddress });
-            if (root.publicIp.length > 0) out.push({ text: "Public IP", detail: root.publicIp });
-            out.push({ text: "MAC", detail: String(root.active.address) });
-            return out;
-        }
+        hasActive: root.active !== null
+        activeIsWifi: root.active !== null && root.active.type === DeviceType.Wifi
+        deviceName: root.active ? String(root.active.name) : ""
+        ssid: root.wifiSsid
+        signalStrength: root.wifiSignal
+        ipAddress: root.ipAddress
+        publicIp: root.publicIp
+        macAddress: root.active ? String(root.active.address) : ""
+        rxRate: root.rxRate
+        txRate: root.txRate
     }
 }

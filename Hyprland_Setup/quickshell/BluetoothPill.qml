@@ -21,20 +21,6 @@ Pill {
     }
     labelColor: Theme.mauve
 
-    ListPopup {
-        anchorItem: root
-        requested: root.hovered && !btMenu.open
-        title: root.adapter ? String(root.adapter.name) : "Bluetooth"
-        emptyText: root.adapter && root.adapter.enabled ? "No paired devices" : "Adapter off"
-        rows: Bluetooth.devices.values.map(d => ({
-            text: String(d.name),
-            detail: d.connected
-                ? (d.batteryAvailable ? "connected  " + Math.round(d.battery * 100) + "%" : "connected")
-                : (d.paired ? "paired" : "seen"),
-            accent: d.connected ? Theme.green : Theme.overlay0
-        }))
-    }
-
     // Left-click opens the device picker; blueman is reachable from inside it.
     // Right-click toggles the adapter without opening anything -- the same
     // menu/shortcut split NotificationPill uses (left opens the centre, right

@@ -33,11 +33,19 @@ Pill {
     // A toggle takes several seconds to settle (PIA especially), so poll
     // quickly for a short while afterwards instead of waiting for the next
     // slow tick -- otherwise the click looks like it did nothing.
+    //
+    // Exposed as a function because a subclass cannot reach `fastPoll`: QML ids
+    // are scoped to the file that declares them, so a derived component sees
+    // this file's properties but none of its ids. TailscalePill needs it for a
+    // toggle driven from inside its menu rather than from a click on the pill.
     property int fastTicks: 0
-    onDoubleClicked: {
-        run(doubleClickCommand);
+    function pollFast() {
         fastTicks = 0;
         fastPoll.running = true;
+    }
+    onDoubleClicked: {
+        run(doubleClickCommand);
+        pollFast();
     }
 
     Timer {
