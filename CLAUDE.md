@@ -275,13 +275,35 @@ holding the Catppuccin Mocha palette.
 bluetooth/workspaces/media use Quickshell's native services instead, so the bar is
 event-driven rather than polling.
 
-`ListPopup.qml` is the Catppuccin hover panel used by the battery and recorder
-modules — the last two with nothing to click (a title plus `{ text, detail, accent }`
-rows). It replaced the stock
-QtQuick `ToolTip`s, which ignored the palette. Modules drive it with
-`requested: root.hovered`, using the `hovered` alias `Pill.qml` exposes. Its optional
+`ListPopup.qml` is the Catppuccin panel used by the modules with no menu — a title plus
+`{ text, detail, accent }` rows. It replaced the stock
+QtQuick `ToolTip`s, which ignored the palette. Its optional
 `maxDetailWidth` elides the right-hand column, for rows whose detail is a filename long
 enough to stretch the panel across the screen (`RecorderPill` needs it).
+
+**It opens either way, and `dismissable` is the switch.** `RecorderPill` drives it with
+`requested: root.hovered`, using the `hovered` alias `Pill.qml` exposes.
+`BatteryPill` sets `dismissable: true` and drives `requested` from a flag its click
+toggles, which turns on the three things a hover panel must not have: `grabFocus` while
+visible, a `HyprlandFocusGrab`, and `Keys.onEscapePressed` — together, dismissal by
+Escape or by a click anywhere outside. The panel reports both through one `dismissed()`
+signal and the client clears its own flag; the popup never owns the flag, so a client can
+gate it on more than the click (`BatteryPill` also requires `present`).
+
+Two traps in that, both measured:
+
+- **A hover panel must never take `grabFocus`.** It would hold the keyboard for as long
+  as the pointer crossed the pill, so the flag gates it rather than it being unconditional.
+- **A popup whose focus grab is already active at construction never appears**, and it
+  reports no error. The grab activates before the surface is mapped, is cleared
+  immediately, and closes the popup — so the panel sits there with `visible = true` while
+  drawing nothing, which is the most misleading failure in this file. It bit twice, and an
+  earlier note here blamed the scratch harness for it; that was wrong. The give-away was
+  `BatteryPill` appearing to work under the same treatment, which it only does because its
+  `requested` also depends on `present` (UPower resolves a moment *after* construction, so
+  the grab activates late and survives). **To force a dropdown open for a screenshot, set
+  its flag from a `Timer` a second or two in, never as an initial value** — otherwise you
+  are testing a path a real click never takes.
 
 **A module with a menu has no hover panel — the rule now holds without exception.**
 `AudioPill`, `BluetoothPill`, `NotificationPill`, `TailscalePill`, `PiaPill`,
@@ -303,10 +325,19 @@ both cases the panel's rows answer "what is going on", which is the question you
 you open a menu without meaning to change anything, so the top of the menu is where they
 belong.
 
-What is left on `ListPopup` is the two modules with nothing to click — battery and
-recorder. That is the line to hold when adding one: a hover panel is for a
+What is left on `ListPopup` is the two modules with no menu — battery and recorder. That
+is the line to hold when adding one: a panel is for a
 module with nowhere else to put a number, and a module that grows a menu takes its
-panel's rows with it.
+panel's rows with it. `UpdatePill` is the worked example of that last clause: its panel
+was a `ListPopup` capped at a dozen rows, and every row of it moved into `UpdateMenu`
+when the module grew one.
+
+**Of the two, only battery opens on a click**, because it is the only one you read rather
+than glance at: "empty in 5h 24m" is a number you want to sit with, and a hover panel
+closes the moment the pointer drifts off the pill. The recorder's panel is a filename, so
+it stays on hover. The dividing line is not how much the panel holds but whether you
+would want to keep it open — which is also the line a panel crosses on its way to
+becoming a menu.
 
 Two things to keep in mind if a panel is ever added back to a module that has a menu: the
 popups were
@@ -519,20 +550,20 @@ shortcut for when you already know.
 
 **Every pill that owns a menu opens it on the primary button** —
 `AudioPill`, `BluetoothPill`, `NetworkPill`, `NotificationPill`, `PowerPill`,
-`ClockPill`, `WeatherPill`, `TailscalePill`, `PiaPill` and `PowerProfilePill` all do, and
+`ClockPill`, `WeatherPill`, `TailscalePill`, `PiaPill`, `PowerProfilePill` and
+`UpdatePill` all do, and
 the media module's
 cover art does too. Audio,
-bluetooth and notifications bind the right button as well (mute, adapter, DND), and so
-does power-profile (cycle it, which is what the left button did before there was a
-menu); `NetworkPill`'s is unbound, since the wifi radio toggle
+bluetooth and notifications bind the right button as well (mute, adapter, DND), and so do
+updates (force a re-check, which is what the left button did before there was a menu) and
+power-profile (cycle it, likewise); `NetworkPill`'s is unbound, since the wifi radio toggle
 already sits in `WifiMenu`'s header and nothing else on the network module wants a
 shortcut, and **`WeatherPill`, `TailscalePill` and `PiaPill` bind no second button at
 all** — weather's right-click forced a re-fetch, `tailscale file get` was tailscale's
 and PIA's started its daemon; all three are controls inside the menu now, the way
 `CalendarPopup` took the clock's old double-click into its own footer.
 
-**Nothing on this bar opens a panel on hover any more except `ListPopup` and its
-clients.** The calendar and the forecast were hover panels and are dropdowns now, for
+**Nothing on this bar opens a panel on hover any more except `RecorderPill`.** The calendar and the forecast were hover panels and are dropdowns now, for
 one reason: a hover panel is dismissed only by moving the pointer, so it cannot answer
 Escape and cannot be closed by clicking past it. Every dropdown dismisses on a click
 anywhere outside via `HyprlandFocusGrab`
@@ -1418,6 +1449,97 @@ The pieces that took thought:
 `wf-recorder` is in `PACMAN_PKGS`; the region select reuses the `slurp` that `SUPER+S`
 already needed.
 
+
+## Pending updates
+
+`hypr/scripts/updates.sh` is the backend, `UpdateService.qml` holds the answer and
+`UpdatePill.qml` draws it: a box glyph immediately left of `PowerPill`, with a
+count when something is waiting. `UpdateMenu.qml` is its **left-click dropdown** — the
+pending packages split into `Repositories` and `AUR`, a `Check` button in the header and
+the age of the reading in the footer.
+
+**It was a `ListPopup` hover panel and the menu took its rows whole**, which is the rule
+this bar already holds to. Two things the panel could not do and the menu can: it had to
+truncate at a dozen rows with a `+N more`, because a panel that follows the pointer cannot
+be scrolled, where the menu's `Flickable` shows a hundred-package upgrade in full; and the
+repo/AUR split is a real heading rather than a colour, since a menu has room for one.
+The `Flickable` is over a `Column` rather than a `ListView` precisely because of those
+headings — a `ListView` delegate is one shape per row.
+
+**The `Check` button is the re-check that used to be the pill's left button**, and it does
+not close the menu: the point of pressing it is to watch the list change. Its label reads
+`UpdateService.refreshing` — the state, not the request — so a check already running
+cannot leave the button claiming to be idle, the rule `WifiMenu`'s Scan button follows.
+Nothing in the menu upgrades anything; the rows have a hover highlight and no click
+handler at all.
+
+**It is an indicator and nothing more, deliberately — there is no button that runs the
+upgrade.** That is not scope-cutting, it is the same wall `PiaMenu`'s Start-service button
+hit: a system transaction needs a password and this session runs **no polkit agent**, and
+on top of that pacman asks real questions mid-run (replaces, conflicts, `[Y/n]`) that a
+`Process` in the bar has no way to answer and would simply hang on — with the bar as the
+parent of the transaction that is upgrading `quickshell` and `hyprland` underneath it. If
+a click is ever wanted, it has to open a `kitty --class …` the way `pia.sh
+--start-service` does, and `rules.lua` has to float that class. Never in-process.
+
+**Never `pacman -Sy` to get a count.** A bare `-Sy` refreshes the sync databases without
+upgrading, which leaves the machine one single-package install away from a partial upgrade.
+`checkupdates` (pacman-contrib) exists precisely to avoid that — it syncs a *copy* of the
+database under `${TMPDIR:-/tmp}/checkup-db-$UID` and needs no privilege. It is a hard
+dependency, hence its line in `PACMAN_PKGS`; without it the script prints nothing and the
+pill never appears, which reads as a broken module rather than a missing package.
+
+**`fakeroot` is in `PACMAN_PKGS` for the same module, and it is the less obvious half.**
+`checkupdates` shells out to it (`fakeroot -- pacman -Sy --dbpath …`) and dies without it,
+but **`pacman-contrib` does not depend on it** — verified, it depends on `pacman` alone —
+and nothing else this repo installs drags it in either: `paru` depends on `git` and
+`pacman` only. On this machine `fakeroot` is present solely because `base-devel` is, and
+no line here installs that group. The failure is the silent kind: exit 1 with the message
+on stderr, which `updates.sh` discards, so a machine without it gets a module that never
+appears at all.
+
+Four things that took measuring:
+
+- **`checkupdates` exits 2 for "nothing pending" and 1 for "could not tell"** (verified in
+  `/usr/bin/checkupdates`, v1.13.1). Collapsing the two — which a bare `|| true` does — is
+  what turns a broken checker into a permanent, confident "up to date".
+- **`paru -Qua` exits 1 with empty stdout *and* empty stderr when there are simply no AUR
+  updates**, verified on this machine, so its exit code cannot tell that from an RPC
+  failure. What settles it is ordering: the AUR check only ever runs after `checkupdates`
+  has already succeeded, and that needed a real network sync — so the repo check is the
+  canary and an empty AUR answer is a genuine "none". (No `--devel`: it would fetch every
+  `-git` package's upstream ref on each poll.)
+- **Freshness is the cache's own `updated` field, not its mtime** — the one place this
+  deliberately differs from `weather-forecast.sh`. `--revalidate` rewrites the file
+  *without* having synced anything, so an mtime would then claim a check that never
+  happened and suppress the next real one.
+- **`md-package_up` is unusable at `Theme.fontSize`.** It is a solid square and its arrow
+  collapses into a blob at 12px. The module draws `md-package_variant` open / closed
+  instead — one shape, with the state as the difference, the pairing `PiaPill`'s shackle
+  already uses. Render a candidate at the real size before choosing it; the name is no
+  guide.
+
+**The two timers are asymmetric on purpose.** A full check syncs the database and runs
+every **six hours**, matching the script's cache, because Arch's repos move a few times a
+day and polling harder is four network syncs an hour to learn nothing. But a pill *showing
+a count* goes wrong the moment you run `paru -Syu` in a terminal the bar knows nothing
+about — and that direction is answerable locally for free, so `--revalidate` runs every
+ten minutes **while the count is non-zero** and never otherwise. Only the stale direction
+is cheap to detect, so only the stale direction is polled. `--revalidate` drops any cached
+entry whose installed version is no longer the `old` it recorded: one `pacman -Q` over the
+pending names, no network, and stale-whatever-it-is-now is the right test rather than
+comparing against `new`.
+
+`qs ipc call updates refresh` exists for the proper fix — a pacman `PostTransaction` hook
+would drop the count the instant a terminal upgrade finishes instead of waiting out the
+ten minutes. Nothing in this repo installs one yet; it would be an `/etc` file, and it has
+to re-enter the user session (`XDG_RUNTIME_DIR`) because hooks run as root.
+
+**The pill is hidden until the first answer parses, but not hidden at zero.** "Nothing
+pending" and "the check has never worked" are different states and neither may be drawn as
+the other — the `public-ip.sh` / `pia.sh --service` rule. A module that disappears when it
+is happy cannot be told from one that has quietly died, which is exactly the distinction
+this module exists to make, so zero is a dimmed closed box rather than nothing at all.
 
 ## Idle and lock (hypridle)
 
