@@ -54,6 +54,10 @@ Rectangle {
     radius: height / 2
     color: menuOpen || (hovered && handoffTarget) ? Theme.surface0 : Theme.pill
 
+    Behavior on color {
+        ColorAnimation { duration: 100; easing.type: Easing.OutCubic }
+    }
+
     // With a menu already open, crossing another module switches to its menu,
     // the way a menubar does. The delay is the whole reason this is a Timer:
     // without it, sweeping the pointer along the bar strobes every menu it

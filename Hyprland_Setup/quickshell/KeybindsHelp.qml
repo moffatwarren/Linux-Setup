@@ -67,15 +67,15 @@ OverlayPanel {
                 { keys: "SUPER + 1 - 0",         desc: "Switch to workspace 1-10" },
                 { keys: "SUPER + SHIFT + 1 - 0", desc: "Move the window to workspace 1-10" },
                 { keys: "SUPER + Scroll",        desc: "Previous / next workspace" },
+                { keys: "SUPER + SHIFT + Z",     desc: "Laptop screen off / on (needs external)" },
             ]
         },
         {
-            name: "Screen",
+            name: "Screenshots",
             binds: [
                 { keys: "SUPER + S",         desc: "Screenshot a region, annotate in swappy" },
                 { keys: "SUPER + ALT + S",   desc: "OCR a region to the clipboard" },
                 { keys: "SUPER + CTRL + S",  desc: "Start / stop a screen recording" },
-                { keys: "SUPER + SHIFT + Z", desc: "Laptop screen off / on (needs an external)" },
             ]
         },
         {
@@ -100,20 +100,39 @@ OverlayPanel {
 
 
 
+    property string selectedCategory: "All"
+
+    onOpened: root.selectedCategory = "All"
+
+    function formatMatch(text, query, colorHex) {
+        if (!text) return "";
+        const q = query.trim();
+        if (q.length === 0) return text;
+        const idx = text.toLowerCase().indexOf(q.toLowerCase());
+        if (idx === -1) return text;
+        const before = text.substring(0, idx);
+        const match = text.substring(idx, idx + q.length);
+        const after = text.substring(idx + q.length);
+        const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        return esc(before) + "<font color=\"" + colorHex + "\"><b>" + esc(match) + "</b></font>" + esc(after);
+    }
+
     readonly property int bindCount: {
         let n = 0;
         for (const g of root.groups) n += g.binds.length;
         return n;
     }
 
-    // `groups` narrowed by the filter box, sections that lose every bind
-    // dropped -- so the panel never shows a heading over nothing. Each kept
-    // section carries the height it will occupy, which is what the column
+    // `groups` narrowed by the filter box and selected category, sections that
+    // lose every bind dropped -- so the panel never shows a heading over nothing.
+    // Each kept section carries the height it will occupy, which is what the column
     // split below balances on.
     readonly property var shown: {
         const q = root.filterText.trim().toLowerCase();
+        const cat = root.selectedCategory;
         const out = [];
         for (const g of root.groups) {
+            if (cat !== "All" && g.name !== cat) continue;
             const hits = q.length === 0 ? g.binds : g.binds.filter(
                 b => b.keys.toLowerCase().includes(q)
                   || b.desc.toLowerCase().includes(q)
@@ -163,20 +182,64 @@ OverlayPanel {
     // reference, and a cheat sheet you have to scroll blind through is a worse
     // one than the wiki page it replaces. The panel shrinks with the filter
     // rather than leaving a field of empty card below three matching rows.
-    readonly property int columnWidth: 520
+    readonly property int columnWidth: 570
     readonly property int gutter: 24
     panelWidth: columnWidth * 2 + gutter + 36 // 36 = OverlayPanel's two paddings
-    bodyHeight: Math.max(120, Math.max(left.implicitHeight, right.implicitHeight))
+    bodyHeight: Math.max(140, Math.max(left.implicitHeight, right.implicitHeight) + 34)
 
     readonly property int rowHeight: 26
     readonly property int sectionHeight: 34
     // The keycap column. Fixed rather than sized to the widest chip run, so
     // every description starts at the same x whatever the filter leaves behind.
-    readonly property int keyColumn: 225
+    readonly property int keyColumn: 205
 
     // Nothing here to activate -- Enter is just a second Escape, and no key
     // needs intercepting, so everything else falls through to the filter box.
     onAccepted: root.close()
+
+    // Category filter pills bar
+    Row {
+        id: categoryRow
+        anchors.top: parent.top
+        anchors.left: parent.left
+        spacing: 6
+
+        Repeater {
+            model: ["All", "Launchers & overlays", "Applications", "Windows", "Workspaces", "Screenshots", "Session", "Media keys"]
+
+            Rectangle {
+                required property string modelData
+
+                readonly property bool isSelected: root.selectedCategory === modelData
+                readonly property string labelText: modelData === "Launchers & overlays" ? "Launchers" : (modelData === "Media keys" ? "Media" : modelData)
+
+                implicitWidth: catText.implicitWidth + 14
+                implicitHeight: 22
+                radius: 6
+                color: isSelected ? Theme.blue : (catMouse.containsMouse ? Theme.surface0 : Theme.surface1)
+
+                Behavior on color { ColorAnimation { duration: 100 } }
+
+                Text {
+                    id: catText
+                    anchors.centerIn: parent
+                    text: parent.labelText
+                    color: parent.isSelected ? Theme.crust : Theme.text
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize - 2
+                    font.bold: parent.isSelected
+                }
+
+                MouseArea {
+                    id: catMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.selectedCategory = parent.modelData
+                }
+            }
+        }
+    }
 
     // One section: the heading with a rule running out to the column edge,
     // then its binds.
@@ -251,17 +314,19 @@ OverlayPanel {
                             }
 
                             Rectangle {
+                                readonly property bool isHit: root.filterText.trim().length > 0 && cap.modelData.toLowerCase().includes(root.filterText.trim().toLowerCase())
                                 width: capText.implicitWidth + 12
                                 height: 19
                                 radius: 5
-                                color: Theme.surface0
+                                color: isHit ? Theme.surface1 : Theme.surface0
                                 border.width: 1
-                                border.color: Theme.surface1
+                                border.color: isHit ? Theme.green : Theme.surface1
 
                                 Text {
                                     id: capText
                                     anchors.centerIn: parent
-                                    text: cap.modelData
+                                    text: root.formatMatch(cap.modelData, root.filterText, Theme.green)
+                                    textFormat: Text.StyledText
                                     color: Theme.subtext1
                                     font.family: Theme.fontFamily
                                     font.pixelSize: Theme.fontSize - 1
@@ -276,7 +341,8 @@ OverlayPanel {
                     anchors.leftMargin: root.keyColumn
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
-                    text: bindRow.modelData.desc
+                    text: root.formatMatch(bindRow.modelData.desc, root.filterText, Theme.green)
+                    textFormat: Text.StyledText
                     color: Theme.text
                     elide: Text.ElideRight
                     font.family: Theme.fontFamily
@@ -290,7 +356,8 @@ OverlayPanel {
         id: left
 
         anchors.left: parent.left
-        anchors.top: parent.top
+        anchors.top: categoryRow.bottom
+        anchors.topMargin: 10
         width: root.columnWidth
 
         Repeater {
@@ -303,7 +370,8 @@ OverlayPanel {
         id: right
 
         anchors.right: parent.right
-        anchors.top: parent.top
+        anchors.top: categoryRow.bottom
+        anchors.topMargin: 10
         width: root.columnWidth
 
         Repeater {
