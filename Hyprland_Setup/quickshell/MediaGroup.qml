@@ -26,7 +26,10 @@ Row {
 
     visible: title.length > 0
 
-    function toggleMenu() { mediaMenu.open = !mediaMenu.open; }
+    function toggleMenu() {
+        if (mediaMenu.open) mediaMenu.requestClose();
+        else mediaMenu.open = true;
+    }
 
     // Anchored to the whole module, so the menu is centred under art + title
     // however wide the track name happens to be.
@@ -78,6 +81,9 @@ Row {
     Pill {
         anchors.verticalCenter: parent.verticalCenter
         label: root.artist.length > 0 ? root.artist + " - " + root.title : root.title
+        // The menu is anchored to the whole Row (art + title), but the title is
+        // most of the module's width, so this is what hands off on hover.
+        menu: mediaMenu
         onClicked: root.toggleMenu()
     }
 }

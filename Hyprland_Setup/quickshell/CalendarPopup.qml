@@ -12,11 +12,9 @@ import QtQuick.Layouts
 // drop-down on this bar does -- Escape, or a click anywhere outside via
 // HyprlandFocusGrab. A hover panel cannot own the keyboard, so it could not
 // answer Escape; a panel you open deliberately should close deliberately too.
-PopupWindow {
+MenuPopup {
     id: root
 
-    property Item anchorItem: null
-    property bool open: false
     // The clock's date, so the grid follows midnight without a timer of its own.
     property date date: new Date()
 
@@ -64,153 +62,123 @@ PopupWindow {
         return out;
     }
 
-    anchor.item: anchorItem
-    anchor.edges: Edges.Bottom
-    anchor.gravity: Edges.Bottom
-    anchor.margins.top: 6
-
     implicitWidth: body.implicitWidth + 28
     implicitHeight: body.implicitHeight + 24
-    color: "transparent"
 
-    visible: open
-    // Take the keyboard while open so Escape can close the panel.
-    grabFocus: open
+    ColumnLayout {
+        id: body
+        anchors.centerIn: parent
+        spacing: 6
 
-    // Dismiss on a click anywhere outside, as PowerMenu and the network,
-    // bluetooth and audio menus do.
-    HyprlandFocusGrab {
-        windows: [root]
-        active: root.open
-        onCleared: root.close()
-    }
+        // Month and year, with the full date underneath -- the pill itself
+        // only has room for the numeric form.
+        Text {
+            Layout.alignment: Qt.AlignHCenter
+            text: Qt.formatDate(root.date, "MMMM yyyy")
+            color: Theme.lavender
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize + 1
+            font.bold: true
+        }
 
-    function close() { open = false; }
+        Text {
+            Layout.alignment: Qt.AlignHCenter
+            text: Qt.formatDate(root.date, "dddd, d MMMM")
+            color: Theme.subtext0
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize - 1
+        }
 
-    Rectangle {
-        anchors.fill: parent
-        focus: true
-        Keys.onEscapePressed: root.close()
-        radius: 12
-        color: Theme.base
-        border.width: 1
-        border.color: Theme.surface1
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.topMargin: 2
+            implicitHeight: 1
+            color: Theme.surface1
+        }
 
-        ColumnLayout {
-            id: body
-            anchors.centerIn: parent
-            spacing: 6
+        GridLayout {
+            columns: root.columns
+            columnSpacing: 0
+            rowSpacing: 2
 
-            // Month and year, with the full date underneath -- the pill itself
-            // only has room for the numeric form.
-            Text {
-                Layout.alignment: Qt.AlignHCenter
-                text: Qt.formatDate(root.date, "MMMM yyyy")
-                color: Theme.lavender
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize + 1
-                font.bold: true
+            Repeater {
+                model: root.weekdays
+
+                Text {
+                    required property string modelData
+                    Layout.preferredWidth: root.cellSize
+                    Layout.preferredHeight: root.cellSize - 6
+                    text: modelData
+                    color: Theme.overlay0
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize - 1
+                    font.bold: true
+                }
             }
 
-            Text {
-                Layout.alignment: Qt.AlignHCenter
-                text: Qt.formatDate(root.date, "dddd, d MMMM")
-                color: Theme.subtext0
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize - 1
-            }
+            Repeater {
+                model: root.days
 
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.topMargin: 2
-                implicitHeight: 1
-                color: Theme.surface1
-            }
+                Item {
+                    required property var modelData
+                    Layout.preferredWidth: root.cellSize
+                    Layout.preferredHeight: root.cellSize
 
-            GridLayout {
-                columns: root.columns
-                columnSpacing: 0
-                rowSpacing: 2
-
-                Repeater {
-                    model: root.weekdays
+                    // Today's marker: a filled disc, so the number reads as
+                    // selected rather than merely recoloured.
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: root.cellSize - 4
+                        height: width
+                        radius: width / 2
+                        visible: modelData.isToday
+                        color: Theme.blue
+                    }
 
                     Text {
-                        required property string modelData
-                        Layout.preferredWidth: root.cellSize
-                        Layout.preferredHeight: root.cellSize - 6
-                        text: modelData
-                        color: Theme.overlay0
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
+                        anchors.centerIn: parent
+                        text: modelData.day
+                        color: modelData.isToday ? Theme.base
+                             : !modelData.inMonth ? Theme.surface2
+                             : modelData.isWeekend ? Theme.subtext0
+                             : Theme.text
                         font.family: Theme.fontFamily
-                        font.pixelSize: Theme.fontSize - 1
-                        font.bold: true
-                    }
-                }
-
-                Repeater {
-                    model: root.days
-
-                    Item {
-                        required property var modelData
-                        Layout.preferredWidth: root.cellSize
-                        Layout.preferredHeight: root.cellSize
-
-                        // Today's marker: a filled disc, so the number reads as
-                        // selected rather than merely recoloured.
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: root.cellSize - 4
-                            height: width
-                            radius: width / 2
-                            visible: modelData.isToday
-                            color: Theme.blue
-                        }
-
-                        Text {
-                            anchors.centerIn: parent
-                            text: modelData.day
-                            color: modelData.isToday ? Theme.base
-                                 : !modelData.inMonth ? Theme.surface2
-                                 : modelData.isWeekend ? Theme.subtext0
-                                 : Theme.text
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSize
-                            font.bold: modelData.isToday
-                        }
+                        font.pixelSize: Theme.fontSize
+                        font.bold: modelData.isToday
                     }
                 }
             }
+        }
 
-            // Google Calendar used to be the pill's double-click. The left
-            // button opens this panel now, and `clicked` arrives before
-            // `doubleClicked`, so a double-click would have opened the panel on
-            // its way to the browser. It moves into the footer instead, the way
-            // pavucontrol and blueman sit at the foot of their own menus.
-            Rectangle {
-                Layout.fillWidth: true
-                Layout.topMargin: 2
-                implicitHeight: 1
-                color: Theme.surface1
-            }
+        // Google Calendar used to be the pill's double-click. The left
+        // button opens this panel now, and `clicked` arrives before
+        // `doubleClicked`, so a double-click would have opened the panel on
+        // its way to the browser. It moves into the footer instead, the way
+        // pavucontrol and blueman sit at the foot of their own menus.
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.topMargin: 2
+            implicitHeight: 1
+            color: Theme.surface1
+        }
 
-            Text {
-                Layout.fillWidth: true
-                text: "Open Google Calendar\u2026"
-                color: calMouse.containsMouse ? Theme.blue : Theme.overlay0
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize - 1
+        Text {
+            Layout.fillWidth: true
+            text: "Open Google Calendar\u2026"
+            color: calMouse.containsMouse ? Theme.blue : Theme.overlay0
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize - 1
 
-                MouseArea {
-                    id: calMouse
-                    anchors.fill: parent
-                    hoverEnabled: true
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        root.close();
-                        root.calendarRequested();
-                    }
+            MouseArea {
+                id: calMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    root.requestClose();
+                    root.calendarRequested();
                 }
             }
         }

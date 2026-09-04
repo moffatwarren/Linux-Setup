@@ -10,7 +10,11 @@ Pill {
     label: "\uf011"
     labelColor: powerMenu.open ? Theme.red : Theme.maroon
 
-    function toggleMenu() { powerMenu.open = !powerMenu.open; }
+    menu: powerMenu
+    function toggleMenu() {
+        if (root.menuOpen) powerMenu.requestClose();
+        else root.openMenu();
+    }
 
     onClicked: toggleMenu()
     onRightClicked: toggleMenu()

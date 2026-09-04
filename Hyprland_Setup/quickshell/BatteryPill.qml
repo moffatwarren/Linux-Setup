@@ -37,22 +37,25 @@ Pill {
         return h > 0 ? h + "h " + m + "m" : m + "m";
     }
 
-    // The flag lives on the popup rather than on the pill, the way ClockPill
-    // drives CalendarPopup.
-    onClicked: if (present) panel.open = !panel.open
+    // The flag lives on the pill, not on the popup: `open` belongs to
+    // MenuPopup now and ListPopup binds it, so a second one here would shadow
+    // that binding and the panel would never show.
+    property bool panelOpen: false
+
+    menu: panel
+    openMenu: () => { root.panelOpen = true; }
+    onClicked: if (present) root.panelOpen = !root.panelOpen
 
     ListPopup {
         id: panel
-
-        property bool open: false
 
         anchorItem: root
         dismissable: true
         // No open delay: the 300 ms exists to stop a panel flashing up as the
         // pointer crosses the pill, and a panel you asked for should not wait.
         delayMs: 0
-        requested: panel.open && root.present
-        onDismissed: panel.open = false
+        requested: root.panelOpen && root.present
+        onDismissed: root.panelOpen = false
         title: root.battery && root.battery.model ? String(root.battery.model) : "Battery"
         rows: {
             if (!root.present) return [];

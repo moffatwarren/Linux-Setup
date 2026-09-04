@@ -134,7 +134,8 @@ ScriptPill {
         onTriggered: root.toggling = false
     }
 
-    onClicked: tsMenu.open = !tsMenu.open
+    menu: tsMenu
+    onClicked: root.menuOpen ? tsMenu.requestClose() : root.openMenu()
 
     TailscaleMenu {
         id: tsMenu

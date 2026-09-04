@@ -39,7 +39,8 @@ Pill {
     // drop-down does. The right button is unbound: forcing a re-fetch was its
     // one job and it is a button in the forecast's footer now, the way the
     // clock's double-click became a link in CalendarPopup's.
-    onClicked: forecast.open = !forecast.open
+    menu: forecast
+    onClicked: root.menuOpen ? forecast.requestClose() : root.openMenu()
 
     function refresh() {
         // The command is bound to `force`, so it must not be rewritten under a

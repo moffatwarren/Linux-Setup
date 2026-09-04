@@ -270,14 +270,117 @@ claim to ask about a choice that no longer existed.
 `Pill.qml` is the shared rounded-module background, and `Theme.qml` is a `pragma Singleton`
 holding the Catppuccin Mocha palette.
 
+### `MenuPopup.qml` is the frame every drop-down wears
+
+**A popup is drawn as a continuation of the bar slab, not as a card under it**, and that is
+one file. `MenuPopup` is to the thirteen module drop-downs what `OverlayPanel.qml` is to the
+four full-screen overlays. Before it, every one of them repeated the same four-line anchor
+block and the same six-line frame `Rectangle` — so "make the popups look attached" was a
+thirteen-file edit, and the values had already drifted apart (popup radius 12, slab radius
+8, toast radius 14). `Theme.popupRadius` / `borderWidth` / `popupPad` are those literals.
+
+Four things make the join invisible, and each was a separate defect:
+
+- **The gap is negative by a pixel, and it is measured from the bar.** It used to be
+  `anchor.margins.top: 6` off the *pill* — a 22px pill centred in a 30px bar, so a line
+  that read "6" produced a 2px gap below the slab. `MenuPopup` anchors to the bar window
+  instead (`anchor.window`, never `anchor.item`) with `anchor.rect.y` = the bar's own
+  height **minus one**. That last pixel is not a fudge, it is measured: placed at exactly
+  `barWindow.height` the bar's last row is screen y31, the popup's first row is y33, and
+  **y32 is a full-width row of wallpaper** — the surface lands one pixel below the edge it
+  was given. Read as a border along the top of the menu, which is what it looks like.
+  A one-pixel overlap cannot show, because both surfaces are `Theme.base` there and the
+  popup's top border is erased; a one-pixel gap is the seam the whole component exists to
+  remove, so the error is deliberately taken in the direction that cannot be seen. Check
+  the join by dumping pixel rows (`grim` a 20px strip, `magick … txt:`), not by eye — one
+  pixel of wallpaper is visible but far too thin to judge.
+- **The top two corners are square** (`topLeftRadius`/`topRightRadius` 0, Qt 6.7+), so only
+  the bottom pair is rounded, at the slab's own `Theme.barRadius`.
+- **The border is erased along the top edge.** The bar has no border of its own, so a
+  `surface1` line across the join reads as a seam. A 1px `Theme.base` strip covers it.
+- **The popup is clamped inside the slab.** Left to the compositor, a menu wider than its
+  module slides to the *screen* edge and overhangs the bar's 5px inset — the one placement
+  that cannot look attached to it. `anchor.rect.x` clamps to
+  `[barRadius, barWidth - popupWidth - barRadius]`; stopping short of `barRadius` rather
+  than 0 is what stops a square top corner meeting the slab's rounded one and leaving a
+  sliver of wallpaper in the join.
+
+**`anchor.rect` is what makes both of those possible, and its trick is that gravity centres
+the popup on the anchor rect** — so a rect of the popup's *own width* pins x instead of
+centring it. Verified against quickshell 0.3.1.
+
+**`QsWindow` is how a popup reaches the bar it hangs from**: `anchorItem.QsWindow.window` is
+the containing `Bar`, and `QsWindow.itemRect(item)` is the module's rect in bar
+coordinates. Nothing in this repo used either before.
+
+**`itemRect()` is a *constant* method, and that is a silent trap.** It registers no
+dependency of its own, so a plain binding on it runs exactly once — before the item is in a
+window, when it errors with "Cannot call itemRect before item is a member of a window" and
+yields `0x0` — and keeps that answer for ever. Measured: both test popups sat at the clamp
+floor until the binding was given explicit reads of the item's x/y/width/height to depend
+on. The `reanchor` counter beside them is bumped on the way open, for a move none of those
+catch (a module to the left changing width while the menu was shut).
+
+**The bar is in `HyprlandFocusGrab.windows` alongside the popup, and that is load-bearing
+twice.** Hyprland's focus grab constrains pointer focus to the grabbed surfaces, so with
+only `[root]` the bar receives no hover events at all while a menu is open and the hand-off
+below could never fire. It also means clicking a *different* module switches menus rather
+than dismissing this one and reopening that one. The cost is that a click on bar dead space
+no longer dismisses; Escape and a click anywhere else still do.
+
+**Only the opening direction animates** — a `Translate` from -8 plus opacity, 130 ms. There
+is no closing animation because `visible: open` unmaps the surface the instant the menu
+closes, so there is nothing left to animate. Deliberate, not an oversight.
+
+Two hooks exist for the popups that do not own their own `open`:
+
+- **`requestClose()` is a function, not a signal handler, precisely because a function can
+  be overridden and a signal handler cannot** — a derived component's handler runs *in
+  addition to* the base's (see the `ScriptPill` note below). `NotificationMenu` overrides it
+  because its `open` is bound to `NotificationService.menuMonitor`; `ListPopup` overrides it
+  because its `open` is derived from `requested`; `AudioMenu` overrides it to drop the
+  inline icon palette on the way out. Assigning `open` on any of those would destroy the
+  binding and the menu would never open again.
+- **`closeOnDismiss` is what stops the base assigning `open`** for exactly those two.
+
+### `MenuService.qml` — one drop-down at a time, and the hover hand-off
+
+There is one `Bar` per monitor and so one copy of every menu per monitor, and nothing in QML
+stops two being open at once. `MenuService` is the single place that decides: `MenuPopup`
+claims on the way open and releases on the way closed, and the outgoing menu is closed
+through `requestClose()` rather than by assigning `open`, for the reason above.
+
+**With a menu already open, crossing another module switches to its menu**, the way a
+desktop menubar does. `Pill.qml` owns that: `menu` names the drop-down a module owns,
+`menuOpen` drives the open highlight, and `openMenu` is "open my menu" — called by the click
+*and* by the hand-off, so a module with side effects on opening (`NetworkPill` fetches its
+public IP and re-reads the signal, `PowerProfilePill` takes an immediate stats reading)
+defines them once instead of letting the two paths drift. The 90 ms timer is not politeness:
+without it, sweeping the pointer along the bar strobes every menu it crosses on the way to
+somewhere else.
+
+**A pill tints `surface0` when its menu is open, and also when hovering it *would* switch
+menus.** Pills are otherwise the same colour as the slab, so before this nothing on the bar
+said which module you had opened. The second half is the affordance — nothing on this bar
+reacted to hover at all, so a hover that does something has to look like it will.
+
+**Three ids had to be renamed.** `PiaPill`, `UpdatePill`, `PowerProfilePill` and
+`NotificationPill` all declared `id: menu`, which now collides with `Pill.menu`.
+
+`RecorderPill`'s panel sets `managed: false` — it is the one popup still driven by hover, so
+it takes no part in the arbitration, and it hides while a real menu is up rather than
+drawing a readout across it. `BatteryPill`'s is click-to-open, so it participates like a
+menu; its open flag moved from the popup onto the pill, because a `property bool open` on a
+`ListPopup` now shadows `MenuPopup`'s and the panel would never show.
+
 `tailscale.sh` and `pia.sh` are driven by `ScriptPill.qml`, which runs them with
 `Process` and parses the waybar-style JSON they still print. Audio/battery/network/
 bluetooth/workspaces/media use Quickshell's native services instead, so the bar is
 event-driven rather than polling.
 
 `ListPopup.qml` is the Catppuccin panel used by the modules with no menu — a title plus
-`{ text, detail, accent }` rows. It replaced the stock
-QtQuick `ToolTip`s, which ignored the palette. Its optional
+`{ text, detail, accent }` rows, wearing `MenuPopup`'s frame like everything else. It
+replaced the stock QtQuick `ToolTip`s, which ignored the palette. Its optional
 `maxDetailWidth` elides the right-hand column, for rows whose detail is a filename long
 enough to stretch the panel across the screen (`RecorderPill` needs it).
 
@@ -348,10 +451,10 @@ already tracks every node the menu draws.
 
 `CalendarPopup.qml` is the clock's **left-click dropdown**: the current month as a grid,
 today picked out with a filled blue disc, with the leading and trailing days of the
-neighbouring months dimmed so every week is complete. It borrows `ListPopup`'s frame and
-anchoring rather than reusing it — a month is a grid, and `ListPopup` only stacks rows —
-but not its hover machinery. It is a menu, so it has an `open` flag, `grabFocus`, an
-Escape handler and a `HyprlandFocusGrab`, exactly like `PowerMenu`: a hover panel cannot
+neighbouring months dimmed so every week is complete. It takes `MenuPopup`'s frame and
+supplies only a grid, rather than reusing `ListPopup`, which only stacks rows. It is a
+menu, so it keeps its own `open` flag and gets `grabFocus`, an Escape handler and a
+`HyprlandFocusGrab` from the frame, exactly like `PowerMenu`: a hover panel cannot
 own the keyboard and so could never answer Escape. The 300 ms open delay went with the
 hover — it existed to keep a panel from flashing up as the pointer crossed the pill, and
 a panel you asked for should not make you wait. Whole weeks that fall entirely outside the month are
@@ -420,8 +523,8 @@ code returns the "N/A" glyph, not a sun. The pill colours only the glyph by cond
 and leaves the temperature the bar's normal colour, so only the part that actually
 carries the state is tinted.
 
-`ForecastPopup` borrows `CalendarPopup`'s frame and dismissal rather than reusing
-`ListPopup`,
+`ForecastPopup` takes the same `MenuPopup` frame and supplies its own body rather than
+reusing `ListPopup`,
 because a forecast day is six aligned columns and `ListPopup` only puts one label
 opposite one detail. Its columns are sized from `TextMetrics.advanceWidth` (**not**
 `.width`, which is the ink bounding box and is a fraction narrower than the space the
@@ -566,9 +669,8 @@ and PIA's started its daemon; all three are controls inside the menu now, the wa
 **Nothing on this bar opens a panel on hover any more except `RecorderPill`.** The calendar and the forecast were hover panels and are dropdowns now, for
 one reason: a hover panel is dismissed only by moving the pointer, so it cannot answer
 Escape and cannot be closed by clicking past it. Every dropdown dismisses on a click
-anywhere outside via `HyprlandFocusGrab`
-(`windows: [root]`, `active: root.open`, `onCleared: close()`), as `PowerMenu` and
-`NotificationMenu` do. A
+anywhere outside via the `HyprlandFocusGrab` in `MenuPopup`
+(`windows: [root, barWindow]`, `active: root.open`, `onCleared: dismissed()`). A
 layer-shell popup receives no event for an outside click on its own, so without the grab
 the only way to close the menu was to right-click the module again. The grab coexists with
 `WifiMenu`'s `grabFocus`, which the password field needs for keyboard input — verified

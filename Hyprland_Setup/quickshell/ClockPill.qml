@@ -25,7 +25,8 @@ Pill {
     // drop-down does. Google Calendar moved into that panel's footer: `clicked`
     // arrives before `doubleClicked`, so keeping it on the double-click would
     // have opened the panel on the way to the browser.
-    onClicked: calendar.open = !calendar.open
+    menu: calendar
+    onClicked: root.menuOpen ? calendar.requestClose() : root.openMenu()
 
     CalendarPopup {
         id: calendar

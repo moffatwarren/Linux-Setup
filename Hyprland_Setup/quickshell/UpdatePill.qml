@@ -50,11 +50,12 @@ Pill {
     label: UpdateService.known ? (pending ? icon + " " + count : icon) : ""
     labelColor: pending ? Theme.yellow : Theme.overlay0
 
-    onClicked: menu.open = !menu.open
+    menu: updateMenu
+    onClicked: root.menuOpen ? updateMenu.requestClose() : root.openMenu()
     onRightClicked: UpdateService.check(true)
 
     UpdateMenu {
-        id: menu
+        id: updateMenu
         anchorItem: root
     }
 }

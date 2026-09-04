@@ -1,5 +1,4 @@
 import Quickshell
-import Quickshell.Hyprland
 import Quickshell.Bluetooth
 import QtQuick
 import QtQuick.Layouts
@@ -8,11 +7,8 @@ import QtQuick.Layouts
 // forget devices without opening blueman. Mirrors WifiMenu, except for which
 // button opens it (the pill's right-click toggles the adapter instead) and for
 // scanning, which here is opt-in behind the Scan button rather than automatic.
-PopupWindow {
+MenuPopup {
     id: root
-
-    property Item anchorItem: null
-    property bool open: false
 
     readonly property var adapter: Bluetooth.defaultAdapter
 
@@ -64,17 +60,8 @@ PopupWindow {
         }
     }
 
-    anchor.item: anchorItem
-    anchor.edges: Edges.Bottom
-    anchor.gravity: Edges.Bottom
-    anchor.margins.top: 6
-
     implicitWidth: 300
     implicitHeight: body.implicitHeight + 20
-    color: "transparent"
-    visible: open
-    // Take the keyboard while open so Escape can close the menu.
-    grabFocus: open
 
     // Scanning is opt-in: the radio runs only while the Scan button says so and
     // the menu is on screen. It used to start the instant the menu opened, so
@@ -97,16 +84,6 @@ PopupWindow {
     // the scan on the next open, which is the behaviour this replaced.
     onOpenChanged: if (!open) scanRequested = false;
 
-    // Dismiss when the user clicks anywhere outside the menu. A layer-shell
-    // popup gets no such event on its own; Hyprland's focus grab reports it.
-    HyprlandFocusGrab {
-        windows: [root]
-        active: root.open
-        onCleared: root.close()
-    }
-
-    function close() { open = false; }
-
     // Paired devices toggle their connection; new ones get paired.
     function activate(device) {
         if (device.connected) device.disconnect();
@@ -114,246 +91,236 @@ PopupWindow {
         else device.pair();
     }
 
-    Rectangle {
-        anchors.fill: parent
-        focus: true
-        Keys.onEscapePressed: root.close()
-        radius: 12
-        color: Theme.base
-        border.width: 1
-        border.color: Theme.surface1
+    ColumnLayout {
+        id: body
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: Theme.popupPad
+        spacing: 5
 
-        ColumnLayout {
-            id: body
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.margins: 10
-            spacing: 5
-
-            RowLayout {
-                Layout.fillWidth: true
-
-                Text {
-                    text: "Bluetooth"
-                    color: Theme.lavender
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSize
-                    font.bold: true
-                }
-
-                Item { Layout.fillWidth: true }
-
-                Text {
-                    text: root.adapter && root.adapter.enabled ? "on" : "off"
-                    color: root.adapter && root.adapter.enabled ? Theme.green : Theme.overlay0
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSize
-
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: if (root.adapter) root.adapter.enabled = !root.adapter.enabled
-                    }
-                }
-            }
-
-            Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.surface1 }
+        RowLayout {
+            Layout.fillWidth: true
 
             Text {
-                Layout.fillWidth: true
-                visible: !root.adapter || !root.adapter.enabled
-                text: "Adapter is off"
-                color: Theme.subtext0
+                text: "Bluetooth"
+                color: Theme.lavender
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSize
+                font.bold: true
             }
 
-            // --- paired -----------------------------------------------------
-            Repeater {
-                model: root.pairedDevices
+            Item { Layout.fillWidth: true }
 
-                Rectangle {
-                    required property var modelData
-                    Layout.fillWidth: true
-                    implicitHeight: 24
-                    radius: 6
-                    color: pairedMouse.containsMouse ? Theme.surface0 : "transparent"
+            Text {
+                text: root.adapter && root.adapter.enabled ? "on" : "off"
+                color: root.adapter && root.adapter.enabled ? Theme.green : Theme.overlay0
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSize
 
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 6
-                        anchors.rightMargin: 6
-                        spacing: 8
-
-                        Text {
-                            text: root.glyphFor(modelData)
-                            color: modelData.connected ? Theme.green : Theme.subtext0
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSize
-                        }
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: modelData.name
-                            elide: Text.ElideRight
-                            color: modelData.connected ? Theme.green : Theme.text
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSize
-                        }
-
-                        Text {
-                            visible: modelData.batteryAvailable
-                            text: Math.round(modelData.battery * 100) + "%"
-                            color: Theme.subtext0
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSize - 2
-                        }
-
-                        Text {
-                            text: root.stateText(modelData)
-                            color: root.stateColor(modelData)
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSize - 2
-                        }
-                    }
-
-                    MouseArea {
-                        id: pairedMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
-                        onClicked: mouse => {
-                            if (mouse.button === Qt.RightButton) modelData.forget();
-                            else root.activate(modelData);
-                        }
-                    }
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: if (root.adapter) root.adapter.enabled = !root.adapter.enabled
                 }
             }
+        }
 
-            // --- discovered -------------------------------------------------
-            // Always present while the adapter is on, because it carries the
-            // Scan button -- gating it on nearbyDevices, as it used to be,
-            // would hide the only way to populate that list.
-            RowLayout {
+        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.surface1 }
+
+        Text {
+            Layout.fillWidth: true
+            visible: !root.adapter || !root.adapter.enabled
+            text: "Adapter is off"
+            color: Theme.subtext0
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize
+        }
+
+        // --- paired -----------------------------------------------------
+        Repeater {
+            model: root.pairedDevices
+
+            Rectangle {
+                required property var modelData
                 Layout.fillWidth: true
-                visible: root.adapter !== null && root.adapter.enabled
+                implicitHeight: 24
+                radius: 6
+                color: pairedMouse.containsMouse ? Theme.surface0 : "transparent"
 
-                Text {
-                    text: "Nearby"
-                    color: Theme.subtext0
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSize - 3
-                }
-
-                Item { Layout.fillWidth: true }
-
-                Rectangle {
-                    implicitWidth: scanLabel.implicitWidth + 16
-                    implicitHeight: 20
-                    radius: 6
-                    color: scanMouse.containsMouse ? Theme.surface1 : Theme.surface0
-                    border.width: 1
-                    border.color: Theme.surface2
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 6
+                    anchors.rightMargin: 6
+                    spacing: 8
 
                     Text {
-                        id: scanLabel
-                        anchors.centerIn: parent
-                        // Reads the adapter, not the request, so a scan the
-                        // adapter refused does not leave the button lying.
-                        text: root.scanning ? "Scanning\u2026" : "Scan"
-                        color: root.scanning ? Theme.yellow : Theme.text
+                        text: root.glyphFor(modelData)
+                        color: modelData.connected ? Theme.green : Theme.subtext0
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSize
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: modelData.name
+                        elide: Text.ElideRight
+                        color: modelData.connected ? Theme.green : Theme.text
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSize
+                    }
+
+                    Text {
+                        visible: modelData.batteryAvailable
+                        text: Math.round(modelData.battery * 100) + "%"
+                        color: Theme.subtext0
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSize - 2
                     }
 
-                    MouseArea {
-                        id: scanMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.scanRequested = !root.scanRequested
+                    Text {
+                        text: root.stateText(modelData)
+                        color: root.stateColor(modelData)
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSize - 2
                     }
                 }
-            }
-
-            Text {
-                Layout.fillWidth: true
-                visible: root.scanning && root.nearbyDevices.length === 0
-                text: "Searching\u2026"
-                color: Theme.subtext0
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize - 2
-            }
-
-            Repeater {
-                model: root.nearbyDevices
-
-                Rectangle {
-                    required property var modelData
-                    Layout.fillWidth: true
-                    implicitHeight: 24
-                    radius: 6
-                    color: nearbyMouse.containsMouse ? Theme.surface0 : "transparent"
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 6
-                        anchors.rightMargin: 6
-                        spacing: 8
-
-                        Text {
-                            text: root.glyphFor(modelData)
-                            color: Theme.overlay0
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSize
-                        }
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: modelData.name
-                            elide: Text.ElideRight
-                            color: Theme.text
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSize
-                        }
-
-                        Text {
-                            text: modelData.pairing ? "pairing" : "pair"
-                            color: modelData.pairing ? Theme.yellow : Theme.overlay0
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSize - 2
-                        }
-                    }
-
-                    MouseArea {
-                        id: nearbyMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: root.activate(modelData)
-                    }
-                }
-            }
-
-            Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.surface1 }
-
-            Text {
-                text: "Open blueman\u2026"
-                color: blueMouse.containsMouse ? Theme.lavender : Theme.subtext0
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize - 2
 
                 MouseArea {
-                    id: blueMouse
+                    id: pairedMouse
                     anchors.fill: parent
                     hoverEnabled: true
                     cursorShape: Qt.PointingHandCursor
-                    onClicked: {
-                        Quickshell.execDetached(["blueman-manager"]);
-                        root.close();
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onClicked: mouse => {
+                        if (mouse.button === Qt.RightButton) modelData.forget();
+                        else root.activate(modelData);
                     }
+                }
+            }
+        }
+
+        // --- discovered -------------------------------------------------
+        // Always present while the adapter is on, because it carries the
+        // Scan button -- gating it on nearbyDevices, as it used to be,
+        // would hide the only way to populate that list.
+        RowLayout {
+            Layout.fillWidth: true
+            visible: root.adapter !== null && root.adapter.enabled
+
+            Text {
+                text: "Nearby"
+                color: Theme.subtext0
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSize - 3
+            }
+
+            Item { Layout.fillWidth: true }
+
+            Rectangle {
+                implicitWidth: scanLabel.implicitWidth + 16
+                implicitHeight: 20
+                radius: 6
+                color: scanMouse.containsMouse ? Theme.surface1 : Theme.surface0
+                border.width: 1
+                border.color: Theme.surface2
+
+                Text {
+                    id: scanLabel
+                    anchors.centerIn: parent
+                    // Reads the adapter, not the request, so a scan the
+                    // adapter refused does not leave the button lying.
+                    text: root.scanning ? "Scanning\u2026" : "Scan"
+                    color: root.scanning ? Theme.yellow : Theme.text
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize - 2
+                }
+
+                MouseArea {
+                    id: scanMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.scanRequested = !root.scanRequested
+                }
+            }
+        }
+
+        Text {
+            Layout.fillWidth: true
+            visible: root.scanning && root.nearbyDevices.length === 0
+            text: "Searching\u2026"
+            color: Theme.subtext0
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize - 2
+        }
+
+        Repeater {
+            model: root.nearbyDevices
+
+            Rectangle {
+                required property var modelData
+                Layout.fillWidth: true
+                implicitHeight: 24
+                radius: 6
+                color: nearbyMouse.containsMouse ? Theme.surface0 : "transparent"
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 6
+                    anchors.rightMargin: 6
+                    spacing: 8
+
+                    Text {
+                        text: root.glyphFor(modelData)
+                        color: Theme.overlay0
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSize
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: modelData.name
+                        elide: Text.ElideRight
+                        color: Theme.text
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSize
+                    }
+
+                    Text {
+                        text: modelData.pairing ? "pairing" : "pair"
+                        color: modelData.pairing ? Theme.yellow : Theme.overlay0
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSize - 2
+                    }
+                }
+
+                MouseArea {
+                    id: nearbyMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.activate(modelData)
+                }
+            }
+        }
+
+        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.surface1 }
+
+        Text {
+            text: "Open blueman\u2026"
+            color: blueMouse.containsMouse ? Theme.lavender : Theme.subtext0
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize - 2
+
+            MouseArea {
+                id: blueMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: {
+                    Quickshell.execDetached(["blueman-manager"]);
+                    root.requestClose();
                 }
             }
         }

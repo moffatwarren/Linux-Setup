@@ -24,6 +24,25 @@ Rectangle {
     // e.g. only the on/off word rather than the whole pill.
     property bool richText: false
 
+    // The drop-down this module owns, if it has one. Setting it is what turns
+    // on both the open highlight and the hover hand-off below.
+    property MenuPopup menu: null
+    readonly property bool menuOpen: menu ? menu.open : false
+
+    // "Open my menu" -- called by the click AND by the hand-off, so a module
+    // with side effects on opening (NetworkPill fetches its public IP,
+    // PowerProfilePill takes an immediate stats reading) defines them once
+    // instead of having the two paths drift apart. Overridden where the menu's
+    // `open` is not this module's to write.
+    property var openMenu: () => { if (root.menu) root.menu.open = true; }
+
+    // True when a hover here would actually switch menus -- i.e. some OTHER
+    // module's drop-down is up. Nothing on this bar reacted to hover before, so
+    // the tint is what makes the gesture discoverable.
+    readonly property bool handoffTarget: menu !== null
+                                          && MenuService.current !== null
+                                          && MenuService.current !== menu
+
     signal clicked
     signal doubleClicked
     signal rightClicked
@@ -33,7 +52,22 @@ Rectangle {
     implicitWidth: (contentWidth >= 0 ? contentWidth : text.implicitWidth) + Theme.pillPad * 2
     implicitHeight: Theme.pillHeight
     radius: height / 2
-    color: Theme.pill
+    color: menuOpen || (hovered && handoffTarget) ? Theme.surface0 : Theme.pill
+
+    // With a menu already open, crossing another module switches to its menu,
+    // the way a menubar does. The delay is the whole reason this is a Timer:
+    // without it, sweeping the pointer along the bar strobes every menu it
+    // passes over on the way to somewhere else.
+    Timer {
+        id: handoff
+        interval: 90
+        onTriggered: root.openMenu()
+    }
+
+    onHoveredChanged: {
+        if (root.hovered && root.handoffTarget) handoff.restart();
+        else handoff.stop();
+    }
 
     Text {
         id: text

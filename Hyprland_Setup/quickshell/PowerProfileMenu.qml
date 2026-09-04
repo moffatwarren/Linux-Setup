@@ -1,5 +1,4 @@
 import Quickshell
-import Quickshell.Hyprland
 import Quickshell.Services.UPower
 import QtQuick
 import QtQuick.Layouts
@@ -20,11 +19,8 @@ import QtQuick.Layouts
 //
 // It owns no state: PowerProfilePill samples, this draws, the split every other
 // menu on this bar uses.
-PopupWindow {
+MenuPopup {
     id: root
-
-    property Item anchorItem: null
-    property bool open: false
 
     // Raw numbers from system-stats.sh plus the CPU figure the pill differences
     // out of /proc/stat, and the formatters that turn them into rows.
@@ -93,170 +89,142 @@ PopupWindow {
         return out;
     }
 
-    anchor.item: anchorItem
-    anchor.edges: Edges.Bottom
-    anchor.gravity: Edges.Bottom
-    anchor.margins.top: 6
-
     // Wide enough for "12.3 GiB / 31.3 GiB  (39%)" opposite its label without
     // the usage rows setting the width one at a time as they arrive.
     implicitWidth: 280
     implicitHeight: body.implicitHeight + 20
-    color: "transparent"
-    visible: open
-    // Take the keyboard while open so Escape can close the menu.
-    grabFocus: open
 
-    // Dismiss on a click anywhere outside, as every other dropdown here does.
-    HyprlandFocusGrab {
-        windows: [root]
-        active: root.open
-        onCleared: root.close()
-    }
+    ColumnLayout {
+        id: body
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.margins: Theme.popupPad
+        spacing: 5
 
-    function close() { open = false; }
+        Text {
+            text: "Power profile"
+            color: Theme.lavender
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize
+            font.bold: true
+        }
 
-    Rectangle {
-        anchors.fill: parent
-        focus: true
-        Keys.onEscapePressed: root.close()
-        radius: 12
-        color: Theme.base
-        border.width: 1
-        border.color: Theme.surface1
+        Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.surface1 }
 
-        ColumnLayout {
-            id: body
-            anchors.left: parent.left
-            anchors.right: parent.right
-            anchors.top: parent.top
-            anchors.margins: 10
-            spacing: 5
+        Repeater {
+            model: root.profiles
 
-            Text {
-                text: "Power profile"
-                color: Theme.lavender
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize
-                font.bold: true
-            }
-
-            Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.surface1 }
-
-            Repeater {
-                model: root.profiles
-
-                Rectangle {
-                    id: profileRow
-
-                    required property var modelData
-                    readonly property bool current: PowerProfiles.profile === profileRow.modelData.profile
-
-                    Layout.fillWidth: true
-                    implicitHeight: 24
-                    radius: 6
-                    color: profileMouse.containsMouse ? Theme.surface0 : "transparent"
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 6
-                        anchors.rightMargin: 6
-                        spacing: 8
-
-                        // The radio dot PiaMenu's region rows use: exactly one
-                        // of these is in force at a time.
-                        Rectangle {
-                            implicitWidth: 8
-                            implicitHeight: 8
-                            radius: 4
-                            antialiasing: true
-                            color: profileRow.current ? profileRow.modelData.accent : "transparent"
-                            border.width: profileRow.current ? 0 : 1
-                            border.color: Theme.surface2
-                        }
-
-                        // The same glyph the pill draws for this profile, so
-                        // the bar and the menu cannot disagree about which is
-                        // which.
-                        Text {
-                            text: profileRow.modelData.glyph
-                            color: profileRow.current ? profileRow.modelData.accent : Theme.overlay0
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSize
-                        }
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: profileRow.modelData.label
-                            color: profileRow.current ? Theme.text : Theme.subtext0
-                            font.family: Theme.fontFamily
-                            font.pixelSize: Theme.fontSize
-                        }
-                    }
-
-                    MouseArea {
-                        id: profileMouse
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        // The menu stays open: switching profile is the sort of
-                        // thing you do while watching the temperatures below.
-                        onClicked: PowerProfiles.profile = profileRow.modelData.profile
-                    }
-                }
-            }
-
-            Text {
-                Layout.fillWidth: true
-                visible: root.degradation.length > 0
-                text: root.degradation
-                wrapMode: Text.Wrap
-                color: Theme.yellow
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize - 2
-            }
-
-            // --- vitals ------------------------------------------------------
             Rectangle {
-                Layout.fillWidth: true
-                Layout.topMargin: 2
-                implicitHeight: 1
-                color: Theme.surface1
-            }
+                id: profileRow
 
-            Text {
-                Layout.fillWidth: true
-                visible: root.statRows.length === 0
-                text: "Reading sensors\u2026"
-                color: Theme.subtext0
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize
-            }
+                required property var modelData
+                readonly property bool current: PowerProfiles.profile === profileRow.modelData.profile
 
-            Repeater {
-                model: root.statRows
+                Layout.fillWidth: true
+                implicitHeight: 24
+                radius: 6
+                color: profileMouse.containsMouse ? Theme.surface0 : "transparent"
 
                 RowLayout {
-                    required property var modelData
-                    Layout.fillWidth: true
-                    spacing: 16
+                    anchors.fill: parent
+                    anchors.leftMargin: 6
+                    anchors.rightMargin: 6
+                    spacing: 8
 
+                    // The radio dot PiaMenu's region rows use: exactly one
+                    // of these is in force at a time.
+                    Rectangle {
+                        implicitWidth: 8
+                        implicitHeight: 8
+                        radius: 4
+                        antialiasing: true
+                        color: profileRow.current ? profileRow.modelData.accent : "transparent"
+                        border.width: profileRow.current ? 0 : 1
+                        border.color: Theme.surface2
+                    }
+
+                    // The same glyph the pill draws for this profile, so
+                    // the bar and the menu cannot disagree about which is
+                    // which.
                     Text {
-                        text: modelData.text
-                        color: Theme.text
+                        text: profileRow.modelData.glyph
+                        color: profileRow.current ? profileRow.modelData.accent : Theme.overlay0
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSize
                     }
 
-                    Item { Layout.fillWidth: true }
-
                     Text {
-                        text: modelData.detail
-                        horizontalAlignment: Text.AlignRight
-                        color: modelData.accent
+                        Layout.fillWidth: true
+                        text: profileRow.modelData.label
+                        color: profileRow.current ? Theme.text : Theme.subtext0
                         font.family: Theme.fontFamily
                         font.pixelSize: Theme.fontSize
                     }
+                }
+
+                MouseArea {
+                    id: profileMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    // The menu stays open: switching profile is the sort of
+                    // thing you do while watching the temperatures below.
+                    onClicked: PowerProfiles.profile = profileRow.modelData.profile
+                }
+            }
+        }
+
+        Text {
+            Layout.fillWidth: true
+            visible: root.degradation.length > 0
+            text: root.degradation
+            wrapMode: Text.Wrap
+            color: Theme.yellow
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize - 2
+        }
+
+        // --- vitals ------------------------------------------------------
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.topMargin: 2
+            implicitHeight: 1
+            color: Theme.surface1
+        }
+
+        Text {
+            Layout.fillWidth: true
+            visible: root.statRows.length === 0
+            text: "Reading sensors\u2026"
+            color: Theme.subtext0
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize
+        }
+
+        Repeater {
+            model: root.statRows
+
+            RowLayout {
+                required property var modelData
+                Layout.fillWidth: true
+                spacing: 16
+
+                Text {
+                    text: modelData.text
+                    color: Theme.text
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Text {
+                    text: modelData.detail
+                    horizontalAlignment: Text.AlignRight
+                    color: modelData.accent
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize
                 }
             }
         }

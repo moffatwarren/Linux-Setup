@@ -57,7 +57,8 @@ Pill {
     // Mute is set straight on the node, the way onScrolled already sets volume,
     // rather than shelling out to volume-notify.sh: no process, and no OSD --
     // the glyph you just clicked is the feedback.
-    onClicked: audioMenu.open = !audioMenu.open
+    menu: audioMenu
+    onClicked: root.menuOpen ? audioMenu.requestClose() : root.openMenu()
     onRightClicked: if (audio) audio.muted = !audio.muted
     // 1% a notch, matching what XF86AudioRaise/LowerVolume do via
     // volume-notify.sh (`wpctl set-volume … 1%+`), so a wheel notch and a key

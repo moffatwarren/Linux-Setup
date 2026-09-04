@@ -35,10 +35,9 @@ Pill {
               : profile === PowerProfile.PowerSaver ? Theme.green
               : Theme.text
 
-    onClicked: {
-        if (!menu.open) refreshStats();
-        menu.open = !menu.open;
-    }
+    menu: profileMenu
+    openMenu: () => { root.refreshStats(); profileMenu.open = true; }
+    onClicked: root.menuOpen ? profileMenu.requestClose() : root.openMenu()
 
     // Cycle saver -> balanced -> performance, skipping performance where
     // unsupported. This was the left button until the menu took it; it is kept
@@ -104,7 +103,7 @@ Pill {
     // rather than two seconds later.
     Timer {
         interval: 2000
-        running: menu.open
+        running: profileMenu.open
         repeat: true
         onTriggered: root.refreshStats()
     }
@@ -145,7 +144,7 @@ Pill {
     }
 
     PowerProfileMenu {
-        id: menu
+        id: profileMenu
         anchorItem: root
 
         stats: root.stats

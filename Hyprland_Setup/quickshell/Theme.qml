@@ -44,4 +44,12 @@ Singleton {
     // keep it in step with decoration.rounding in hypr/modules/look.lua.
     readonly property int barRadius: 8
     readonly property int pillPad: 12
+
+    // Every drop-down hangs off the bottom edge of the slab, so it carries the
+    // slab's own radius on the two corners that are still corners -- MenuPopup
+    // squares the top pair off. These were the literals 12 / 1 / 10 repeated in
+    // all thirteen popup files.
+    readonly property int popupRadius: barRadius
+    readonly property int borderWidth: 1
+    readonly property int popupPad: 10
 }
