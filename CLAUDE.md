@@ -600,11 +600,16 @@ Four things follow from how that file is read:
   still cycles everything, and a sink plugged in for the first time joins the rotation
   rather than being silently skipped — the opposite default would make a new headset look
   broken.
-- **Records outlive the sink.** A record is kept for a device that is not plugged in, with
-  the description it had, which is what lets an unplugged headset come back with its
-  switch as it was. Those rows show as `unplugged`, cannot be made the default, and are
-  right-click to forget — a right-click on one that *is* plugged in does nothing, since
-  the next save would re-seed it from the live node anyway.
+- **Records outlive the sink, but the menu does not list them.** A record is kept for a
+  device that is not plugged in, with the description and the switch it had, which is what
+  lets an unplugged headset come back into the rotation exactly as it was left. It is
+  *not* drawn: `AudioService.outputs` is the present sinks alone, because a switch on an
+  absent output controls nothing — `audio-output-toggle.sh` cycles what `pactl` currently
+  lists, so `SUPER+O` can never land on it, and a row that cannot be made the default and
+  cannot change the cycle is a control with no effect. `records` is therefore the memory
+  and `outputs` is the menu, deliberately not the same list. The `unplugged` rows and the
+  right-click `forget()` that went with them are gone; nothing prunes the file now, which
+  is the accepted cost — a name and a boolean per output this machine has ever seen.
 - **Every output switched off falls back to cycling all of them.** That is a state the
   menu can reach, and a dead `SUPER+O` is a worse answer than ignoring the filter once.
 - Sinks are sorted by **node id**, which is the number `pactl` prints as the sink index —

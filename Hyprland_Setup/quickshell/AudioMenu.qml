@@ -13,6 +13,11 @@ import QtQuick.Layouts
 // makes an output the default right now. Inputs carry a radio button, because
 // there is only ever one default source.
 //
+// Only outputs that are plugged in are listed. AudioService remembers the
+// switch of one that is not, so a headset comes back as it was left, but a row
+// for it here would be a control with nothing to control -- SUPER+O cycles the
+// present sinks, and can never land on an output that is not there.
+//
 // AudioService owns both the rotation and the file it persists to -- there is
 // one of these menus per monitor and only one of them may write.
 PopupWindow {
@@ -141,8 +146,8 @@ PopupWindow {
 
                     required property var modelData
 
-                    readonly property bool isDefault: modelData.present && root.sink
-                                                      && String(root.sink.name) === modelData.name
+                    readonly property bool isDefault: root.sink
+                                                     && String(root.sink.name) === modelData.name
 
                     Layout.fillWidth: true
                     spacing: 2
@@ -165,17 +170,7 @@ PopupWindow {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            acceptedButtons: Qt.LeftButton | Qt.RightButton
-                            onClicked: mouse => {
-                                // Right-click drops a remembered output that is not
-                                // plugged in. One that is would just be re-seeded
-                                // from the live node on the next save.
-                                if (mouse.button === Qt.RightButton) {
-                                    if (!modelData.present) AudioService.forget(modelData.name);
-                                    return;
-                                }
-                                if (modelData.present) AudioService.setDefaultSink(modelData.node);
-                            }
+                            onClicked: AudioService.setDefaultSink(modelData.node)
                         }
 
                         RowLayout {
@@ -198,8 +193,7 @@ PopupWindow {
                                 Text {
                                     anchors.centerIn: parent
                                     text: AudioService.glyphFor(modelData.name)
-                                    color: !modelData.present ? Theme.overlay0
-                                         : outRow.isDefault ? Theme.green : Theme.subtext0
+                                    color: outRow.isDefault ? Theme.green : Theme.subtext0
                                     font.family: Theme.fontFamily
                                     font.pixelSize: Theme.fontSize
                                 }
@@ -218,18 +212,9 @@ PopupWindow {
                                 Layout.fillWidth: true
                                 text: modelData.description
                                 elide: Text.ElideRight
-                                color: !modelData.present ? Theme.overlay0
-                                     : outRow.isDefault ? Theme.green : Theme.text
+                                color: outRow.isDefault ? Theme.green : Theme.text
                                 font.family: Theme.fontFamily
                                 font.pixelSize: Theme.fontSize
-                            }
-
-                            Text {
-                                visible: !modelData.present
-                                text: "unplugged"
-                                color: Theme.overlay0
-                                font.family: Theme.fontFamily
-                                font.pixelSize: Theme.fontSize - 3
                             }
 
                             // Whether this output is in the SUPER+O rotation. Same

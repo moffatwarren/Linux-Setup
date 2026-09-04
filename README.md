@@ -85,7 +85,9 @@ bluetooth, display, TV — and that becomes its icon in the bar and in the popup
 `SUPER+O` raises. Worth setting once: nothing can tell headphones from speakers
 by the sink name, so a wired headset otherwise just gets the generic volume icon.
 
-All of it is remembered, including for a device that is unplugged.
+The menu lists only the outputs that are plugged in, but the settings for one
+that is not are remembered — unplug a headset and plug it back in and it
+returns with its switch and its icon as you left them.
 
 `SUPER+CTRL+S` selects a region and starts recording it. A red pill with the
 elapsed time appears in the bar while it runs, and stops the recording when
