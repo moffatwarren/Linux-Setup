@@ -4,8 +4,18 @@ import Quickshell.Services.UPower
 import QtQuick
 
 // waybar: "power-profiles-daemon" -- icon per profile, click cycles.
-// Hovering additionally shows the machine's vitals, which have no bar module of
-// their own: memory, GPU load, root filesystem use and the two temperatures.
+//
+// **Left-click opens PowerProfileMenu now; the cycle moved to the right
+// button.** The menu names the three profiles and carries the machine's vitals,
+// which have no bar module of their own: CPU and memory, GPU load and VRAM,
+// root filesystem use and the two temperatures. They were this pill's hover
+// panel, and a panel is the one thing on this bar you cannot click into -- so
+// the profile picker had nowhere to go until the panel became a menu.
+//
+// This file still samples everything and hands the menu the numbers and the
+// formatters; the menu only draws them. That split matters more here than
+// elsewhere: the CPU figure is a delta between two /proc/stat reads, so it has
+// to be sampled whether or not anything is looking.
 Pill {
     id: root
 
@@ -25,8 +35,16 @@ Pill {
               : profile === PowerProfile.PowerSaver ? Theme.green
               : Theme.text
 
-    // Cycle saver -> balanced -> performance, skipping performance where unsupported.
     onClicked: {
+        if (!menu.open) refreshStats();
+        menu.open = !menu.open;
+    }
+
+    // Cycle saver -> balanced -> performance, skipping performance where
+    // unsupported. This was the left button until the menu took it; it is kept
+    // because it is still the fastest way to step the profile once you know the
+    // order, the same menu/shortcut split BluetoothPill and NotificationPill use.
+    onRightClicked: {
         if (profile === PowerProfile.PowerSaver) PowerProfiles.profile = PowerProfile.Balanced;
         else if (profile === PowerProfile.Balanced && PowerProfiles.hasPerformanceProfile) PowerProfiles.profile = PowerProfile.Performance;
         else PowerProfiles.profile = PowerProfile.PowerSaver;
@@ -36,8 +54,8 @@ Pill {
     // system-stats.sh emits raw numbers (bytes / percent / millidegrees) and
     // omits anything it could not read, so a missing sensor drops its row
     // rather than reporting a plausible-looking zero. Sampling only runs while
-    // the pill is hovered -- the panel is the only consumer, so an idle bar
-    // spawns nothing.
+    // the menu is open -- it is the only consumer, so an idle bar spawns
+    // nothing. It was gated on `hovered` for exactly the same reason.
     property var stats: ({})
 
     function has(key) { return stats[key] !== undefined; }
@@ -82,12 +100,11 @@ Pill {
 
     function refreshStats() { if (!statsProc.running) statsProc.running = true; }
 
-    // Sampled ahead of the popup's own 300 ms delay, so it opens populated.
-    onHoveredChanged: if (hovered) refreshStats()
-
+    // One read on the way open, so the menu is populated the moment it appears
+    // rather than two seconds later.
     Timer {
         interval: 2000
-        running: root.hovered
+        running: menu.open
         repeat: true
         onTriggered: root.refreshStats()
     }
@@ -127,38 +144,19 @@ Pill {
         }
     }
 
-    ListPopup {
+    PowerProfileMenu {
+        id: menu
         anchorItem: root
-        requested: root.hovered
-        title: "System"
-        emptyText: "Reading sensors…"
-        rows: {
-            const s = root.stats;
-            const out = [];
-            // Each processor's load paired with its own temperature, then the
-            // capacity rows.
-            if (root.cpuPct >= 0)
-                out.push({ text: "CPU", detail: Math.round(root.cpuPct) + "%",
-                           accent: root.loadColor(root.cpuPct) });
-            if (root.has("cpu_temp"))
-                out.push({ text: "CPU temp", detail: root.temp(s.cpu_temp),
-                           accent: root.tempColor(s.cpu_temp) });
-            if (root.has("gpu_pct"))
-                out.push({ text: "GPU", detail: s.gpu_pct + "%",
-                           accent: root.loadColor(s.gpu_pct) });
-            if (root.has("gpu_temp"))
-                out.push({ text: "GPU temp", detail: root.temp(s.gpu_temp),
-                           accent: root.tempColor(s.gpu_temp) });
-            if (root.has("ram_total"))
-                out.push({ text: "RAM", detail: root.usage(s.ram_used, s.ram_total),
-                           accent: root.loadColor(s.ram_used / s.ram_total * 100) });
-            if (root.has("vram_total"))
-                out.push({ text: "VRAM", detail: root.usage(s.vram_used, s.vram_total),
-                           accent: root.loadColor(s.vram_used / s.vram_total * 100) });
-            if (root.has("disk_total"))
-                out.push({ text: "Disk", detail: root.usage(s.disk_used, s.disk_total),
-                           accent: root.loadColor(s.disk_used / s.disk_total * 100) });
-            return out;
-        }
+
+        stats: root.stats
+        cpuPct: root.cpuPct
+        // Passed as functions rather than duplicated: they are the pill's own
+        // idea of what counts as hot and what counts as loaded, and two copies
+        // of a threshold drift.
+        formatBytes: root.humanBytes
+        formatUsage: root.usage
+        loadColor: root.loadColor
+        tempColor: root.tempColor
+        formatTemp: root.temp
     }
 }

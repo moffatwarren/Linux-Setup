@@ -3,7 +3,7 @@ import Quickshell.Io
 import QtQuick
 
 // The tailscale mark, green when tailscale is up and the bar's normal text
-// colour when it is not -- everything else moved into the hover panel, so the
+// colour when it is not -- everything else lives in TailscaleMenu, so the
 // module costs one glyph of bar rather than the waybar-era
 // " Tailscale: on | Exit-node: …".
 //
@@ -11,6 +11,12 @@ import QtQuick
 // list comes from `tailscale status --json` directly rather than from the
 // script's tooltip, which wraps hostnames in pango markup and joins them with
 // carriage returns.
+//
+// **Left-click opens the menu**, as every other pill that owns one does. The
+// right button is bound to nothing at all: `tailscale file get` used to be
+// there and is a footer entry in the menu now, so `clickCommand`,
+// `doubleClickCommand` and `rightClickCommand` are all unset and the base's
+// handlers run `run("")`, which is a no-op.
 ScriptPill {
     id: root
 
@@ -19,9 +25,10 @@ ScriptPill {
     readonly property string exitNode:
         connected && rawText.length > 0 && rawText !== "no" ? rawText : ""
 
+    readonly property string toggleCommand: "~/.config/hypr/scripts/tailscale.sh --toggle"
+    readonly property string getFileCommand: "~/.config/hypr/scripts/tailscale.sh --getFile"
+
     command: "~/.config/hypr/scripts/tailscale.sh --status"
-    doubleClickCommand: "~/.config/hypr/scripts/tailscale.sh --toggle"
-    rightClickCommand: "~/.config/hypr/scripts/tailscale.sh --getFile"
 
     // The logo is drawn rather than labelled, so `hasContent` carries what an
     // empty label used to: hidden until the first poll lands.
@@ -107,26 +114,49 @@ ScriptPill {
         onTriggered: if (!peerProc.running) peerProc.running = true
     }
 
-    onConnectedChanged: if (!connected) peers = [];
+    // The state arriving is what ends a toggle. QML rejects a second handler for
+    // the same signal on the same object, so both live here.
+    onConnectedChanged: {
+        if (!connected) peers = [];
+        toggling = false;
+    }
 
-    ListPopup {
+    // `tailscale up`/`down` takes seconds and tailscale.sh --toggle sleeps 5
+    // more, so the menu's button reports the wait rather than looking dead.
+    // Cleared by onConnectedChanged in the normal case; this only covers a
+    // toggle that never lands -- `tailscale up` waiting on a login, say --
+    // which would otherwise leave the button disabled for the session.
+    property bool toggling: false
+
+    Timer {
+        id: toggleGuard
+        interval: 20000
+        onTriggered: root.toggling = false
+    }
+
+    onClicked: tsMenu.open = !tsMenu.open
+
+    TailscaleMenu {
+        id: tsMenu
         anchorItem: root
-        requested: root.hovered
-        title: "Tailscale"
-        maxDetailWidth: 220
-        rows: {
-            if (!root.connected)
-                return [{ text: "Status", detail: "Disconnected", accent: Theme.red }];
-            const on = [{ text: "Status", detail: "Connected", accent: Theme.green }];
-            if (root.exitNode.length > 0)
-                on.push({ text: "Exit node", detail: root.exitNode, accent: Theme.sapphire });
-            for (const p of root.peers)
-                on.push({
-                    text: p.name + (p.exitNode ? "  (exit node)" : ""),
-                    detail: p.online ? "online" : "offline",
-                    accent: p.online ? Theme.green : Theme.overlay0
-                });
-            return on;
+        connected: root.connected
+        exitNode: root.exitNode
+        peers: root.peers
+        toggling: root.toggling
+
+        // The peer poll only ticks every 10s, so ask once on the way open
+        // rather than showing a list up to that stale.
+        onOpenChanged: if (open && root.connected && !peerProc.running) peerProc.running = true;
+
+        onToggleRequested: {
+            root.toggling = true;
+            toggleGuard.restart();
+            Quickshell.execDetached(["bash", "-lc", root.toggleCommand]);
+            // Poll hard until the new state shows up, instead of waiting out
+            // the 3s tick -- the same thing a double-click toggle did.
+            root.pollFast();
         }
+
+        onGetFileRequested: Quickshell.execDetached(["bash", "-lc", root.getFileCommand])
     }
 }

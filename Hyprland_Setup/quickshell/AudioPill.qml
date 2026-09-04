@@ -23,9 +23,6 @@ Pill {
     readonly property bool muted: audio ? audio.muted : false
     readonly property string sinkName: sink ? String(sink.name) : ""
 
-    readonly property var source: Pipewire.defaultAudioSource
-    readonly property var sourceAudio: source ? source.audio : null
-
     // All Material Design Icons out of the nerd font, so the glyph is flat
     // monochrome line art in the pill's own colour, matching the weather and
     // bluetooth modules. The speaker/headphone emoji this used to draw
@@ -42,15 +39,11 @@ Pill {
         return "\udb81\udd7e";                                             // volume-high
     }
 
-    // Keeps the volume/mute/description properties of both defaults live.
-    // AudioService tracks every other node, for the menu.
+    // Keeps the volume/mute properties of the default sink live -- an
+    // untracked PwNode publishes none of them, and the label reads both.
+    // AudioService tracks every node the menu draws.
     PwObjectTracker {
-        objects: {
-            const out = [];
-            if (root.sink) out.push(root.sink);
-            if (root.source) out.push(root.source);
-            return out;
-        }
+        objects: root.sink ? [root.sink] : []
     }
 
     label: sink ? (muted ? icon : icon + " " + Math.round(volume * 100) + "%") : ""
@@ -78,34 +71,5 @@ Pill {
     AudioMenu {
         id: audioMenu
         anchorItem: root
-    }
-
-    ListPopup {
-        anchorItem: root
-        requested: root.hovered && !audioMenu.open
-        title: "Audio"
-        // Device descriptions run long ("Navi 48 HDMI/DP Audio Controller
-        // Digital Stereo (HDMI 2) [27E3QKS]"); elide rather than let one row
-        // stretch the panel across the screen.
-        maxDetailWidth: 260
-        rows: {
-            const out = [];
-            out.push({ text: "Output",
-                       detail: root.sink ? AudioService.nodeLabel(root.sink) : "none",
-                       accent: root.sink ? Theme.text : Theme.subtext0 });
-            if (root.audio)
-                out.push({ text: "Volume",
-                           detail: root.muted ? "muted" : Math.round(root.volume * 100) + "%",
-                           accent: root.muted ? Theme.red : Theme.green });
-            out.push({ text: "Input",
-                       detail: root.source ? AudioService.nodeLabel(root.source) : "none",
-                       accent: root.source ? Theme.text : Theme.subtext0 });
-            if (root.sourceAudio)
-                out.push({ text: "Mic",
-                           detail: root.sourceAudio.muted
-                                   ? "muted" : Math.round(root.sourceAudio.volume * 100) + "%",
-                           accent: root.sourceAudio.muted ? Theme.red : Theme.green });
-            return out;
-        }
     }
 }

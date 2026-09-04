@@ -275,12 +275,45 @@ holding the Catppuccin Mocha palette.
 bluetooth/workspaces/media use Quickshell's native services instead, so the bar is
 event-driven rather than polling.
 
-`ListPopup.qml` is the Catppuccin hover panel used by the audio, bluetooth, battery,
-tailscale and recorder modules (a title plus `{ text, detail, accent }` rows). It replaced the stock
+`ListPopup.qml` is the Catppuccin hover panel used by the battery and recorder
+modules — the last two with nothing to click (a title plus `{ text, detail, accent }`
+rows). It replaced the stock
 QtQuick `ToolTip`s, which ignored the palette. Modules drive it with
 `requested: root.hovered`, using the `hovered` alias `Pill.qml` exposes. Its optional
-`maxDetailWidth` elides the right-hand column, for rows whose detail is a device name
-long enough to stretch the panel across the screen (`AudioPill` needs it).
+`maxDetailWidth` elides the right-hand column, for rows whose detail is a filename long
+enough to stretch the panel across the screen (`RecorderPill` needs it).
+
+**A module with a menu has no hover panel — the rule now holds without exception.**
+`AudioPill`, `BluetoothPill`, `NotificationPill`, `TailscalePill`, `PiaPill`,
+`NetworkPill` and `PowerProfilePill` each used to carry one, and every one of them was a
+second rendering of something the same pill now opens on a left-click: the audio panel
+named the default output and input and their
+volumes, which `AudioMenu` lists in full with a switch beside every row; the bluetooth
+panel listed the devices `BluetoothMenu` lists with something to click; the notification
+panel was the unread count and the DND state, which are the menu's own header; and the
+tailscale and PIA panels became menus outright when they grew buttons.
+
+The last two were different, and worth the distinction: their panels held content that was
+genuinely *not* anywhere in a menu. `NetworkPill`'s IP, public IP and up/down rates are
+nowhere in a list of SSIDs, and `PowerProfilePill` had no menu at all — its vitals had a
+panel because nothing else on the bar would have them. Neither was deleted; both **moved
+into a menu**, `NetworkPill`'s as a status block above `WifiMenu`'s list and
+`PowerProfilePill`'s as the body of a new `PowerProfileMenu` under a profile picker. In
+both cases the panel's rows answer "what is going on", which is the question you have when
+you open a menu without meaning to change anything, so the top of the menu is where they
+belong.
+
+What is left on `ListPopup` is the two modules with nothing to click — battery and
+recorder. That is the line to hold when adding one: a hover panel is for a
+module with nowhere else to put a number, and a module that grows a menu takes its
+panel's rows with it.
+
+Two things to keep in mind if a panel is ever added back to a module that has a menu: the
+popups were
+suppressed with `requested: root.hovered && !menu.open` so a panel could not sit over the
+menu it duplicates, and `AudioPill` tracked `Pipewire.defaultAudioSource` in its
+`PwObjectTracker` only for that panel — the label reads the sink alone, and `AudioService`
+already tracks every node the menu draws.
 
 `CalendarPopup.qml` is the clock's **left-click dropdown**: the current month as a grid,
 today picked out with a filled blue disc, with the leading and trailing days of the
@@ -356,19 +389,45 @@ opposite one detail. Its columns are sized from `TextMetrics.advanceWidth` (**no
 same string lays out in — every condition elided by one pixel), so the table does not
 reflow as the numbers change width.
 
-`WifiMenu.qml` is the **left**-click dropdown on the network module: a scrollable-free
-list of nearby SSIDs (deduplicated per SSID, strongest first, capped at 8), each with a
-four-bar signal meter, the strength as a percentage, a lock for secured networks and a
-"saved" marker for known ones.
+`WifiMenu.qml` is the **left**-click dropdown on the network module, and it is two halves.
+The top is the **status block** — the SSID and its strength on wifi, then ↓/↑ throughput,
+the interface IP, the public IP and the MAC — which is the hover panel this module used to
+have, moved in whole. `NetworkPill` still works all of it out and the menu only draws it,
+the split `PiaMenu` and `TailscaleMenu` use; the title is the *active interface's* name
+(`eth0`, `wlan0`), which the one-glyph pill has no room to say.
+
+Below that is the network list: deduplicated per SSID, strongest first, capped at 8, each
+with a four-bar signal meter, the strength as a percentage, a lock for secured networks
+and a "saved" marker for known ones.
 Left-click a row to connect (`connect()`, or `connectWithPsk()` behind an inline
 password field for a secured network never joined before), right-click a saved row to
 `forget()` it. The header toggles `Networking.wifiEnabled`, and an "Open nmtui…" footer
-keeps the old escape hatch. Scanning is driven by a `Binding` on the device's
-`scannerEnabled` tied to whether the menu is open, so it only scans while visible.
+keeps the old escape hatch.
+
+**Scanning is opt-in, behind the Scan button**, exactly as `BluetoothMenu`'s discovery is.
+It used to be a `Binding` on the device's `scannerEnabled` tied to `open` alone, so every
+glance at "what am I connected to" powered up a scan — and the list re-sorted itself by
+signal under the pointer while you were aiming at a row. `scanRequested` now gates that
+`Binding` alongside `open` and is cleared on close, so the next opening starts quiet
+rather than silently resuming. The button's label reads the device's own `scannerEnabled`,
+not the request, so a scan NetworkManager refused cannot leave it claiming to run, and the
+"Networks" header carrying it is visible whenever the radio is on rather than only when
+the list is populated — gating it on the list would hide the only control that fills it.
+
+**The list really is empty until the button is pressed, and that must not be "fixed" by
+scanning a little bit anyway.** `NetworkDevice.networks` is populated **only while
+`scannerEnabled` is true** — verified on this machine: 0 with the scanner off while
+NetworkManager itself was holding 41 access points (`nmcli device wifi list --rescan no`),
+10 within 1.5 s of enabling it, 0 again the moment it was disabled. There is no cached
+list to fall back on, and the empty state says "No networks yet — press Scan" rather than
+the old unconditional "Scanning…", which would now be a lie.
+
+That gating is also why the status block's SSID and signal do **not** come from
+`networks` any more — see `NetworkPill` below.
 
 The signal meter is drawn with rectangles rather than a nerd font glyph — no private-use
 codepoint to get wrong, and it scales with the strength value (which is 0..1, not 0-100).
-The percentage beside it is the same number `NetworkPill`'s hover panel shows, on the same
+The percentage beside it is the same number the status block shows, on the same
 green/yellow/red thresholds, so the two readouts of one value cannot disagree; four bars
 cannot separate two networks that both light three of them. It sits in a fixed
 right-aligned column so the lock and "saved" markers land at the same x on every row.
@@ -381,22 +440,51 @@ the equivalent keybinds in `binds.lua` — in particular Sleep locks before susp
 suspending an unlocked session. The action list is a plain array at the top of
 `PowerMenu.qml`, so adding or removing an entry is one line.
 
-`PowerProfilePill.qml` carries the machine's vitals in its hover panel — CPU and memory
+`PowerProfilePill.qml` is one glyph saying which power profile is in force, and
+`PowerProfileMenu.qml` is its **left-click dropdown**: the three profiles as named rows at
+the top, then the machine's vitals — CPU and memory
 use, GPU load and VRAM, root filesystem use, and CPU/GPU temperature — because none of
-those warrant a pill of their own. `hypr/scripts/system-stats.sh` gathers everything but
+those warrant a pill of their own.
+
+**The profiles were a cycle on the pill and the vitals were a hover panel, and each fixed
+the other.** Clicking stepped saver → balanced → performance, so reaching a named profile
+took up to three clicks and you had to read a glyph to know where you were; the vitals had
+a panel because a panel was the only place they could go, and a panel is the one thing on
+this bar you cannot click into. Turning the panel into a menu gave the picker somewhere to
+live: three rows with a radio dot, one click to any of them, and the same glyph the pill
+draws beside each so the bar and the menu cannot disagree. Performance is omitted entirely
+where `hasPerformanceProfile` is false — a row that cannot be selected is worse than one
+that is not offered, which is why the cycle skipped it too. **The cycle survives on the
+right button**, the menu/shortcut split `BluetoothPill` and `NotificationPill` use: it is
+still the fastest way to step the profile once you know the order.
+
+`PowerProfiles.degradationReason` gets a line under the picker when it is not `None`
+(`LapDetected`, `HighTemperature`). Without it, picking Performance on a throttled machine
+looks like a click that did nothing.
+
+`hypr/scripts/system-stats.sh` gathers everything but
 the CPU figure and prints one JSON object of raw numbers (bytes, percent, millidegrees),
 leaving all formatting to the QML. It discovers sensors by **name, not index**: hwmon
 numbering is assigned in probe order and changes between boots, and the DRM card index
 moves the same way. A value it cannot read is omitted from the JSON rather than reported
-as `0`, so the panel drops that row instead of showing a confidently wrong reading. That
-script runs on a 2 s timer gated on `hovered`, with one immediate read on hover, so an
-idle bar spawns no processes.
+as `0`, so the menu drops that row instead of showing a confidently wrong reading. That
+script runs on a 2 s timer gated on `menu.open`, with one immediate read on the way open,
+so an idle bar spawns no processes — it was gated on `hovered` for the same reason.
+
+**The pill samples and the menu draws, and the formatters cross that line as functions.**
+`humanBytes`, `usage`, `loadColor`, `tempColor` and `temp` are passed into the menu as
+`property var`s rather than copied into it: they encode this module's idea of what counts
+as hot and what counts as loaded, and two copies of a threshold drift apart. Verified that
+a QML method bound into another object's `var` property stays callable and still resolves
+its own scope — `usage` calls `humanBytes` unqualified and gets the pill's.
 
 CPU utilisation is the exception, because `/proc/stat` counts jiffies since boot and so
 only yields a percentage as a **delta between two samples** — there is nothing to read
 once. It is sampled in the QML with `FileView` (the `NetworkPill` throughput pattern: no
-process, so it can run continuously) and differenced, which is also what lets the panel
-open with a real number instead of a row that appears two seconds later. Two traps: a
+process, so it can run continuously) and differenced, which is also what lets the menu
+open with a real number instead of a row that appears two seconds later. It is the reason
+the sampling could not simply move into the menu with the rows: a delta needs two reads,
+and a menu that is shut most of the time cannot take them. Two traps: a
 `reload()` hands back the *previous* contents once at startup, so a zero total-delta must
 be skipped rather than divided by, and `idle` is fields 4+5 (idle **and** iowait).
 
@@ -423,11 +511,17 @@ shortcut for when you already know.
 
 **Every pill that owns a menu opens it on the primary button** —
 `AudioPill`, `BluetoothPill`, `NetworkPill`, `NotificationPill`, `PowerPill`,
-`ClockPill` and `WeatherPill` all do, and the media module's cover art does too. Audio,
-bluetooth and notifications bind the right button as well (mute, adapter, DND), and so
-does weather (force a re-fetch); `NetworkPill`'s is unbound, since the wifi radio toggle
+`ClockPill`, `WeatherPill`, `TailscalePill`, `PiaPill` and `PowerProfilePill` all do, and
+the media module's
+cover art does too. Audio,
+bluetooth and notifications bind the right button as well (mute, adapter, DND), and so do
+weather (force a re-fetch) and power-profile (cycle it, which is what the left button did
+before there was a menu); `NetworkPill`'s is unbound, since the wifi radio toggle
 already sits in `WifiMenu`'s header and nothing else on the network module wants a
-shortcut.
+shortcut, and **`TailscalePill` and `PiaPill` bind no second button at all** —
+`tailscale file get` was tailscale's right-click and PIA's right-click started its daemon;
+both are entries in the menu now, the way `CalendarPopup` took
+the clock's old double-click into its own footer.
 
 **Nothing on this bar opens a panel on hover any more except `ListPopup` and its
 clients.** The calendar and the forecast were hover panels and are dropdowns now, for
@@ -552,29 +646,100 @@ Note QML rejects a second handler for the same signal on the same object, which 
 remembering here: `onSinksChanged` is the one place both the debounced save and anything
 else reacting to a sink appearing have to live.
 
-`PiaPill.qml` specialises `ScriptPill`: `pia.sh` still drives the state, while a
-`piactl` call fills a hover panel with where the tunnel exits.
+`PiaPill.qml` specialises `ScriptPill`: `pia.sh` drives the state, and `PiaMenu.qml` is
+its **left-click dropdown**. The pill runs everything and holds the answers; the menu
+draws them and signals back, the split `TailscaleMenu` uses.
 
-Its panel's first row is the **`piavpn.service` daemon**, from `pia.sh --service`
+`PiaMenu`'s first row is the **`piavpn.service` daemon**, from `pia.sh --service`
 (`systemctl is-active`, whose non-zero exit for anything but "active" is not a failure —
 the word it prints is the answer). It is worth a row because `piactl` talks to that
 daemon: with it stopped every `piactl get` fails, `pia.sh --status` can only report
-`error`, and the pill goes white with nothing saying why. When it is down that row *is*
-the whole panel — the connection state below it would be meaningless — plus a dimmed
-"Right-click to start" hint. The unit name lives in `pia.sh`, not the QML, beside the
+`error`, and the pill sits at its disconnected mark with nothing saying why. **When it is
+down, that row and a `Start service` button of its own are the whole menu** — every row
+below reads `piactl` and would be showing blanks. That button is separate from the
+header's `Connect`/`Disconnect`, which is dimmed and inert rather than replaced by it:
+the two are not alternatives (starting the daemon is what makes connecting possible), and
+a button that changes what it does under the pointer is worse than one that is visibly
+unavailable. The unit name lives in `pia.sh`, not the QML, beside the
 `piactl` path discovery.
 
-**Right-click starts it, through a terminal.** Starting a system unit needs a password
+**Starting it opens a terminal.** Starting a system unit needs a password
 and this session runs **no polkit agent** (polkitd is up, but nothing in `autostart.lua`
 provides an authentication agent, so `systemctl start piavpn.service` fails with
 "interactive authentication required" and a bar click would do nothing visible). So
 `pia.sh --start-service` runs `sudo systemctl start` inside a `kitty --class pia-start`,
 where the prompt can be answered; it holds the window open on failure so the error is
 readable, and `rules.lua` floats that class small and centred rather than tiling a
-full-size terminal for one line of input. Installing `hyprpolkitagent` would let the
-right-click be silent, but that is a new package and a new autostarted daemon.
-`rightClickCommand` is empty while the daemon is up (nothing for the click to do) and
-until the first poll has actually reported it down, so the offer is never a guess.
+full-size terminal for one line of input. Installing `hyprpolkitagent` would let it
+be silent, but that is a new package and a new autostarted daemon. The button is offered
+only once a poll has actually reported the daemon down — never while it is up, and never
+before the first poll — so the offer is not a guess. It was the pill's right-click, where
+the same rule was enforced by leaving `rightClickCommand` empty.
+
+**The rest of the menu is `Connect`/`Disconnect` and a shortlist of regions.** Both were
+gestures on the pill: connect was a double-click, and a region could not be picked from
+the bar at all. Four things to know:
+
+- **`piactl` cannot bring up a tunnel by itself.** `piactl connect` fails outright unless
+  the PIA GUI client is running or background mode is on (`piactl background enable`) —
+  it says so in `piactl --help`. A menu button that silently does nothing is the worst
+  version of that, so `pia.sh` reports every `connect`/`disconnect`/`set region` failure
+  through `notify-send`, with that precondition attached to a failed connect. The bar owns
+  `org.freedesktop.Notifications`, so the failure pops as a toast and stays in the centre.
+  It sends **no `-i`**, for the reason `BatteryWatcher` sends none — see **Low-battery
+  warnings**.
+- **The transitional state is real, not a local flag.** `pia.sh --status` reports
+  `connecting` and `disconnecting` itself, so unlike `TailscaleMenu`'s `toggling` there is
+  nothing to hold and nothing to expire. What the pill does add is `act()`: every menu
+  action runs `pia.sh` and then starts *two* polls, because `ScriptPill.pollFast()` only
+  re-runs `--status` while the region and the IPs come from separate processes on a 20 s
+  tick — and those are exactly the rows a region change moves.
+- **Picking a region connects.** `piactl connect` doubles as "reconnect to apply new
+  settings" (`piactl --help`), so `--set-region` runs it either way: to apply the change
+  when connected, and because choosing a place to connect to means you want to be there
+  when not.
+- **The region row shows a radio dot, not a checkmark**, and `auto` is pinned above the
+  rest — it is the only entry that is not a place, and letting it fall off a
+  most-recently-used list would take away the way back to letting PIA choose.
+
+`PiaService.qml` is the `pragma Singleton` behind that shortlist, for the reason
+`AudioService` is one: one `Bar` per monitor means one `PiaPill` and one `PiaMenu` each,
+they have to agree, and only one may write `~/.cache/quickshell-pia.json`.
+
+**The shortlist is what you have used, not a committed list of places.** PIA publishes 190
+regions and the useful five are a property of the *person* — precisely the kind of value
+this repo does not put in a config line (see **Nothing is machine-specific any more**).
+So picking a region records it, and the menu offers the five most recent under `auto`.
+`seedRegions` is a five-entry array that only fills the gap before you have five of your
+own, so a fresh machine gets a usable list on day one rather than a lone `auto` with
+nothing under it; each real pick pushes a seed out. Twice the shortlist is retained, so a
+region that scrolls off comes back to the top when it is chosen in the PIA client instead
+of being forgotten. The full picker is that client, in the menu's footer — this is a
+shortcut, deliberately not a replacement.
+
+Two details in there:
+
+- **Region ids are formatted, not looked up.** `piactl` prints `us-salt-lake-city` and
+  PIA's own name for it is "US Salt Lake City", so `regionName()` upper-cases a leading
+  two-letter token and title-cases the rest. The published server list
+  (`~/.cache/pia-serverlist.json`, which `pia-region.sh` already fetches) does carry real
+  names, but **its ids only agree with `piactl`'s for about three quarters of the
+  regions** (verified: 149 of 189 match on the `dns` prefix, 57 on a naive `_`→`-`), so
+  joining the two would leave a quarter of the menu unnamed.
+- **`knownRegions` drops anything with a space in it.** That is not pedantry: an older
+  deployed `pia.sh` that has never heard of `--regions` prints its usage line on *stdout*,
+  which becomes a one-entry region list that filters the entire shortlist away. Verified —
+  it is exactly what the first headless run of `PiaService` did against the live
+  `~/.config` copy. An empty answer (daemon down) keeps the last good list rather than
+  emptying the menu.
+
+`pia.sh` grew `--connect`, `--disconnect`, `--regions`, `--set-region <id>` and
+`--open-client` for all of this. `--open-client` launches the GUI the way the shipped
+`/usr/share/applications/piavpn.desktop` does — `XDG_SESSION_TYPE=X11`, from
+`/opt/piavpn/bin` — because the client is a Qt app that expects X11 and runs under
+XWayland; dropping that env is how it fails to start with nothing on screen to say why.
+`--regions` prints raw ids and leaves the formatting to the QML, like `system-stats.sh`
+and `weather-forecast.sh`.
 
 **Neither PIA nor Tailscale is installed by `install.sh` any more, and both modules hide
 themselves when their tool is absent.** This matters because "not installed" and
@@ -582,11 +747,11 @@ themselves when their tool is absent.** This matters because "not installed" and
 `inactive` for a unit that does not exist (verified — it prints `inactive` and exits 4),
 and `tailscale status` fails the same way whether the daemon is down or the binary is
 missing. Left alone, a machine that declined both prompts would carry a permanently
-white tailscale mark and a `PIA` whose panel offered to start a unit that is not there
-— a right-click that asks for a password and then fails. So `pia.sh --service` checks
+white tailscale mark and a `PIA` whose menu offered to start a unit that is not there
+— a button that asks for a password and then fails. So `pia.sh --service` checks
 `systemctl cat` first and prints its own word, **`absent`**, which blanks `PiaPill`'s
-label and empties `rightClickCommand`; `--start-service` refuses the same way rather
-than prompting.
+label and so takes the module out of the bar — menu and all; `--start-service` refuses
+the same way rather than prompting, for the machine where it is reached some other way.
 `tailscale.sh --status` prints **nothing** when `command -v tailscale` fails, which clears
 `ScriptPill.rawAlt` and so drops `TailscalePill`'s `active` (the logo is drawn, not
 labelled, so an empty label is not what hides it — see below). Neither script uninstalls
@@ -604,19 +769,57 @@ public IP.
 
 `TailscalePill.qml` specialises `ScriptPill` the same way, and reads its peer list from
 `tailscale status --json` directly rather than from the script's tooltip, which wraps
-hostnames in pango markup and joins them with carriage returns. Disconnected, its panel
-is one "Disconnected" row; connected, it is "Connected", the exit node if one is routing,
-then the peers.
+hostnames in pango markup and joins them with carriage returns.
 
-**Both are just their mark — the tailscale logo and the letters `PIA`, green when
-connected and `Theme.text` when not.** They used to spell the state out in the bar
-(` Tailscale: on | Exit-node: …`, ` PIA: Connected`), which was two of the widest modules
-on the strip saying what their own hover panels already say in full. The colour is now
+`TailscaleMenu.qml` is its **left-click dropdown**: Status, the exit node if one is
+routing, the peer list, a `Connect`/`Disconnect` button in the header and the
+`tailscale file get` footer. That menu is the module's only gesture — the pill sets
+none of `ScriptPill`'s three command properties, so the right button and the double-click
+both land on `run("")`. It was a `ListPopup` hover panel, and **growing a button is
+what forced it to stop being one** — a hover panel is driven by `requested: root.hovered`,
+so it closes as the pointer leaves the pill, which is on the way to everything inside it.
+Something you click has to be a dropdown, so it dismisses like the rest: `open`,
+`grabFocus`, Escape, `HyprlandFocusGrab`.
+
+The button replaced a **double-click** on the pill. Two things followed from moving it:
+
+- **The menu owns no state and runs no commands.** It reports `connected`/`exitNode`/
+  `peers` and signals `toggleRequested()`/`getFileRequested()` back; the pill runs
+  `tailscale.sh` and knows how to make the state settle. Which is why `ScriptPill` grew
+  `pollFast()` — the 15×1 s burst after a toggle was inline in `onDoubleClicked`, and
+  **a subclass cannot reach `fastPoll` by id**: QML ids are scoped to the file that
+  declares them, so a derived component inherits the properties and none of the ids.
+- **`toggling` is a state the pill has to hold**, because `tailscale up`/`down` takes
+  seconds and `tailscale.sh --toggle` sleeps 5 more on top. Without it the button says
+  `Connect` through the whole wait and reads as a click that did nothing. It is cleared by
+  `onConnectedChanged` — the new state arriving *is* the end of the toggle — with a 20 s
+  `Timer` behind it for a toggle that never lands (`tailscale up` waiting on a login),
+  which would otherwise leave the button disabled for the rest of the session.
+
+**Both are just their mark — the tailscale logo and a padlock, green when
+connected and `Theme.text` when not.** They used to spell the state out in words
+(`Tailscale: on | Exit-node: …`, `PIA: Connected`), which made them two of the widest
+modules on the strip, saying what their menus already say in full. The colour is now
 the entire readout, so `labelColor` carries the state — no `<font>` markup, and the
 `altText`/`altColors`/`prefix` machinery `ScriptPill` used to compose one is gone with
 it. `ScriptPill` now only polls and parses, exposing `rawText`/`rawAlt` for the subclass
-to draw. Note this drops the yellow *connecting* state PIA used to show; it is two
-colours by design, and the hover panel still names the transitional state.
+to draw.
+
+**PIA's mark is a padlock from the nerd font, and its own artwork could not be used.**
+The package ships exactly one image — `/usr/share/pixmaps/piavpn.png`, a 256px
+full-colour raster of their padlock mascot, face and all — and the connected/disconnected
+variants the client shows in a tray are inside its Qt resource bundle, not on disk. So the
+shipped file is the wrong thing twice: one image where two states are wanted, and
+multicolour, which is the trap `AudioPill` already hit with emoji — it would ignore
+`labelColor` and be the only coloured thing on the bar. The mark is Material Design's
+`md-lock` / `md-lock-open` / `md-lock-outline` instead (U+F033E / U+F033F / U+F0341,
+so surrogate pairs), which is the shape PIA's logo already is, in the family every other
+module draws from. **The state is the shackle as well as the colour**: closed and green
+connected, open and `Theme.text` not, outlined and yellow in between. That yellow
+*connecting* state was dropped when the module became one colour-coded mark, on the
+grounds that the hover panel named the transitional state in words — that panel is a menu
+now, and a menu you have not opened says nothing, so the third colour came back with a
+glyph of its own.
 
 **Tailscale's mark is drawn, not written.** Nerd Fonts ships no tailscale glyph and
 nothing on the system installs the artwork, so `TailscalePill` lays out the 3x3 dot grid
@@ -662,34 +865,48 @@ Seven things to know before editing the QML:
   Design Icons, the family `AudioPill` draws from and the one that has a slashed
   counterpart for each state, so the shape says which medium and the slash says whether
   it is up while `labelColor` still reddens the whole thing when nothing is connected.
-  The SSID, signal, IP and rates it used to spell out are all in the hover panel, which
-  is where you go for a number.
+  The SSID, signal, IP and rates it used to spell out are all in `WifiMenu`'s status
+  block, which is where you go for a number.
 - **`NetworkNode.signalStrength` is 0..1, not 0-100** (verified against a live scan:
   0.92, 0.45). The old bar label appended a `%` to it directly and would have read
   "0.92%" — it never showed, because this machine is wired and the wifi branch never
   ran. `WifiMenu`'s meter had it right all along.
-- **A `NetworkDevice` has `networks`, not a `network`** — there is no property naming the
-  one it is joined to (its whole surface is `type`, `name`, `networks`, `address`,
+- **A `NetworkDevice` has `networks`, not a `network`, and `networks` is empty unless
+  something is scanning.** There is no property naming the network it is joined to (its
+  whole surface is `type`, `name`, `networks`, `address`,
   `connected`, `state`, `nmManaged`, `autoconnect`; verified in
   `/usr/lib/qt6/qml/Quickshell/Networking/quickshell-network.qmltypes`), and
-  `signalStrength` is on `WifiNetwork`, a member of that list, not on the device. The
-  current network is `active.networks.values.filter(n => n.connected)[0]` —
-  `NetworkPill.activeNetwork`. Reading the `.network` that does not exist is not an error
-  in QML, just `undefined`, so the hover panel silently showed its "Wi-Fi" fallback
-  instead of the SSID and dropped the Signal row altogether. It needs no scan and no
-  binding to populate: verified live, `Warren's S26` / 0.91 with nothing else bound to
-  `networks`, which is why `WifiMenu`'s `scannerEnabled` gate does not have to be open
-  for the panel to read a strength.
+  `signalStrength` is on `WifiNetwork`, a member of that list, not on the device — so the
+  obvious answer is `active.networks.values.filter(n => n.connected)[0]`, which is what
+  `NetworkPill.activeNetwork` was. Reading the `.network` that does not exist is not an
+  error in QML, just `undefined`, so the panel silently showed its "Wi-Fi" fallback
+  instead of the SSID and dropped the Signal row altogether — that much was a real bug and
+  was fixed.
+  **The list itself is the deeper trap**, and an earlier note here got it wrong: it said
+  `networks` needs no scan to populate. It does. Measured directly — 0 entries with
+  `scannerEnabled` false while NetworkManager held 41 access points, 10 entries 1.5 s
+  after enabling it, 0 again on disabling. That was survivable only while `WifiMenu`
+  scanned for as long as it was open; once scanning became opt-in, an `activeNetwork`
+  derived from `networks` would have made the SSID and Signal rows vanish from the one
+  place they are now shown.
+  So `NetworkPill` reads them from **NetworkManager's own cache** instead:
+  `nmcli -t -f IN-USE,SIGNAL,SSID device wifi list --rescan no`, taking the row that
+  starts with `*`. `--rescan no` is what makes it a read rather than a scan. It runs on
+  the same schedule as the IP lookup — on an active-device change, when the menu opens,
+  and on the 30 s backstop. Note nmcli's signal is **0-100** where quickshell's is 0..1,
+  hence the divide, and that `-t` escapes a colon inside a value as `\:` — the parse is
+  `splitEscaped()`, not a regex, for the reason in the next bullet.
 - **`NetworkDevice.address` is the MAC, not the IP** — no IP is exposed anywhere on the
   device, so `NetworkPill` shells out to `ip -4 -br addr` when the active device changes.
-  Networking exposes no byte counters either, so the hover panel's up/down rates come
+  Networking exposes no byte counters either, so the status block's up/down rates come
   from `/sys/class/net/<iface>/statistics/{rx,tx}_bytes`, sampled once a second with
   `FileView` (no process spawn) and differenced. The baseline resets on an interface
   change so the first sample cannot report a bogus spike.
-- **The panel's public IP is fetched on hover, never polled.** It is the one row that
-  has to be asked of somebody else's server, and the panel is its only consumer, so
-  `refreshPublicIp()` hangs off `onHoveredChanged` the way `PowerProfilePill`'s stats do.
-  `hypr/scripts/public-ip.sh` caches for ten minutes, so a run of hovers is a `cat`
+- **The public IP is fetched when the menu opens, never polled.** It is the one row that
+  has to be asked of somebody else's server, and the menu is its only consumer, so
+  `refreshPublicIp()` hangs off `onClicked` — it hung off `onHoveredChanged` until the
+  panel it fed became a menu, which is the same move `PowerProfilePill`'s stats made.
+  `hypr/scripts/public-ip.sh` caches for ten minutes, so a run of openings is a `cat`
   apiece, and prints **nothing** rather than guessing — an empty answer means "ask again
   later", so the module keeps its last good reading. Three details in that script:
   it tries two providers (icanhazip, then ipify) because either can be down; it checks
@@ -702,10 +919,9 @@ Seven things to know before editing the QML:
 - `AudioPill` draws the icon the audio menu has for the current sink (`AudioService`,
   above), falling back to the volume ramp for the default `volume` choice. It used to
   `grep` a role map out of `hypr/scripts/audio-output-toggle.sh`; nothing is inferred or
-  read from a script here any more. Its hover
-  panel names the default output and input (`Pipewire.defaultAudioSink` /
-  `defaultAudioSource`, shown by `description` with `nickname`/`name` as fallbacks) plus
-  each one's volume; both nodes go in the `PwObjectTracker` so those stay live. Its glyphs
+  read from a script here any more. It has no hover panel — the menu it opens says all of
+  that, with controls (see above); its `PwObjectTracker` now holds only the default sink,
+  whose volume and mute the label itself reads. Its glyphs
   are Material Design Icons from the nerd font (volume off/low/medium/high, mute,
   headphones, bluetooth-audio) — **not** the speaker/headphone emoji it used to draw. A
   real emoji codepoint is served by the colour emoji font, which ignores `labelColor` and
@@ -728,10 +944,20 @@ Seven things to know before editing the QML:
   the last good value on a parse error rather than clearing.
 - **A derived component's signal handler does not replace the base's — both fire.**
   Verified: a `console.warn` in `ScriptPill.onRightClicked` and another in
-  `PiaPill.onRightClicked` both printed. So `PiaPill` sets `rightClickCommand` and lets
-  the base's handler run it, and its own handler only starts the poll timer; running the
-  command in both places would open two terminals. (`Connections` is not needed for this,
-  and a base handler cannot be suppressed by redeclaring it.)
+  `PiaPill.onRightClicked` both printed. `PiaPill` used to rely on it — it set
+  `rightClickCommand` for the base's handler to run and used its own only to start a poll
+  timer, because running the command in both places would have opened two terminals.
+  Neither subclass sets any of the three command properties now (both menus own their
+  actions), so nothing depends on it today; it is written down because a base handler
+  **cannot** be suppressed by redeclaring it, which is the trap the next subclass will
+  hit. (`Connections` is not needed for this.)
+- **QML's JS engine does not support lookbehind, and does not say so.** Verified on this
+  Qt: `line.split(/(?<!\\):/)` throws nothing, matches nothing, and hands the whole line
+  back as a single field — so the value parsed out of field 1 came back `NaN` and the
+  symptom was an empty row, not an error. It was written to split `nmcli -t` output on
+  unescaped colons; `NetworkPill.splitEscaped()` walks the string instead. Assume any
+  regex feature newer than the basics needs proving in a `qs -p` scratch file before it is
+  relied on.
 - **Bind `visible`, don't set it from `onXChanged`.** A handler never fires for a
   property that is already true at construction, which is why `ListPopup` gates
   visibility through a bound `delayPassed` flag.
@@ -1085,7 +1311,8 @@ The pill is a bell: outline when there is nothing, filled when there is, struck 
 and dimmed to `overlay0` when muted. It goes yellow with a count, red if anything unread
 is critical. Left-click opens the menu, **right-click mutes** without opening anything —
 the same shortcut/menu split `BluetoothPill` uses (left opens the picker, right toggles
-the adapter) — and the hover panel is the count and the DND state.
+the adapter). There is no hover panel: it was the unread count and the DND state, both of
+which the menu's own header carries.
 
 The menu is `PowerMenu`'s frame: a header, the Do-not-disturb row with a switch, the
 list, and `Clear all`. A row is left-click to run the sender's `default` action (and
@@ -1431,7 +1658,20 @@ JetBrainsMono the rest of the session uses.)
   and `curl`, which `weather-forecast.sh`, `pia-region.sh` and `public-ip.sh` all fetch
   with. `curl` cannot actually be missing — pacman itself hard-depends on it — but a
   script calling a binary directly should not rely on arriving as somebody else's
-  dependency, which is the whole point of the rule.
+  dependency, which is the whole point of the rule. **`python` is the one where that
+  rule bites**: `pia-region.sh` matches the exit IP against PIA's server list in a
+  `python3` heredoc (jq over a 2 MB document on every poll is the alternative), and it
+  is the only interpreter anything here calls. Without it that script prints nothing
+  rather than guessing, so the PIA menu's Region row just reads `Automatic` for ever —
+  a silent failure, which is exactly the shape this list exists to prevent.
+- **A package that only needs installing, not enabling, is worth saying so about.**
+  `power-profiles-daemon` ships
+  `/usr/share/dbus-1/system-services/net.hadess.PowerProfiles.service` with
+  `SystemdService=power-profiles-daemon.service`, so the unit is D-Bus activated the
+  moment the bar reads a profile — verified on this machine, which reports it `disabled`
+  and `active` at the same time. Adding a `systemctl enable` to `apply_system_tweaks`
+  would look like a fix for a fresh machine and would in fact change nothing, which is
+  the kind of line that gets copied.
 - **The nerd font is verified by codepoint, not by package version.** Several modules are
   nothing but a glyph, and those glyphs are Material Design Icons from Nerd Fonts **v3**,
   which lives at U+F0000 and above. v2 was entirely inside the BMP and has nothing at

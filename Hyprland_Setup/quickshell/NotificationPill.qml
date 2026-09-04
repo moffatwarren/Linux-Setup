@@ -36,24 +36,6 @@ Pill {
     onClicked: NotificationService.toggleMenu(root.monitorName)
     onRightClicked: NotificationService.toggleDnd()
 
-    ListPopup {
-        anchorItem: root
-        requested: root.hovered && !menu.open
-        title: "Notifications"
-        rows: [
-            {
-                text: "Unread",
-                detail: root.count === 0 ? "none" : String(root.count),
-                accent: root.count > 0 ? Theme.yellow : Theme.overlay0
-            },
-            {
-                text: "Do not disturb",
-                detail: root.muted ? "on" : "off",
-                accent: root.muted ? Theme.red : Theme.green
-            }
-        ]
-    }
-
     NotificationMenu {
         id: menu
         anchorItem: root
