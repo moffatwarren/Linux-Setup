@@ -25,6 +25,9 @@ PopupWindow {
     property bool refreshing: false
     property string emptyText: ""
 
+    // Raised by the footer's Refresh button; WeatherPill runs the fetch.
+    signal refreshRequested()
+
     // Re-read every half minute while the panel is open, so "5 min ago" does
     // not sit there going stale in front of you. Nothing drives it when the
     // panel is closed.
@@ -259,12 +262,13 @@ PopupWindow {
                 }
             }
 
-            // Provenance line: how old the reading is, and how to force a new
-            // one. Hidden until there is a reading to be old.
+            // Provenance line: how old the reading is, and the button that
+            // forces a new one. That was the pill's right-click, which this row
+            // could only describe in words -- a gesture you had to open the
+            // panel to discover, for something the panel can simply carry.
             Rectangle {
                 Layout.fillWidth: true
                 Layout.topMargin: 2
-                visible: footer.visible
                 implicitHeight: 1
                 color: Theme.surface1
             }
@@ -272,25 +276,50 @@ PopupWindow {
             RowLayout {
                 id: footer
                 Layout.fillWidth: true
-                visible: root.updatedAt > 0 || root.refreshing
                 spacing: 12
 
                 Text {
-                    text: root.refreshing
-                          ? "Refreshing…"
-                          : "Updated " + root.agoText(root.updatedAt)
-                    color: root.refreshing ? Theme.subtext0 : Theme.overlay0
+                    // The age stays put through a refresh: the button is where
+                    // the in-progress state is said now, so this row does not
+                    // have to stop saying the one thing it is here to say.
+                    text: "Updated " + root.agoText(root.updatedAt)
+                    visible: root.updatedAt > 0
+                    color: Theme.overlay0
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSize - 2
                 }
 
                 Item { Layout.fillWidth: true }
 
-                Text {
-                    text: "right-click to refresh"
-                    color: Theme.overlay0
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSize - 2
+                // The same chip BluetoothMenu and WifiMenu use for Scan.
+                Rectangle {
+                    implicitWidth: refreshLabel.implicitWidth + 16
+                    implicitHeight: 20
+                    radius: 6
+                    color: refreshMouse.containsMouse ? Theme.surface1 : Theme.surface0
+                    border.width: 1
+                    border.color: Theme.surface2
+
+                    Text {
+                        id: refreshLabel
+                        anchors.centerIn: parent
+                        text: root.refreshing ? "Refreshing…" : "Refresh"
+                        color: root.refreshing ? Theme.yellow : Theme.text
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSize - 2
+                    }
+
+                    MouseArea {
+                        id: refreshMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        // The panel owns no state and runs no process; the pill
+                        // is what knows how to fetch, the split TailscaleMenu
+                        // and PiaMenu use. It stays open on a click -- the
+                        // point of the button is to watch the numbers land.
+                        onClicked: root.refreshRequested()
+                    }
                 }
             }
         }
