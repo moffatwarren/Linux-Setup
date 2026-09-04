@@ -208,7 +208,8 @@ silently:
 hyprctl dispatch dpms on        → error: return hl.dispatch(dpms on) — ')' expected
 hyprctl keyword monitor "eDP-1,disable"
                                 → keyword can't work with non-legacy parsers. Use eval.
-hyprctl dispatch 'hl.dsp.dpms({ state = "on" })'    → ok
+hyprctl dispatch 'hl.dsp.dpms({ action = "on" })'   → ok
+hyprctl dispatch 'hl.dsp.dpms({ state = "on" })'    → ok, and it TOGGLES
 ```
 
 `hyprctl dispatch` compiles its argument as Lua and passes the result to `hl.dispatch`, so
@@ -217,9 +218,27 @@ it needs a dispatcher *expression*. `PowerMenu.qml` already had this right
 `hyprctl dispatch dpms on/off` lines had therefore never once run — the 360 s screen blank
 and the DPMS restore after a resume were both dead. Verified against 0.56.2.
 
-The `dpms` line above is kept as the *syntax* example because it is the clearest one, but
-**do not take it as a suggestion to put DPMS back in `hypridle.conf`.** Repairing those
-three dead lines is what made the display unrecoverable after a suspend or an idle blank,
+**The field on a togglable dispatcher is `action`, and the wrong field name is worse than
+a wrong value.** `hypridle.conf`'s repaired lines said `state`, which is not a field any
+dispatcher has. Hyprland reads it with `tableToggleAction(L, idx, "action")`
+(`config/lua/bindings/LuaBindingsInternal.hpp:148`), which returns a plain enum rather
+than an optional, so an absent or misspelled field falls back to the first member of
+`eTogglableAction` — `TOGGLE_ACTION_TOGGLE = 0`
+(`config/shared/actions/ConfigActions.hpp:30`). So `{ state = "on" }` is a **toggle**,
+and nothing says so: verified on 0.56.2 against a harmless togglable dispatcher that both
+an unknown field name (`hl.dsp.group.lock({ state = "on" })`) and a garbage value
+(`{ action = "banana" }`) return `ok`. There is no error in any log to find.
+
+Two defences, since the type stubs are no help — `/usr/share/hypr/stubs/hl.meta.lua` types
+every dispatcher as `fun(...)`, so an editor will not catch this either. Copy the shape
+from upstream's own sample config (`/usr/share/hypr/hypridle.conf` has the correct
+`{action = "on"}` form), and check the C++ signature in `/usr/include/hyprland/src/`,
+which is installed and is the actual answer.
+
+The `dpms` lines above are kept as the *syntax* example because they are the clearest
+ones, but **do not take them as a suggestion to put DPMS back in `hypridle.conf`.**
+Repairing those three dead lines is what made the display unrecoverable after a suspend or
+an idle blank,
 on two machines; they have been removed rather than fixed. See **There is no DPMS in this
 file** under **Idle and lock (hypridle)** before touching this. It is the second time in
 this repo that reviving a dead line was itself the regression — `monitor.added` and its
@@ -1189,11 +1208,25 @@ and no way back short of a hard reset:
 - **the 360 s blank** — the screen went dark on idle exactly as designed, then would not
   come back for any input. Reproduced accidentally, mid-session, and it cost a hard reset.
 
-The expression itself is *not* the problem — `hl.dsp.dpms({ state = "on" })` returns a
-real `HL.Dispatcher` (verified by `pcall` under `hyprctl eval` on 0.56.2). The mechanism
-was never pinned down, and pinning it down is not worth what the experiment costs: the
-failure mode is an unrecoverable display, so every attempt to observe it is an outage.
-What is certain is the blast radius, and that a backlight saving does not buy it.
+**The first of those two is now explained, and it was a typo.** The repaired lines were
+written `hl.dsp.dpms({ state = "on" })`, and the field is **`action`** — an unrecognised
+field falls back to `TOGGLE_ACTION_TOGGLE`, silently, returning `ok` (see **`hyprctl
+dispatch` takes a Lua expression** above for the verification). All three lines were
+therefore *toggles*. `after_sleep_cmd` fires on a resume with the screen already on, so it
+toggled DPMS **off** — and `misc:key_press_enables_dpms` and
+`misc:mouse_move_enables_dpms` both default to false (confirmed with `hyprctl getoption`),
+so no key and no mouse movement could turn it back on. Only a monitor hotplug could, which
+is why replugging the cable was the fix. The expression itself was valid Lua and returned
+a real `HL.Dispatcher`, which is exactly why the `pcall` check cleared it.
+
+**The 360 s blank is still unexplained, and that is why these lines stay out.** Two
+toggles alternate, so blank-on-timeout and restore-on-resume should have cancelled out on
+paper; they did not. Either the parity had already been flipped by an earlier
+`after_sleep_cmd` toggle in the same session, or a genuine DPMS off does not come back on
+this hardware — and the second possibility is the one that matters, because a correct
+`{ action = "off" }` line would hit it just the same. Settling it costs an outage per
+observation. Fixing the typo would remove the *resume* failure with confidence and leave
+the *idle blank* a coin flip, and a backlight saving does not buy that.
 
 **So the lines are gone rather than restored to their broken form** — a dead line that
 looks live is exactly what produced this (see the `monitor.added` duplicate-bar story,
