@@ -3,7 +3,7 @@ import Quickshell.Io
 import QtQuick
 
 // waybar: "custom/weather" -- current condition icon and temperature.
-// Left-click opens the forecast, right-click forces a re-fetch.
+// Left-click opens the forecast, which carries the Refresh button.
 //
 // Not a ScriptPill: weather-forecast.sh already returns the current conditions
 // alongside the week ahead, so one poll feeds both the label and the forecast
@@ -36,15 +36,14 @@ Pill {
     }
 
     // Left-click opens the forecast, the way every other pill that owns a
-    // drop-down does; right-click re-fetches now rather than waiting out the
-    // ten-minute cache. It used to run weather.sh --openWeather; that script
-    // had no other caller and has been retired.
+    // drop-down does. The right button is unbound: forcing a re-fetch was its
+    // one job and it is a button in the forecast's footer now, the way the
+    // clock's double-click became a link in CalendarPopup's.
     onClicked: forecast.open = !forecast.open
-    onRightClicked: root.refresh()
 
     function refresh() {
         // The command is bound to `force`, so it must not be rewritten under a
-        // running process; a second right-click mid-fetch is simply ignored.
+        // running process; a second click mid-fetch is simply ignored.
         if (weather.running) return;
         weather.force = true;
         root.refreshing = true;
@@ -100,5 +99,6 @@ Pill {
         updatedAt: root.updatedAt
         refreshing: root.refreshing
         emptyText: "Fetching forecast…"
+        onRefreshRequested: root.refresh()
     }
 }

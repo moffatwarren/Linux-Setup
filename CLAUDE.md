@@ -339,22 +339,30 @@ delay). Both halves read one `hypr/scripts/`
 `weather-forecast.sh` poll, and both draw their glyph from one WMO code table, so
 the pill and the panel can never disagree about the weather or the icon for it.
 
-The panel's footer says how old the reading is, and **right-clicking the pill**
-re-fetches immediately (`weather-forecast.sh --force`, which sets `FORECAST_MAX_AGE=0`
-so the age check can never pass). The age comes from the script, as `updated` — the
+The panel's footer says how old the reading is, and carries the **Refresh button**
+that re-fetches immediately (`weather-forecast.sh --force`, which sets
+`FORECAST_MAX_AGE=0` so the age check can never pass) — the same `surface0` chip
+`BluetoothMenu` and `WifiMenu` use for Scan. That was the pill's right-click, and the
+footer could only *describe* it in words ("right-click to refresh"), which is a gesture
+you had to open the panel to discover sitting next to somewhere to put a button. The
+panel owns no state and runs no process: it raises `refreshRequested()` and `WeatherPill`
+fetches, the split `TailscaleMenu` and `PiaMenu` use. It does not close on the click —
+the point of pressing it is to watch the numbers land. The age stays on screen throughout
+and the *button* is what says "Refreshing…", so the one row that exists to report the
+reading's age does not stop reporting it mid-fetch. The age comes from the script, as `updated` — the
 **cache file's mtime**, not the time of the poll that read it. Almost every poll is
 served from the ten-minute cache, so a QML-side "last fetched" clock would report when
 the bar last ran a `cat`; the mtime is when the data actually arrived, and it survives a
 bar restart. It is also what makes a failed refresh legible: the script prints the stale
 cache on a network error, so the footer keeps showing the old age instead of claiming to
 have just updated. `Process.command` is bound to a `force` flag, so `refresh()` must not
-fire while the process runs — a second right-click mid-fetch is ignored. The footer's
+fire while the process runs — a second press mid-fetch is ignored. The footer's
 "N min ago" is re-rendered by a 30 s timer gated on the popup being visible.
 
 It is **not** a `ScriptPill`, and **`hypr/scripts/weather.sh` is gone**. Its one
 remaining case, `--openWeather` — a floating kitty running the weathr TUI — was the
-pill's right-click, and the right button forces a refresh now, so nothing called the
-script at all. Retiring it took all three of the usual steps: the file deleted, the path
+pill's right-click, and the right button was given the refresh instead (which has since
+moved into the panel's footer), so nothing called the script at all. Retiring it took all three of the usual steps: the file deleted, the path
 added to `ORPHANS` so `cp -rf` does not leave it on a machine that already has it, and
 `rules.lua`'s `weathr-float` float rule dropped, since only that script ever set the
 class. **`weathr-bin` is out of `PARU_PKGS` too**, so a new machine does not install a
@@ -514,14 +522,14 @@ shortcut for when you already know.
 `ClockPill`, `WeatherPill`, `TailscalePill`, `PiaPill` and `PowerProfilePill` all do, and
 the media module's
 cover art does too. Audio,
-bluetooth and notifications bind the right button as well (mute, adapter, DND), and so do
-weather (force a re-fetch) and power-profile (cycle it, which is what the left button did
-before there was a menu); `NetworkPill`'s is unbound, since the wifi radio toggle
+bluetooth and notifications bind the right button as well (mute, adapter, DND), and so
+does power-profile (cycle it, which is what the left button did before there was a
+menu); `NetworkPill`'s is unbound, since the wifi radio toggle
 already sits in `WifiMenu`'s header and nothing else on the network module wants a
-shortcut, and **`TailscalePill` and `PiaPill` bind no second button at all** —
-`tailscale file get` was tailscale's right-click and PIA's right-click started its daemon;
-both are entries in the menu now, the way `CalendarPopup` took
-the clock's old double-click into its own footer.
+shortcut, and **`WeatherPill`, `TailscalePill` and `PiaPill` bind no second button at
+all** — weather's right-click forced a re-fetch, `tailscale file get` was tailscale's
+and PIA's started its daemon; all three are controls inside the menu now, the way
+`CalendarPopup` took the clock's old double-click into its own footer.
 
 **Nothing on this bar opens a panel on hover any more except `ListPopup` and its
 clients.** The calendar and the forecast were hover panels and are dropdowns now, for
