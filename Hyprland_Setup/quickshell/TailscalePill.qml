@@ -12,9 +12,9 @@ import QtQuick
 // script's tooltip, which wraps hostnames in pango markup and joins them with
 // carriage returns.
 //
-// **Left-click opens the menu**, as every other pill that owns one does. The
-// right button is bound to nothing at all: `tailscale file get` used to be
-// there and is a footer entry in the menu now, so `clickCommand`,
+// **Left-click opens the menu**, as every other pill that owns one does.
+// **Right-click toggles connect/disconnect**, running the same action as the
+// Connect/Disconnect button inside the menu. `clickCommand`,
 // `doubleClickCommand` and `rightClickCommand` are all unset and the base's
 // handlers run `run("")`, which is a no-op.
 ScriptPill {
@@ -134,8 +134,19 @@ ScriptPill {
         onTriggered: root.toggling = false
     }
 
+    function toggle() {
+        if (toggling) return;
+        root.toggling = true;
+        toggleGuard.restart();
+        Quickshell.execDetached(["bash", "-lc", root.toggleCommand]);
+        // Poll hard until the new state shows up, instead of waiting out
+        // the 3s tick -- the same thing a double-click toggle did.
+        root.pollFast();
+    }
+
     menu: tsMenu
     onClicked: root.menuOpen ? tsMenu.requestClose() : root.openMenu()
+    onRightClicked: root.toggle()
 
     TailscaleMenu {
         id: tsMenu
@@ -149,14 +160,7 @@ ScriptPill {
         // rather than showing a list up to that stale.
         onOpenChanged: if (open && root.connected && !peerProc.running) peerProc.running = true;
 
-        onToggleRequested: {
-            root.toggling = true;
-            toggleGuard.restart();
-            Quickshell.execDetached(["bash", "-lc", root.toggleCommand]);
-            // Poll hard until the new state shows up, instead of waiting out
-            // the 3s tick -- the same thing a double-click toggle did.
-            root.pollFast();
-        }
+        onToggleRequested: root.toggle()
 
         onGetFileRequested: Quickshell.execDetached(["bash", "-lc", root.getFileCommand])
     }
