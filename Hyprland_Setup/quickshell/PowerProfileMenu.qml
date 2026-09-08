@@ -31,6 +31,7 @@ MenuPopup {
     property var loadColor: null
     property var tempColor: null
     property var formatTemp: null
+    property var formatWatts: null
 
     readonly property var profiles: {
         const out = [
@@ -77,6 +78,9 @@ MenuPopup {
         if (has("gpu_temp"))
             out.push({ text: "GPU temp", detail: root.formatTemp(s.gpu_temp),
                        accent: root.tempColor(s.gpu_temp) });
+        if (has("power_uw") && root.formatWatts)
+            out.push({ text: "Power", detail: root.formatWatts(s.power_uw),
+                       accent: Theme.peach });
         if (has("ram_total"))
             out.push({ text: "RAM", detail: root.formatUsage(s.ram_used, s.ram_total),
                        accent: root.loadColor(s.ram_used / s.ram_total * 100) });

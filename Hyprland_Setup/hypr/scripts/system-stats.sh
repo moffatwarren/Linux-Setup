@@ -42,6 +42,16 @@ temp_input_by_label() {
     return 1
 }
 
+# First power attribute in $1 (power*_average, power*_input) in microwatts.
+power_input() {
+    local dir=$1 p
+    for p in "$dir"/power*_average "$dir"/power*_input; do
+        [ -r "$p" ] || continue
+        read_num "$p" && return 0
+    done
+    return 1
+}
+
 # The first amdgpu/i915/nouveau render card. `device/gpu_busy_percent` only
 # exists on amdgpu, so utilisation is simply absent on the others.
 gpu_device() {
@@ -80,6 +90,11 @@ if read -r _ dtotal dused _ < <(df -B1 --output=source,size,used,target / | tail
     add disk_total "$dtotal"
 fi
 
+gpu_power=""
+cpu_power=""
+busy=""
+t=""
+vused=""
 gpu=$(gpu_device) || gpu=""
 if [ -n "$gpu" ]; then
     busy=$(read_num "$gpu/gpu_busy_percent") && [ -n "$busy" ] && add gpu_pct "$busy"
@@ -94,14 +109,61 @@ if [ -n "$gpu" ]; then
         [ -d "$h" ] || break
         t=$(temp_input_by_label "$h" '^edge$') && t=$(read_num "$t") \
             && [ -n "$t" ] && add gpu_temp "$t"
+        p=$(power_input "$h") && [ -n "$p" ] && [ "$p" -gt 0 ] && gpu_power=$p
         break
     done
 fi
 
+# NVIDIA fallback via nvidia-smi if hwmon found no power (proprietary driver)
+if [ -z "$gpu_power" ] && command -v nvidia-smi >/dev/null 2>&1; then
+    nv_line=$(nvidia-smi --query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,power.draw --format=csv,noheader,nounits 2>/dev/null | head -1)
+    if [ -n "$nv_line" ]; then
+        IFS=',' read -r nv_busy nv_temp nv_vused nv_vtotal nv_power <<< "$nv_line"
+        nv_busy=$(echo "$nv_busy" | tr -d ' ')
+        nv_temp=$(echo "$nv_temp" | tr -d ' ')
+        nv_vused=$(echo "$nv_vused" | tr -d ' ')
+        nv_vtotal=$(echo "$nv_vtotal" | tr -d ' ')
+        nv_power=$(echo "$nv_power" | tr -d ' ')
+
+        [ -z "$busy" ] && [[ "$nv_busy" =~ ^[0-9]+$ ]] && add gpu_pct "$nv_busy"
+        [ -z "$t" ] && [[ "$nv_temp" =~ ^[0-9]+$ ]] && [ "$nv_temp" -gt 0 ] && add gpu_temp "$((nv_temp * 1000))"
+        if [ -z "$vused" ] && [[ "$nv_vused" =~ ^[0-9]+$ ]] && [[ "$nv_vtotal" =~ ^[0-9]+$ ]]; then
+            add vram_used "$((nv_vused * 1024 * 1024))"
+            add vram_total "$((nv_vtotal * 1024 * 1024))"
+        fi
+        if [[ "$nv_power" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
+            gpu_power=$(awk "BEGIN {print int($nv_power * 1000000)}")
+        fi
+    fi
+fi
+
 # CPU: Intel's coretemp calls it "Package id 0", AMD's k10temp calls it "Tctl".
-if cpu_hwmon=$(hwmon_by_name coretemp k10temp zenpower); then
+if cpu_hwmon=$(hwmon_by_name coretemp k10temp zenpower amd_energy); then
     t=$(temp_input_by_label "$cpu_hwmon" '^(Package id 0|Tctl|Tdie)$') \
         && t=$(read_num "$t") && [ -n "$t" ] && add cpu_temp "$t"
+    p=$(power_input "$cpu_hwmon") && [ -n "$p" ] && [ "$p" -gt 0 ] && cpu_power=$p
+fi
+
+# Power: on laptops discharging, battery power measures whole-system draw.
+# On desktops / AC, sum available CPU and GPU package sensors.
+bat_power=""
+for ps in /sys/class/power_supply/*; do
+    [ -d "$ps" ] || continue
+    type=$(cat "$ps/type" 2>/dev/null) || continue
+    [ "$type" = "Battery" ] || continue
+    p=$(read_num "$ps/power_now") && [ -n "$p" ] && [ "$p" -gt 0 ] && { bat_power=$p; break; }
+    c=$(read_num "$ps/current_now") && v=$(read_num "$ps/voltage_now")
+    if [ -n "$c" ] && [ -n "$v" ] && [ "$c" -gt 0 ] && [ "$v" -gt 0 ]; then
+        bat_power=$(( (c * v) / 1000000 ))
+        [ "$bat_power" -gt 0 ] && break
+    fi
+done
+
+if [ -n "$bat_power" ]; then
+    add power_uw "$bat_power"
+elif [ -n "$cpu_power" ] || [ -n "$gpu_power" ]; then
+    total_power=$(( ${cpu_power:-0} + ${gpu_power:-0} ))
+    [ "$total_power" -gt 0 ] && add power_uw "$total_power"
 fi
 
 echo "{$json}"
