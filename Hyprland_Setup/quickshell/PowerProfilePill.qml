@@ -83,6 +83,12 @@ Pill {
         return c >= 85 ? Theme.red : c >= 70 ? Theme.yellow : Theme.green;
     }
 
+    // Watts from microwatts reported by sysfs power sensors.
+    function watts(uw) {
+        const w = uw / 1000000;
+        return (w >= 100 ? Math.round(w) : w.toFixed(1)) + " W";
+    }
+
     Process {
         id: statsProc
         command: ["bash", "-lc", "~/.config/hypr/scripts/system-stats.sh"]
@@ -157,5 +163,6 @@ Pill {
         loadColor: root.loadColor
         tempColor: root.tempColor
         formatTemp: root.temp
+        formatWatts: root.watts
     }
 }

@@ -623,7 +623,7 @@ suspending an unlocked session. The action list is a plain array at the top of
 `PowerProfilePill.qml` is one glyph saying which power profile is in force, and
 `PowerProfileMenu.qml` is its **left-click dropdown**: the three profiles as named rows at
 the top, then the machine's vitals — CPU and memory
-use, GPU load and VRAM, root filesystem use, and CPU/GPU temperature — because none of
+use, GPU load and VRAM, root filesystem use, CPU/GPU temperature, and power consumption — because none of
 those warrant a pill of their own.
 
 **The profiles were a cycle on the pill and the vitals were a hover panel, and each fixed
@@ -643,16 +643,18 @@ still the fastest way to step the profile once you know the order.
 looks like a click that did nothing.
 
 `hypr/scripts/system-stats.sh` gathers everything but
-the CPU figure and prints one JSON object of raw numbers (bytes, percent, millidegrees),
+the CPU figure and prints one JSON object of raw numbers (bytes, percent, millidegrees, microwatts),
 leaving all formatting to the QML. It discovers sensors by **name, not index**: hwmon
 numbering is assigned in probe order and changes between boots, and the DRM card index
 moves the same way. A value it cannot read is omitted from the JSON rather than reported
-as `0`, so the menu drops that row instead of showing a confidently wrong reading. That
+as `0`, so the menu drops that row instead of showing a confidently wrong reading. On machines
+with proprietary NVIDIA drivers where sysfs hwmon exposes no GPU stats, a fallback query to
+`nvidia-smi` supplies GPU load, temperature, VRAM, and power draw. That
 script runs on a 2 s timer gated on `menu.open`, with one immediate read on the way open,
 so an idle bar spawns no processes — it was gated on `hovered` for the same reason.
 
 **The pill samples and the menu draws, and the formatters cross that line as functions.**
-`humanBytes`, `usage`, `loadColor`, `tempColor` and `temp` are passed into the menu as
+`humanBytes`, `usage`, `loadColor`, `tempColor`, `temp` and `watts` are passed into the menu as
 `property var`s rather than copied into it: they encode this module's idea of what counts
 as hot and what counts as loaded, and two copies of a threshold drift apart. Verified that
 a QML method bound into another object's `var` property stays callable and still resolves
