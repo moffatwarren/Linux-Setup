@@ -24,6 +24,18 @@ MenuPopup {
 
     signal calendarRequested()
 
+    readonly property int currentYear: root.date.getFullYear()
+    readonly property real yearProgress: {
+        const _ = root.open;
+        const now = new Date();
+        const y = root.currentYear;
+        const start = new Date(y, 0, 1);
+        const end = new Date(y + 1, 0, 1);
+        const refTime = (y === now.getFullYear()) ? now.getTime() : root.date.getTime();
+        return Math.max(0, Math.min(1, (refTime - start.getTime()) / (end.getTime() - start.getTime())));
+    }
+    readonly property int yearPercent: Math.round(root.yearProgress * 100)
+
     readonly property int cellSize: 28
     readonly property int columns: 7
 
@@ -80,6 +92,44 @@ MenuPopup {
         id: body
         anchors.centerIn: parent
         spacing: 6
+
+        // Year progress bar
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 4
+
+            Text {
+                text: root.currentYear + " is " + root.yearPercent + "% complete."
+                color: Theme.text
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSize - 1
+            }
+
+            Rectangle {
+                id: progressTrack
+                Layout.fillWidth: true
+                implicitHeight: 8
+                radius: 4
+                color: Theme.surface0
+                clip: true
+
+                Rectangle {
+                    width: progressTrack.width * root.yearProgress
+                    height: parent.height
+                    radius: parent.radius
+                    color: Theme.yellow
+
+                    Behavior on width { NumberAnimation { duration: 150 } }
+                }
+            }
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            Layout.topMargin: 2
+            implicitHeight: 1
+            color: Theme.surface1
+        }
 
         // Month and year navigation header
         RowLayout {
