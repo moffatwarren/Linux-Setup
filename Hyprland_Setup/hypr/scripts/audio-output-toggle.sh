@@ -28,6 +28,10 @@ get_volume() {
   wpctl get-volume @DEFAULT_AUDIO_SINK@ | awk '{print int($2 * 100)}'
 }
 
+get_mute() {
+  wpctl get-volume @DEFAULT_AUDIO_SINK@ | grep -q MUTED && echo "yes" || echo "no"
+}
+
 # Sink names in pactl's index order, which is the PipeWire node id -- the same
 # order AudioMenu lists them in, so the menu reads top-to-bottom as the cycle.
 #
@@ -39,7 +43,7 @@ present_sinks() {
   local out
   out=$(pactl -f json list short sinks 2>/dev/null | jq -r '.[].name' 2>/dev/null)
   if [ -z "$out" ]; then
-    out=$(pactl list short sinks 2>/dev/null | cut -f2)
+    out=$(pactl list short sinks 2>/dev/null | awk '{print $2}')
   fi
   # No sinks at all: print nothing rather than one empty line, which mapfile
   # would read as a single nameless sink and carry all the way to a
@@ -72,8 +76,8 @@ icon_key() {
   local key=""
   if [ -r "$STATE" ]; then
     key=$(jq -r --arg n "$1" \
-          'first((.outputs // [])[] | select(.name == $n) | .icon) // empty' \
-          "$STATE" 2>/dev/null)
+          '(.outputs // [])[] | select(.name == $n) | .icon // empty' \
+          "$STATE" 2>/dev/null | head -n 1)
   fi
   if [ -n "$key" ]; then
     printf '%s\n' "$key"
@@ -96,7 +100,8 @@ done
 # a dead SUPER+O is a worse answer than ignoring the filter for one press.
 [ ${#CANDIDATES[@]} -gt 0 ] || CANDIDATES=("${ALL[@]}")
 
-CURRENT=$(pactl get-default-sink 2>/dev/null)
+CURRENT=$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | awk -F'"' '/node.name =/{print $2; exit}')
+[ -n "$CURRENT" ] || CURRENT=$(pactl get-default-sink 2>/dev/null)
 
 # Not finding the current sink in the list -- it was switched off, or is gone --
 # lands on the first candidate, which is the useful thing to do either way.
@@ -119,9 +124,23 @@ DESC=$(pactl -f json list sinks 2>/dev/null \
 # sides agree on. Passing the menu's own choice through is what stops the popup
 # and the bar disagreeing about what this output is.
 ICON_KEY=$(icon_key "$NEXT")
-ICON="audio-${ICON_KEY}-symbolic"
-
+MUTE=$(get_mute)
 VOL=$(get_volume)
+
+if [ "$MUTE" = "yes" ]; then
+  ICON="audio-volume-muted-symbolic"
+elif [ "$ICON_KEY" != "volume" ]; then
+  ICON="audio-${ICON_KEY}-symbolic"
+elif [ -n "$VOL" ] && [ "$VOL" -eq 0 ]; then
+  ICON="audio-volume-muted-symbolic"
+elif [ -n "$VOL" ] && [ "$VOL" -lt 34 ]; then
+  ICON="audio-volume-low-symbolic"
+elif [ -n "$VOL" ] && [ "$VOL" -lt 67 ]; then
+  ICON="audio-volume-medium-symbolic"
+else
+  ICON="audio-volume-high-symbolic"
+fi
+
 notify-send -a "volume" -h string:x-canonical-private-synchronous:audio-volume \
   -h int:value:"$VOL" \
   -u low -i "$ICON" "$DESC: $VOL%"

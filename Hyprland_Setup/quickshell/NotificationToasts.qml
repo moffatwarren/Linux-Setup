@@ -3,6 +3,7 @@ import Quickshell.Hyprland
 import Quickshell.Wayland
 import Quickshell.Widgets
 import Quickshell.Services.Notifications
+import Quickshell.Services.Pipewire
 import QtQuick
 import QtQuick.Layouts
 
@@ -147,6 +148,37 @@ PanelWindow {
                         text: {
                             const icon = String(toast.notif.appIcon ?? "");
                             if (icon.indexOf("brightness") !== -1) return "\udb81\udda8";   // sunny
+
+                            // Audio / volume OSD: match AudioPill so the popup and the bar always agree
+                            const tag = NotificationService.osdTag(toast.notif);
+                            const isAudio = tag === "audio-volume"
+                                         || String(toast.notif.appName ?? "") === "volume"
+                                         || icon.indexOf("audio-") !== -1
+                                         || icon.indexOf("volume") !== -1;
+
+                            if (isAudio) {
+                                if (icon.indexOf("muted") !== -1) return "\udb81\udf5f";    // volume-mute
+                                if (icon.indexOf("headphone") !== -1 || icon.indexOf("headset") !== -1)
+                                    return "\udb80\udecb";                                  // headphones
+                                if (icon.indexOf("bluetooth") !== -1) return "\udb80\udcb1";
+                                if (icon.indexOf("speaker") !== -1) return "\udb81\udcc3";
+                                if (icon.indexOf("display") !== -1) return "\udb83\udf5f";
+                                if (icon.indexOf("tv") !== -1) return "\udb81\udd02";
+
+                                // Query the active sink directly from PipeWire and AudioService
+                                const sink = Pipewire.defaultAudioSink;
+                                const sinkName = sink ? String(sink.name) : "";
+                                const key = sinkName.length > 0 ? AudioService.iconKey(sinkName) : "volume";
+                                if (key !== "volume") return AudioService.iconChoice(key).glyph;
+
+                                const progress = toast.progress;
+                                if (progress === 0) return "\udb81\udf5f";                  // volume-mute
+                                if (progress <= 1) return "\udb81\udd81";                   // volume-off
+                                if (progress < 34 || icon.indexOf("volume-low") !== -1) return "\udb81\udd7f";
+                                if (progress < 67 || icon.indexOf("volume-medium") !== -1) return "\udb81\udd80";
+                                return "\udb81\udd7e";                                      // volume-high
+                            }
+
                             if (icon.indexOf("muted") !== -1) return "\udb81\udf5f";        // volume-mute
                             if (icon.indexOf("headphone") !== -1 || icon.indexOf("headset") !== -1)
                                 return "\udb80\udecb";                                      // headphones
