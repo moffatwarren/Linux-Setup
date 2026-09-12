@@ -63,6 +63,13 @@ ShellRoot {
         KeybindsHelp {}
     }
 
+    LazyLoader {
+        id: defaultsMenu
+        loading: true
+
+        DefaultsMenu {}
+    }
+
     // `qs ipc call <target> toggle`, which is what the keybinds in
     // hypr/modules/binds.lua run. The bar is the only quickshell instance and
     // it uses the default config path, so `qs ipc call` finds it with no -c.
@@ -100,6 +107,14 @@ ShellRoot {
         function toggle(): void { closeOverlays("keybinds"); keybindsHelp.item?.toggle(); }
         function open(): void { closeOverlays("keybinds"); keybindsHelp.item?.show(); }
         function close(): void { keybindsHelp.item?.close(); }
+    }
+
+    IpcHandler {
+        target: "defaults"
+
+        function toggle(): void { closeOverlays("defaults"); defaultsMenu.item?.toggle(); }
+        function open(): void { closeOverlays("defaults"); defaultsMenu.item?.show(); }
+        function close(): void { defaultsMenu.item?.close(); }
     }
 
     // SUPER+N, in place of `swaync-client -t`. The menu belongs to a bar module
@@ -152,6 +167,7 @@ ShellRoot {
         if (except !== "launcher") appLauncher.item?.close();
         if (except !== "clipboard") clipboardMenu.item?.close();
         if (except !== "keybinds") keybindsHelp.item?.close();
+        if (except !== "defaults") defaultsMenu.item?.close();
         // The notification menu grabs the keyboard too, so it has to go the same
         // way -- an overlay opened over it would be typing into a dead surface.
         NotificationService.closeMenu();

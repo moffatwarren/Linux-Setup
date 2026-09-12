@@ -33,6 +33,6 @@ Pill {
         anchorItem: root
         date: root.today
         onCalendarRequested: Quickshell.execDetached(
-            ["brave-origin", "--app=https://calendar.google.com"])
+            ["bash", Quickshell.env("HOME") + "/.config/hypr/scripts/launch-browser.sh", "--app=https://calendar.google.com"])
     }
 }

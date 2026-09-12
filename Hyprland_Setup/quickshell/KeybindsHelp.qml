@@ -35,6 +35,7 @@ OverlayPanel {
                 { keys: "SUPER + N",         desc: "Notification centre" },
                 { keys: "SUPER + SHIFT + N", desc: "Toggle do-not-disturb" },
                 { keys: "SUPER + K",         desc: "This keybind list" },
+                { keys: "SUPER + D",         desc: "Default applications menu" },
             ]
         },
         {
