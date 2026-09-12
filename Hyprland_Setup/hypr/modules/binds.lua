@@ -17,8 +17,9 @@ hl.bind(config.mainMod .. " + SPACE", hl.dsp.exec_cmd("qs ipc call launcher togg
 -- The list quickshell/KeybindsHelp.qml draws is hand-written; anything added
 -- or changed in this file has to be added there too.
 hl.bind(config.mainMod .. " + K", hl.dsp.exec_cmd("qs ipc call keybinds toggle"), { bypass = true })
+hl.bind(config.mainMod .. " + D", hl.dsp.exec_cmd("qs ipc call defaults toggle"), { bypass = true })
 hl.bind(config.mainMod .. " + E", hl.dsp.exec_cmd(config.fileManager), { bypass = true })
-hl.bind(config.mainMod .. " + B", hl.dsp.exec_cmd(config.browser), { bypass = true })
+hl.bind(config.mainMod .. " + B", hl.dsp.exec_cmd("~/.config/hypr/scripts/launch-browser.sh"), { bypass = true })
 hl.bind(config.mainMod .. " + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | swappy -f -'), { bypass = true })
 hl.bind(config.mainMod .. " + ALT + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | tesseract stdin stdout | wl-copy'), { bypass = true })
 -- One key starts and stops a region recording; the bar grows a red pill with
@@ -31,7 +32,7 @@ hl.bind(config.mainMod .. " + V", hl.dsp.exec_cmd("qs ipc call clipboard toggle"
 hl.bind(config.mainMod .. " + N", hl.dsp.exec_cmd("qs ipc call notifications toggle"), { bypass = true })
 hl.bind(config.mainMod .. " + SHIFT + N", hl.dsp.exec_cmd("qs ipc call notifications dnd"), { bypass = true })
 hl.bind(config.mainMod .. " + T", hl.dsp.exec_cmd(config.terminal .. " --class btop-float -e btop"), { bypass = true })
-hl.bind(config.mainMod .. " + G", hl.dsp.exec_cmd(config.browser .. ' --app="https://gemini.google.com/app"'),
+hl.bind(config.mainMod .. " + G", hl.dsp.exec_cmd('~/.config/hypr/scripts/launch-browser.sh --app="https://gemini.google.com/app"'),
 	{ bypass = true })
 -- Turns the laptop's built-in screen off/on. Which monitor that is comes from
 -- the DRM connector name (monitor_utils.internal_panel); there is nothing to

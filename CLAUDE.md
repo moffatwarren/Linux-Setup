@@ -1192,7 +1192,7 @@ says its `canGoPrevious`/`canGoNext`/`canTogglePlaying` is false, and the menu c
 itself when `player` goes null — the module hides when nothing is playing, and a menu left
 open would hang off an invisible anchor.
 
-## The overlays — launcher, clipboard, wallpapers, keybinds (SUPER+SPACE / V / W / K)
+## The overlays — launcher, clipboard, wallpapers, keybinds, defaults (SUPER+SPACE / V / W / K / D)
 
 **rofi is gone from the repo entirely** — `Hyprland_Setup/rofi/`, the `rofi`
 entry in `CONFIGS` and in `PACMAN_PKGS`, and `config.menu` in
@@ -1207,12 +1207,13 @@ whose `set_random` duplicated the apply logic in Lua and ran
 upgrading from the rofi layout; the rofi *package* is left installed, since
 `install.sh` uninstalls nothing.
 
-`OverlayPanel.qml` is the one window all four wear: dimmed backdrop, a centred
+`OverlayPanel.qml` is the one window all five wear: dimmed backdrop, a centred
 `base` card in a `surface1` border, a lavender title with a subtitle and a count
 beside it, a `surface0` filter box under that, and a hint line along the bottom.
-`WallpaperPicker.qml`, `AppLauncher.qml`, `ClipboardMenu.qml` and
-`KeybindsHelp.qml` supply only the body — a filmstrip, a list of apps, a list of
-clipboard entries, a two-column keybind table.
+`WallpaperPicker.qml`, `AppLauncher.qml`, `ClipboardMenu.qml`,
+`KeybindsHelp.qml` and `DefaultsMenu.qml` supply only the body — a filmstrip, a
+list of apps, a list of clipboard entries, a two-column keybind table, a set of
+per-category application cards.
 
 The **geometry** lives in `OverlayPanel` for the same reason the colours do. The
 padding, the 58px header and the gaps above the body and the footer are what make
@@ -1231,11 +1232,11 @@ rest to the body as `navKey(event)`; a body **sets `event.accepted`** for the
 keys it handles (arrows, Home/End, Delete) and lets everything else fall through
 and type into the box. There is no second focus item to fight over.
 
-All four live **inside the bar process**, not in a `qs -p` of their own, so
+All five live **inside the bar process**, not in a `qs -p` of their own, so
 opening one is instant and decoded thumbnails stay in Qt's pixmap cache between
 openings. `shell.qml` holds each in a `LazyLoader` (`loading: true`, built in the
 background at startup) beside an `IpcHandler`; the keybinds are just `qs ipc call
-{wallpaper,launcher,clipboard,keybinds} toggle`. The bar is the only quickshell
+{wallpaper,launcher,clipboard,keybinds,defaults} toggle`. The bar is the only quickshell
 instance and runs the default config path, so `qs ipc call` finds it with no
 `-c`. **Opening one closes the others** (`closeOverlays()` in `shell.qml`): each
 takes the keyboard with `WlrKeyboardFocus.Exclusive`, and two exclusive layer
@@ -1384,6 +1385,184 @@ and every other key falls through to the filter box.
 - The current wallpaper is read from `hyprlock.conf` with a `FileView`, not from
   `awww query` — same value, no process. It marks that tile with a green dot and
   is where the cursor lands on open.
+
+### The default applications menu (SUPER+D)
+
+`DefaultsMenu.qml` is the fifth overlay: which app opens web links, text and code,
+video and images. `hypr/scripts/default-apps.sh` is the whole backend — `--list`
+(candidates and the current default per category, as JSON), `--get` (the defaults
+alone), `--set <category> <desktop_id> [name]`, and `--prune` (a one-shot migration,
+below). The QML draws and never classifies,
+the `system-stats.sh` split.
+
+**An app is a candidate because its own `.desktop` file says so, never because it is
+named in a list here.** The classifier is one line per category over the entry's
+`MimeType=` key: `x-scheme-handler/https` is a browser, `text/plain` an editor,
+any `video/*` a player, any `image/*` a viewer. That is the repo's usual order —
+make the value discoverable at runtime rather than committing a table — and here it
+is not a preference but the difference between working and not. Measured over the
+112 desktop files on this machine, in 37 ms:
+
+| `x-scheme-handler/https` | brave-origin, firefox — and nothing else |
+|---|---|
+| `image/*` | gimp, imv, imv-dir, satty, swappy, swayimg, libreoffice-draw, kdenlive, kitty-open |
+| `video/*` | mpv, kdenlive |
+| `text/plain` | codium, micro, nvim, org.gnome.TextEditor, vim, libreoffice-writer |
+
+The first version of this file guessed instead, from ~100 lines of hardcoded
+application names (`["brave-origin", "brave-browser", "brave", "firefox", …]`) with
+an exclusion list bolted on after each wrong answer — `"meld"`, `"gimp"`,
+`"assistant"`, because a `genericName` containing "viewer" matched Meld's "Diff
+Viewer" and Qt Assistant's "Documentation viewer". Every one of those disappears
+here: Meld and Qt Assistant declare no `image/*`, so nothing has to know their names.
+
+Three things follow from that rule, each of which was a separate bug in the guessing
+version:
+
+- **`NoDisplay=true` must not be filtered, and `Quickshell.DesktopEntries` filters it
+  for you.** `swayimg`, `swappy` and `imv` all set it, and `DesktopEntries.applications`
+  masks such entries at the C++ level — so the QML could not see the three viewers that
+  matter most here and needed a hardcoded `["swayimg", "swappy", "imv"]` probe list
+  through `DesktopEntries.byId()` to get them back. The script reads the directories
+  itself and so has no such hole; it finds `satty`, `micro` and `vim` too, which no probe
+  list mentioned. `NoDisplay` means "keep it out of the app menu", not "cannot be a
+  default". What *is* filtered is `Hidden=true`, which is the spec's "the user deleted
+  this entry".
+- **Chromium web apps fall out for free.** All 7 PWAs installed here declare no
+  `MimeType` at all, so an `isWebApp()` filter is not needed to keep them out of the
+  browser list. `is_web_app()` survives as belt-and-braces (an `Exec` containing
+  `--app-id=`/`--app=`, or a `StartupWMClass` starting with `crx_`) and today matches
+  nothing the MIME filter had not already dropped.
+- **A capable app in the wrong role is demoted, not hidden.** GIMP really can open a
+  PNG, and hiding capable apps is the mistake that lost swayimg in the first place. The
+  script sorts current-default first, then entries whose `Categories` match the role,
+  then alphabetically; only `WebBrowser` is excluded outright, and only from the three
+  non-browser lists, because a browser appears in all of them.
+
+`Terminal=true` is deliberately not filtered either — `nvim`, `vim` and `micro` are
+real editors, and GIO launches them through the `xdg-terminal-exec` → kitty symlink
+`apply_system_tweaks` already installs.
+
+**The editor's MIME list is written out in full on purpose, and the reason is other
+file managers.** Measured: `gio mime application/x-bat` and `gio mime text/x-uri` both
+answer `codium.desktop` although neither type is in `mimeapps.list` — GIO walks
+`/usr/share/mime/subclasses` up to `text/plain`. So Thunar, Nautilus, Nemo and Caja
+need only that one line. But `xdg-mime query default` returns **empty** for those same
+two types; it does no inheritance walk at all. Naming each type explicitly is what
+makes the setting hold in a resolver that does not inherit, and `text/plain` on top is
+what catches a language nobody listed — both, not either.
+
+That list replaced a sweep of `/usr/share/mime/globs2` by regex, which matched **265**
+types by name and so claimed a pile of things an editor has no business owning —
+`application/postscript` most clearly, which now falls to GIMP. Note the sweep could not
+have been fixed by filtering it through the MIME subclass tree: `application/postscript`
+*is* a `text/plain` subclass. `application/x-desktop` is deliberately absent from the new
+list too, though it came from the old script's curated half rather than the sweep; since
+it is also a `text/plain` subclass, GIO still reaches the editor for it by inheritance,
+so dropping it removes the explicit claim rather than changing what opens. (Thunar
+special-cases `.desktop` files rather than consulting the MIME default — that is
+upstream behaviour this repo has not verified, so do not rely on the association either
+way.)
+
+**Trimming the list is only half of it — the entries already written need a migration.**
+`cp -rf` ships the new script, and the new script simply stops writing those 265 types;
+the ones already in `~/.config/mimeapps.list` stay exactly where they are, which is the
+same rule `ORPHANS` exists for. `default-apps.sh --prune` is what removes them: it
+reproduces the old `awk` regex verbatim, subtracts the curated list, and deletes the
+difference from both sections — so by construction it only ever touches types this repo
+put there, since nothing else writes 265 associations at once. Measured on this machine:
+**650 lines down to 226**, and a second run removes nothing. `install.sh` calls it from
+`prune_mime_sweep()` after `fix_permissions` (which is what makes the deployed script
+executable), and it is deliberately the *deployed* script that is asked, because only it
+knows which associations the current list still keeps. `--set editor` runs it too, so the
+stale entries cannot outlive the next time an editor is chosen on a machine that never
+reruns the installer.
+
+**Everything is written to `$XDG_CONFIG_HOME/mimeapps.list`**, in both
+`[Default Applications]` and `[Added Associations]` — the XDG-standard file every one
+of those file managers reads, which is why honouring `XDG_CONFIG_HOME` rather than
+hardcoding `~/.config` is part of the same answer. Two details in the writer:
+`configparser` is built with `strict=False`, because a `mimeapps.list` another tool
+wrote may repeat a key and strict mode raises rather than taking the first; and an
+extension-less value left by an older version is repaired to `<id>.desktop` on the way
+past, since **GIO rejects an association without the suffix** — which is what made an
+earlier version of this menu appear to set a default that silently never took.
+
+`--get` and `--list` read the default back with **`gio mime <type>`**, not by parsing
+`mimeapps.list`, falling back to the parse only if gio is missing. That is the resolver
+Thunar actually runs, so the "Default: …" badge cannot disagree with what a double-click
+will do — a default inherited from a system-wide file or from the subclass tree reads as
+a real answer rather than "No default set".
+
+The menu itself is `OverlayPanel` like the other four, with category pills across the
+top, a scrolling body of two-column cards and a `countLabel`. `← →` change category,
+`↑ ↓`/PageUp/PageDown/Home/End scroll, Escape closes. Like `KeybindsHelp` and unlike the
+launcher, **there is no selected row** and Enter is a second Escape; the pills get their
+own `MouseArea`s, which is safe only because they sit in a static `Row` and not inside
+the flickable (see **Five traps shared by the three bodies**). A click updates the badge
+optimistically and `--list` reconciles when the write exits; a second click while one
+write is in flight is queued rather than run alongside it, so two python writers can
+never race for `mimeapps.list`.
+
+### Anything that opens a browser goes through `launch-browser.sh`
+
+`SUPER+B`, `SUPER+G` (Gemini) and `CalendarPopup`'s "Open Google Calendar" footer all
+run `hypr/scripts/launch-browser.sh`, so **nothing in this repo names a browser** —
+`config.browser` is gone from `config.lua` with the last reader. Three usages: bare
+(open the browser), a URL, and `--app=<url>` for a standalone app window.
+
+**The default is resolved, never assumed**: `xdg-settings get default-web-browser`,
+then `x-scheme-handler/https` out of `$XDG_CONFIG_HOME/mimeapps.list`, then
+`gio mime x-scheme-handler/https`, then the first entry `default-apps.sh --list`
+classifies as a browser — and if all four come up empty it says so through
+`notify-send` and exits non-zero. It does **not** fall back to a named browser. An
+earlier version ended `desktop="brave-origin.desktop"`, which is exactly the
+machine-specific committed line **Nothing is machine-specific any more** exists to
+forbid; printing nothing rather than guessing is what `public-ip.sh` and
+`pia.sh --service` already do.
+
+**Taking the first token of `Exec=` as the binary does not work, and fails silently.**
+That is what the first version did (`sed -nE 's/^Exec=([^ %]*).*/\1/p'`), and three of
+these five real shapes break under it — the engine `case` then matches neither family
+and the fallback runs `env https://…`:
+
+```
+brave-origin %U                                   -> chromium ['brave-origin']
+/usr/lib/firefox/firefox %u                       -> gecko    ['/usr/lib/firefox/firefox']
+env MOZ_ENABLE_WAYLAND=1 /usr/bin/zen-browser %u  -> gecko    ['env','MOZ_ENABLE_WAYLAND=1','/usr/bin/zen-browser']
+flatpak run … com.brave.Browser --file-forwarding -> chromium ['flatpak','run',…,'com.brave.Browser',…]
+"/opt/My Browser/bin/mb" %U                       -> unknown  ['/opt/My Browser/bin/mb']
+```
+
+So `exec_argv()` keeps the whole line — an `env VAR=…` or `flatpak run …` prefix is
+load-bearing — strips the field codes (parking `%%` first, since it is a literal
+percent) and lets the shell split it, which is what handles the quoted path. And
+`detect_engine()` matches over `Exec` **plus** the desktop id, `StartupWMClass` and
+`TryExec`, so a wrapped browser is still placed: chromium family takes `--app=<url>`,
+gecko takes `--new-window <url>` (Firefox has no standalone-app mode; a new window is
+the honest equivalent, so `SUPER+G` under Firefox gives a Gemini window, not a
+chromeless one), and an unrecognised engine gets the plain URL.
+
+**Only `--app=` builds its own argv. The other two go through `gio launch`**, which
+expands the entry's `Exec` correctly for every packaging shape — field codes,
+`Terminal=`, `DBusActivatable`, flatpak — with `gtk-launch` and then a direct exec
+behind it. Injecting a *flag* is the one thing no launcher will do, which is why an
+earlier attempt to route everything through `gtk-launch` had to be reverted: it treats
+trailing arguments as files or URLs, never as flags.
+
+Two smaller traps in that file:
+
+- **`XDG_DATA_DIRS` replaces the `/usr` defaults when it is set**, and `desktop_path()`
+  has to honour that rather than appending `/usr/share/applications` alongside. Listing
+  both meant a sandbox pointed at a scratch directory silently reached the system copy
+  instead — which, while testing this, launched the real browser.
+- **`sed … | head -1` is wrong here.** `head` closing the pipe SIGPIPEs the producer and
+  under `pipefail` reports 141 for a lookup that *succeeded* — the trap that made
+  `clipboard-history.sh --copy` silently never work. `sed -n '…{p;q}'` instead.
+
+`xdg-utils` is in `PACMAN_PKGS` for these two scripts: they call `xdg-settings` and
+`xdg-mime` directly and nothing else here installs it. `gio` needs no line — it is
+glib2, which thunar and gtk hard-depend on.
 
 ## Notifications (quickshell)
 
@@ -1974,6 +2153,14 @@ JetBrainsMono the rest of the session uses.)
 - **A retired *daemon* needs more than a retired config.** `ORPHANS` deletes files;
   it does not stop a process or close a D-Bus activation path. `retire_swaync()` is the
   worked example — see **Notifications (quickshell)**.
+- **A retired *written-out value* needs a migration too, not just a changed script.**
+  The rule is the same one `ORPHANS` encodes, applied to file *contents* rather than
+  whole files: a script that stops writing something does not unwrite what it already
+  wrote. `prune_mime_sweep()` is the worked example — the editor's MIME list went from a
+  265-type regex sweep to a curated list, and the 422 stale lines that sweep had already
+  put in `~/.config/mimeapps.list` needed `default-apps.sh --prune` to come out. Note it
+  asks the *deployed* script, after `fix_permissions`, because only the new script knows
+  what the new list keeps. See **The default applications menu (SUPER+D)**.
 - **A retired *machine-specific value* needs a migration, not just a deleted entry.**
   Deleting the entry stops defending the value; the very next `deploy_configs` then
   overwrites it, and on a machine that had a real answer there it is gone. If the new

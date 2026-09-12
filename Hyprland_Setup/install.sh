@@ -31,7 +31,7 @@ PACMAN_PKGS=(
     swayimg imagemagick thunar-archive-plugin xarchiver unzip net-tools localsend spotify-launcher
     speedtest-cli brave-origin-bin paru tesseract tesseract-data-eng adw-gtk-theme cantarell-fonts
     papirus-icon-theme jq libpulse wireplumber pavucontrol power-profiles-daemon networkmanager
-    qt6-imageformats libnotify wl-clipboard curl python pacman-contrib fakeroot sddm avahi
+    qt6-imageformats libnotify wl-clipboard curl python xdg-utils pacman-contrib fakeroot sddm avahi
 )
 
 PARU_PKGS=(
@@ -225,6 +225,26 @@ retire_swaync() {
     if systemctl --user mask swaync.service >/dev/null 2>&1; then
         echo "    masked swaync.service"
     fi
+}
+
+# An earlier hypr/scripts/default-apps.sh set the text editor for 265 MIME
+# types swept out of /usr/share/mime/globs2 by regex -- application/postscript
+# among them. The current script ships a curated list instead, but dropping the
+# sweep only stops it writing them: "deleting something from the repo does not
+# delete it from the machine". --prune is what removes the ones already in
+# ~/.config/mimeapps.list, and it is self-limiting -- after one run there is
+# nothing left to match. It runs after deploy_configs, since it is the freshly
+# deployed script that knows which associations the current list keeps.
+prune_mime_sweep() {
+    local script="$HOME/.config/hypr/scripts/default-apps.sh"
+    [ -x "$script" ] || return 0
+
+    local out
+    out=$("$script" --prune 2>/dev/null) || return 0
+    case "$out" in
+        "removed 0 "*) ;;
+        *) info "Pruning stale MIME associations"; echo "    $out" ;;
+    esac
 }
 
 fix_permissions() {
@@ -424,6 +444,7 @@ main() {
     restore_lock_wallpaper
 
     fix_permissions
+    prune_mime_sweep
     check_lid_handling
     apply_system_tweaks
     apply_gtk_theme
