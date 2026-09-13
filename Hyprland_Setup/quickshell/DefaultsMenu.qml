@@ -6,7 +6,8 @@ import Quickshell.Widgets
 import QtQuick
 
 // SUPER+D default applications manager: which app opens web links, text and
-// code, video and images.
+// code, video, images and folders -- the last of which is also what SUPER+E
+// opens (hypr/scripts/launch-file-manager.sh).
 //
 // Same base window as KeybindsHelp.qml, AppLauncher.qml, ClipboardMenu.qml and
 // WallpaperPicker.qml -- see OverlayPanel.qml.
@@ -33,13 +34,17 @@ OverlayPanel {
         { id: "browser", name: "Web Browser",  icon: "\uf268", desc: "Web links and HTML documents" },
         { id: "editor",  name: "Text Editor",  icon: "\uf121", desc: "Text and every programming language" },
         { id: "video",   name: "Video Player", icon: "\uf008", desc: "Video media files" },
-        { id: "image",   name: "Image Viewer", icon: "\uf03e", desc: "Graphic and image files" }
+        { id: "image",   name: "Image Viewer", icon: "\uf03e", desc: "Graphic and image files" },
+        // Unlike the four above, a file explorer is not just anything that
+        // declares inode/directory -- VSCodium does. default-apps.sh also
+        // requires Categories=FileManager; this file only draws the result.
+        { id: "filemanager", name: "File Explorer", icon: "\uf07c", desc: "Folders, and what SUPER+E opens" }
     ]
 
-    readonly property var tabs: ["All", "Web Browser", "Text Editor", "Video Player", "Image Viewer"]
+    readonly property var tabs: ["All", "Web Browser", "Text Editor", "Video Player", "Image Viewer", "File Explorer"]
 
     title: "Default Applications"
-    subtitle: "SUPER+D • Browser, Editor, Video & Image"
+    subtitle: "SUPER+D • Browser, Editor, Video, Image & Files"
     placeholder: "type to filter applications"
     footerText: "Click an app to set it as default    ← →  category    ↑ ↓  scroll    Esc  close"
     footerColor: Theme.overlay0
@@ -190,7 +195,8 @@ OverlayPanel {
                 readonly property bool isSelected: root.selectedCategory === pillRect.modelData
                 readonly property string labelText: ({
                     "Web Browser": "Browser", "Text Editor": "Editor",
-                    "Video Player": "Video",  "Image Viewer": "Image"
+                    "Video Player": "Video",  "Image Viewer": "Image",
+                    "File Explorer": "Files"
                 })[pillRect.modelData] ?? pillRect.modelData
 
                 implicitWidth: catText.implicitWidth + 16

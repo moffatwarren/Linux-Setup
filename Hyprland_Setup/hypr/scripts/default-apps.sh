@@ -4,8 +4,13 @@
 #
 #   --list   every candidate app per category, plus the current default, as JSON
 #   --get    just the current defaults, as JSON
+#   --resolve <category>
+#            the absolute path of the .desktop that category resolves to --
+#            what launch-file-manager.sh (SUPER+E) opens
+#   --ensure-filemanager [legacy-command]
+#            give folders an explicit default when they have none worth keeping
 #   --prune  drop the associations an earlier version's globs2 sweep wrote
-#   --set <browser|editor|video|image> <desktop_id> [name]
+#   --set <browser|editor|video|image|filemanager> <desktop_id> [name]
 #
 # Candidates are classified by the .desktop entry's own MimeType= key, never by
 # its name -- see the comment above PROBES and the CLAUDE.md section.
@@ -53,6 +58,7 @@ def read_ini(path):
     return c
 
 _entries = None
+_paths = {}
 
 def entries():
     """{ "firefox.desktop": {Desktop Entry section} }, first directory wins."""
@@ -69,6 +75,7 @@ def entries():
             if c is None or not c.has_section("Desktop Entry"):
                 continue
             _entries[eid] = c["Desktop Entry"]
+            _paths[eid] = path
     return _entries
 
 def gio_default(mime):
@@ -106,48 +113,46 @@ def current_default(mimes):
         if v:
             return v
     return mimeapps_default(mimes)
-PY
-}
-
-# ---------------------------------------------------------------------------
-# --list / --get
-# ---------------------------------------------------------------------------
-list_apps() {
-    local want_apps="$1"   # 1 = full --list, 0 = --get
-    {
-        py_common
-        cat <<PY
-WANT_APPS = $want_apps
-PY
-        cat <<'PY'
 
 # An app is a candidate for a category when its own MimeType= says it can open
 # that category's files. That is the authoritative signal and it needs no
 # maintenance: it finds NoDisplay tools (swayimg, swappy, imv, satty) that an
 # app-menu scanner masks, and Chromium PWAs fall out for free because they
 # declare no MimeType at all.
+#
+# File explorers are the one category where the MIME type is not enough on its
+# own. inode/directory is declared by anything that can *open a folder*, which
+# on this machine includes VSCodium and kitty-open -- and GIO, with no explicit
+# default, resolves folders to codium.desktop. So a file explorer must also say
+# it is one: Categories=FileManager, which thunar, dolphin, nautilus, nemo,
+# pcmanfm, yazi, lf and ranger all set.
 PROBES = {
-    "browser": lambda mimes: "x-scheme-handler/https" in mimes,
-    "editor":  lambda mimes: "text/plain" in mimes,
-    "video":   lambda mimes: any(m.startswith("video/") for m in mimes),
-    "image":   lambda mimes: any(m.startswith("image/") for m in mimes),
+    "browser":     lambda mimes, cats: "x-scheme-handler/https" in mimes,
+    "editor":      lambda mimes, cats: "text/plain" in mimes,
+    "video":       lambda mimes, cats: any(m.startswith("video/") for m in mimes),
+    "image":       lambda mimes, cats: any(m.startswith("image/") for m in mimes),
+    "filemanager": lambda mimes, cats: "inode/directory" in mimes and "FileManager" in cats,
 }
 
+CATEGORIES = ("browser", "editor", "video", "image", "filemanager")
+
 DEFAULT_MIMES = {
-    "browser": ["x-scheme-handler/https", "x-scheme-handler/http", "text/html"],
-    "editor":  ["text/plain"],
-    "video":   ["video/mp4", "video/x-matroska", "video/webm"],
-    "image":   ["image/png", "image/jpeg"],
+    "browser":     ["x-scheme-handler/https", "x-scheme-handler/http", "text/html"],
+    "editor":      ["text/plain"],
+    "video":       ["video/mp4", "video/x-matroska", "video/webm"],
+    "image":       ["image/png", "image/jpeg"],
+    "filemanager": ["inode/directory"],
 }
 
 # Ranked above the rest of a category's list. Not a filter -- GIMP really can
 # open a PNG, so it is demoted, not hidden. Hiding a capable app is the mistake
 # that lost swayimg in the first place.
 ROLE_CATEGORIES = {
-    "browser": {"WebBrowser"},
-    "editor":  {"TextEditor", "IDE", "Development"},
-    "video":   {"Player", "Video", "AudioVideo"},
-    "image":   {"Viewer", "Graphics", "2DGraphics", "RasterGraphics", "Photography"},
+    "browser":     {"WebBrowser"},
+    "editor":      {"TextEditor", "IDE", "Development"},
+    "video":       {"Player", "Video", "AudioVideo"},
+    "image":       {"Viewer", "Graphics", "2DGraphics", "RasterGraphics", "Photography"},
+    "filemanager": {"FileManager"},
 }
 
 def split_list(val):
@@ -176,9 +181,9 @@ def candidates(cat):
         if is_web_app(e):
             continue
         mimes = split_list(e.get("MimeType", ""))
-        if not probe(mimes):
-            continue
         cats = set(split_list(e.get("Categories", "")))
+        if not probe(mimes, cats):
+            continue
         if cat != "browser" and "WebBrowser" in cats:
             continue
         out.append({
@@ -188,15 +193,57 @@ def candidates(cat):
             "generic": e.get("GenericName", "") or e.get("Comment", "") or "",
             "_role": 0 if (cats & role) else 1,
         })
+    out.sort(key=lambda a: (a["_role"], a["name"].lower()))
     return out
 
+def explicit_default(cat):
+    """The user's own mimeapps.list entry, but only if that app still exists --
+    GIO ignores an association to an uninstalled .desktop, and so must we."""
+    v = mimeapps_default(DEFAULT_MIMES[cat])
+    return v if v in entries() else ""
+
+def resolve_default(cat):
+    """The one answer the menu's badge and the launcher both use.
+
+    For the MIME categories this is simply what GIO resolves. For file
+    explorers GIO's answer is only trusted when it *is* a file explorer:
+    with no explicit entry it happily picks VSCodium for folders, and SUPER+E
+    opening an IDE is not a default, it is an accident. So: an explicit choice,
+    else GIO if it names a real file explorer, else the first one installed."""
+    if cat != "filemanager":
+        return current_default(DEFAULT_MIMES[cat])
+    ids = [a["id"] for a in candidates(cat)]
+    v = explicit_default(cat)
+    if v:
+        return v
+    g = gio_default("inode/directory")
+    if g in ids:
+        return g
+    return ids[0] if ids else ""
+PY
+}
+
+# ---------------------------------------------------------------------------
+# --list / --get
+# ---------------------------------------------------------------------------
+list_apps() {
+    local want_apps="$1"   # 1 = full --list, 0 = --get
+    {
+        py_common
+        cat <<PY
+WANT_APPS = $want_apps
+PY
+        cat <<'PY'
+
 result = {}
-for cat in ("browser", "editor", "video", "image"):
-    cur = current_default(DEFAULT_MIMES[cat])
+for cat in CATEGORIES:
+    cur = resolve_default(cat)
     entry = {"default": cur}
     if WANT_APPS:
         apps = candidates(cat)
-        apps.sort(key=lambda a: (a["id"] != cur, a["_role"], a["name"].lower()))
+        # Stable sort: role and name are already the order, this lifts the
+        # current default to the top without disturbing the rest.
+        apps.sort(key=lambda a: a["id"] != cur)
         for a in apps:
             a.pop("_role", None)
         entry["apps"] = apps
@@ -205,6 +252,87 @@ for cat in ("browser", "editor", "video", "image"):
 print(json.dumps(result))
 PY
     } | python3 -
+}
+
+# ---------------------------------------------------------------------------
+# --resolve <category>: the absolute path of the resolved .desktop, or nothing
+# ---------------------------------------------------------------------------
+resolve_path() {
+    {
+        py_common
+        cat <<'PY'
+
+cat = sys.argv[1] if len(sys.argv) > 1 else ""
+if cat in CATEGORIES:
+    eid = resolve_default(cat)
+    entries()
+    if eid in _paths:
+        print(_paths[eid])
+PY
+    } | python3 - "$1"
+}
+
+# ---------------------------------------------------------------------------
+# --ensure-filemanager [legacy-command]: print the .desktop id folders should
+# be given as an explicit default, or nothing when they need none.
+#
+# Two situations, both one-shot:
+#
+#   * a machine upgrading from config.fileManager. install.sh reads that value
+#     out of the live config.lua before deploy_configs overwrites it and hands
+#     it in here, and if there is no explicit folder default yet it becomes
+#     one -- SUPER+E keeps opening exactly what it opened before. Dropping the
+#     line without this would have sent SUPER+E to whichever file explorer
+#     sorts first (Dolphin, on this machine, not the Thunar it ran).
+#   * no explicit default and GIO resolving folders to something that is not a
+#     file explorer -- VSCodium here. That is not a choice anybody made, and
+#     leaving it means the badge and SUPER+E say Thunar while every xdg-open of
+#     a folder opens an IDE. The first installed file explorer is written.
+#
+# It never overrides an explicit entry, and never overrides GIO when GIO
+# already names a real file explorer. After it has written once there is an
+# explicit entry, so every later run is a no-op.
+# ---------------------------------------------------------------------------
+ensure_filemanager_id() {
+    {
+        py_common
+        cat <<'PY'
+
+import shlex
+
+legacy = (sys.argv[1] if len(sys.argv) > 1 else "").strip()
+apps = candidates("filemanager")
+ids = [a["id"] for a in apps]
+
+def argv0(value):
+    try:
+        argv = shlex.split(value or "")
+    except ValueError:
+        argv = (value or "").split()
+    while argv and (argv[0] == "env" or ("=" in argv[0] and not argv[0].startswith("/"))):
+        argv = argv[1:]
+    return os.path.basename(argv[0]) if argv else ""
+
+def matches(eid, cmd):
+    if not cmd:
+        return False
+    base = eid[:-8]
+    if base == cmd or base.split(".")[-1].lower() == cmd.lower():
+        return True
+    e = entries()[eid]
+    return cmd in (argv0(e.get("TryExec", "")), argv0(e.get("Exec", "")))
+
+if not explicit_default("filemanager") and ids:
+    want = ""
+    cmd = argv0(legacy)
+    if cmd:
+        want = next((i for i in ids if matches(i, cmd)), "")
+    if not want and gio_default("inode/directory") not in ids:
+        want = ids[0]
+    if want:
+        print(want)
+PY
+    } | python3 - "$1"
 }
 
 # ---------------------------------------------------------------------------
@@ -315,6 +443,13 @@ IMAGE_MIMES=(
     image/x-tga image/x-bmp image/x-png
 )
 
+# x-directory/normal is the legacy alias (/usr/share/mime/aliases) -- GIO folds
+# it into inode/directory, but a resolver that does not read aliases asks for
+# it by name.
+FILEMANAGER_MIMES=(
+    inode/directory x-directory/normal
+)
+
 # ---------------------------------------------------------------------------
 # --prune: undo the /usr/share/mime/globs2 sweep an earlier version of this
 # script ran for the editor.
@@ -417,6 +552,8 @@ set_default() {
             ;;
         video)  mimes=("${VIDEO_MIMES[@]}");  label="Default Video Player" ;;
         image)  mimes=("${IMAGE_MIMES[@]}");  label="Default Image Viewer" ;;
+        filemanager)
+            mimes=("${FILEMANAGER_MIMES[@]}"); label="Default File Explorer" ;;
         *) echo "Unknown category: $category" >&2; return 1 ;;
     esac
 
@@ -430,19 +567,30 @@ set_default() {
 case "${1:-}" in
     --list) list_apps 1 ;;
     --get)  list_apps 0 ;;
+    --resolve)
+        [ -n "${2:-}" ] || { echo "Usage: $0 --resolve <category>" >&2; exit 1; }
+        resolve_path "$2"
+        ;;
+    --ensure-filemanager)
+        id=$(ensure_filemanager_id "${2:-}")
+        if [ -n "$id" ]; then
+            apply_mime_associations "$id" "${FILEMANAGER_MIMES[@]}"
+            echo "folders -> $id"
+        fi
+        ;;
     --prune)
         n=$(prune_editor_sweep)
         echo "removed $n stale association(s) written by the old globs2 sweep"
         ;;
     --set)
         [ -n "${2:-}" ] && [ -n "${3:-}" ] || {
-            echo "Usage: $0 --set <browser|editor|video|image> <desktop_id> [name]" >&2
+            echo "Usage: $0 --set <browser|editor|video|image|filemanager> <desktop_id> [name]" >&2
             exit 1
         }
         set_default "$2" "$3" "${4:-}"
         ;;
     *)
-        echo "Usage: $0 {--list | --get | --prune | --set <browser|editor|video|image> <desktop_id> [name]}" >&2
+        echo "Usage: $0 {--list | --get | --resolve <category> | --ensure-filemanager [cmd] | --prune | --set <category> <desktop_id> [name]}" >&2
         exit 1
         ;;
 esac

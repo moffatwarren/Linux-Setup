@@ -57,11 +57,11 @@ values into the repo — review with `git diff` before committing.
 
 | Bind | Does |
 |---|---|
-| `SUPER+RETURN` / `SPACE` / `E` / `B` | terminal / launcher / files / default browser |
+| `SUPER+RETURN` / `SPACE` / `E` / `B` | terminal / launcher / default file explorer / default browser |
 | `SUPER+W` / `SUPER+SHIFT+W` | wallpaper picker / random wallpaper |
 | `SUPER+V` | clipboard history |
 | `SUPER+K` | this keybind list, on screen |
-| `SUPER+D` | default apps — which one opens links, code, video, images |
+| `SUPER+D` | default apps — which one opens links, code, video, images, folders |
 | `SUPER+N` / `SUPER+SHIFT+N` | notification centre / mute notifications |
 | `SUPER+S` / `SUPER+ALT+S` | screenshot / screenshot to text (OCR) |
 | `SUPER+CTRL+S` | record a region — press again to stop |

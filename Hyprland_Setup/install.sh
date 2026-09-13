@@ -116,6 +116,23 @@ restore_lock_wallpaper() {
     echo "    kept live hyprlock background: $LOCK_WALLPAPER"
 }
 
+# config.fileManager used to be what SUPER+E ran. It is gone -- SUPER+E now
+# opens whatever the SUPER+D menu has as the default file explorer -- and a
+# retired value needs a migration, not just a deleted line: deploy_configs is
+# about to overwrite config.lua, and with it the only record of which file
+# explorer this machine used. So it is read out of the LIVE copy first, and
+# ensure_file_manager_default hands it on after the deploy. Self-limiting: once
+# the new config.lua is deployed there is no such line left to read.
+LEGACY_FILE_MANAGER=""
+
+save_file_manager() {
+    local conf="$HOME/.config/hypr/modules/config.lua"
+    [ -f "$conf" ] || return 0
+    LEGACY_FILE_MANAGER="$(sed -nE \
+        '/^[[:space:]]*config\.fileManager[[:space:]]*=/{s/^[^=]*=[[:space:]]*["'"'"']([^"'"'"']*)["'"'"'].*/\1/;p;q}' \
+        "$conf" || true)"
+}
+
 # ---------------------------------------------------------------------------
 # Actions
 # ---------------------------------------------------------------------------
@@ -245,6 +262,27 @@ prune_mime_sweep() {
         "removed 0 "*) ;;
         *) info "Pruning stale MIME associations"; echo "    $out" ;;
     esac
+}
+
+# Give folders an explicit default when they have none worth keeping. Two
+# cases, both one-shot: carrying a legacy config.fileManager across (above),
+# and a machine where GIO resolves folders to something that is not a file
+# explorer at all -- VSCodium, on this one, because an IDE declares it can open
+# a directory. It never overrides an explicit choice, and never overrides GIO
+# when GIO already names a real file explorer. See --ensure-filemanager in
+# default-apps.sh. Runs after fix_permissions, since it asks the deployed copy.
+ensure_file_manager_default() {
+    local script="$HOME/.config/hypr/scripts/default-apps.sh"
+    [ -f "$script" ] || return 0
+
+    local out
+    out=$(bash "$script" --ensure-filemanager "$LEGACY_FILE_MANAGER" 2>/dev/null) || return 0
+    if [ -n "$out" ]; then
+        info "Setting the default file explorer"
+        echo "    $out"
+        [ -n "$LEGACY_FILE_MANAGER" ] && echo "    (carried over from config.fileManager = \"$LEGACY_FILE_MANAGER\")"
+    fi
+    return 0
 }
 
 fix_permissions() {
@@ -437,6 +475,7 @@ main() {
 
     migrate_audio_icons
     save_lock_wallpaper
+    save_file_manager
 
     deploy_configs
     remove_orphans
@@ -445,6 +484,7 @@ main() {
 
     fix_permissions
     prune_mime_sweep
+    ensure_file_manager_default
     check_lid_handling
     apply_system_tweaks
     apply_gtk_theme

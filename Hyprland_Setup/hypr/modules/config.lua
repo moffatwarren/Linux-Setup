@@ -4,6 +4,5 @@ local config = {}
 config.bar = "quickshell"
 config.mainMod = "SUPER"
 config.terminal = "kitty"
-config.fileManager = "thunar"
 
 return config
