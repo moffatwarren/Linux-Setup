@@ -1389,10 +1389,12 @@ and every other key falls through to the filter box.
 ### The default applications menu (SUPER+D)
 
 `DefaultsMenu.qml` is the fifth overlay: which app opens web links, text and code,
-video and images. `hypr/scripts/default-apps.sh` is the whole backend — `--list`
-(candidates and the current default per category, as JSON), `--get` (the defaults
-alone), `--set <category> <desktop_id> [name]`, and `--prune` (a one-shot migration,
-below). The QML draws and never classifies,
+video, images and folders — and the folder one is also what `SUPER+E` opens.
+`hypr/scripts/default-apps.sh` is the whole backend — `--list` (candidates and the
+current default per category, as JSON), `--get` (the defaults alone),
+`--set <category> <desktop_id> [name]`, `--resolve <category>` (the path of the
+resolved `.desktop`, which `launch-file-manager.sh` opens), and two one-shot
+migrations, `--prune` and `--ensure-filemanager` (both below). The QML draws and never classifies,
 the `system-stats.sh` split.
 
 **An app is a candidate because its own `.desktop` file says so, never because it is
@@ -1408,6 +1410,17 @@ is not a preference but the difference between working and not. Measured over th
 | `image/*` | gimp, imv, imv-dir, satty, swappy, swayimg, libreoffice-draw, kdenlive, kitty-open |
 | `video/*` | mpv, kdenlive |
 | `text/plain` | codium, micro, nvim, org.gnome.TextEditor, vim, libreoffice-writer |
+
+**File explorers are the one category the MIME type cannot settle alone.**
+`inode/directory` is declared by anything that can *open a folder*, and measured on
+this machine that is four entries — `thunar`, `org.kde.dolphin`, **`codium`** and
+**`kitty-open`**. Worse, with no explicit default **GIO resolves folders to
+`codium.desktop`**, so every `xdg-open` of a directory was quietly opening an IDE, and
+a `SUPER+E` that simply followed GIO would have done the same the moment
+`config.fileManager` went. So a file explorer must also *say* it is one:
+`Categories=FileManager`, which thunar, dolphin, nautilus, nemo, pcmanfm, yazi, lf and
+ranger all set, and which leaves exactly `Dolphin` and `Thunar` here. `PROBES` takes the
+entry's categories as well as its MIME types for that one line.
 
 The first version of this file guessed instead, from ~100 lines of hardcoded
 application names (`["brave-origin", "brave-browser", "brave", "firefox", …]`) with
@@ -1478,6 +1491,40 @@ knows which associations the current list still keeps. `--set editor` runs it to
 stale entries cannot outlive the next time an editor is chosen on a machine that never
 reruns the installer.
 
+**Folders have their own resolver, and it is the one both `SUPER+E` and the badge
+read.** For the four MIME categories the default is simply GIO's answer. For file
+explorers `resolve_default()` is: the explicit `inode/directory` entry in
+`mimeapps.list` if that `.desktop` is still installed, else GIO's answer **only if it
+names a file explorer**, else the first file explorer installed. `--list` reports that
+and `launch-file-manager.sh` opens it via `--resolve`, so the badge and the key cannot
+disagree. An explicit entry to an uninstalled app is skipped because GIO skips it too —
+without that check the launcher would hand `gio launch` a path that does not exist.
+
+**Retiring `config.fileManager` took a migration, and it closes the VSCodium hole at the
+same time.** `config.fileManager = "thunar"` was what `SUPER+E` ran, and it was the only
+record of which file explorer this machine used — `deploy_configs` overwrites
+`config.lua` with a copy that no longer has the line. With nothing carrying it across,
+the resolver falls to the first file explorer alphabetically, which is **Dolphin**, not
+the Thunar the key opened yesterday. So `install.sh` reads it out of the *live* copy in
+`save_file_manager()` before the deploy, and `ensure_file_manager_default()` hands it to
+`default-apps.sh --ensure-filemanager` after `fix_permissions`. That writes an explicit
+`inode/directory` (and its legacy alias `x-directory/normal`) default in two cases only:
+
+- there is no explicit folder default and the legacy command matches an installed file
+  explorer — by desktop id, the last dotted part of it (`org.kde.dolphin` for
+  `dolphin`), or the first word of `Exec`/`TryExec` after any `env VAR=…`;
+- there is no explicit folder default and GIO's answer is not a file explorer — the
+  VSCodium case, and what a fresh machine hits, since `vscodium-bin` is in `PARU_PKGS`.
+  The first installed file explorer is written.
+
+It **never** overrides an explicit entry, and never overrides GIO when GIO already names
+a real file explorer. Verified in a sandbox copy of this machine's file: before, GIO said
+`codium.desktop` and the resolver `org.kde.dolphin.desktop`; after, GIO, `xdg-mime` and
+the resolver all say `thunar.desktop`; a second run prints nothing; and after picking
+Dolphin in the menu, a run with the legacy `thunar` still changes nothing. Once it has
+written, the explicit entry exists and every later run is a no-op, so it needs no
+version check.
+
 **Everything is written to `$XDG_CONFIG_HOME/mimeapps.list`**, in both
 `[Default Applications]` and `[Added Associations]` — the XDG-standard file every one
 of those file managers reads, which is why honouring `XDG_CONFIG_HOME` rather than
@@ -1494,8 +1541,8 @@ Thunar actually runs, so the "Default: …" badge cannot disagree with what a do
 will do — a default inherited from a system-wide file or from the subclass tree reads as
 a real answer rather than "No default set".
 
-The menu itself is `OverlayPanel` like the other four, with category pills across the
-top, a scrolling body of two-column cards and a `countLabel`. `← →` change category,
+The menu itself is `OverlayPanel` like the other four, with six category pills across
+the top (All plus the five), a scrolling body of two-column cards and a `countLabel`. `← →` change category,
 `↑ ↓`/PageUp/PageDown/Home/End scroll, Escape closes. Like `KeybindsHelp` and unlike the
 launcher, **there is no selected row** and Enter is a second Escape; the pills get their
 own `MouseArea`s, which is safe only because they sit in a static `Row` and not inside
@@ -1503,6 +1550,18 @@ the flickable (see **Five traps shared by the three bodies**). A click updates t
 optimistically and `--list` reconciles when the write exits; a second click while one
 write is in flight is queued rather than run alongside it, so two python writers can
 never race for `mimeapps.list`.
+
+### `SUPER+E` goes through `launch-file-manager.sh`
+
+It asks `default-apps.sh --resolve filemanager` for a path and runs
+`gio launch <path> "$HOME"` — so it opens whatever the menu's badge says, with no
+second copy of the resolution logic to drift. `gio launch` rather than an `Exec`
+parse for the reasons in the browser section below (`Terminal=` for yazi or ranger,
+`DBusActivatable` for nautilus, flatpak), and `$HOME` is passed so every file explorer
+opens in the same place rather than in whatever directory Hyprland spawned it from.
+With no file explorer installed at all it says so through `notify-send` and exits
+non-zero rather than guessing. `config.fileManager` is gone from `config.lua`; its value
+is carried across by the migration above. `config.terminal` is untouched.
 
 ### Anything that opens a browser goes through `launch-browser.sh`
 
@@ -2166,7 +2225,10 @@ JetBrainsMono the rest of the session uses.)
   overwrites it, and on a machine that had a real answer there it is gone. If the new
   release keeps that answer somewhere else, something has to carry it across **before**
   the copy. `migrate_audio_icons()` is the worked example — see **Nothing is
-  machine-specific any more**.
+  machine-specific any more**. `save_file_manager()` / `ensure_file_manager_default()`
+  is the second, and shows the shape when the new home can only be written *after* the
+  deploy: capture before `deploy_configs`, apply after `fix_permissions`. See **The
+  default applications menu (SUPER+D)**.
 - **`reload_session()` is what makes a deploy take effect.** Hyprland parses its config
   at startup and quickshell parses its QML once, so without it new keybinds and a new bar
   wait for the next logout — which reads as the deploy having done nothing, and is exactly

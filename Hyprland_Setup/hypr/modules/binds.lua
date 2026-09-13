@@ -18,7 +18,7 @@ hl.bind(config.mainMod .. " + SPACE", hl.dsp.exec_cmd("qs ipc call launcher togg
 -- or changed in this file has to be added there too.
 hl.bind(config.mainMod .. " + K", hl.dsp.exec_cmd("qs ipc call keybinds toggle"), { bypass = true })
 hl.bind(config.mainMod .. " + D", hl.dsp.exec_cmd("qs ipc call defaults toggle"), { bypass = true })
-hl.bind(config.mainMod .. " + E", hl.dsp.exec_cmd(config.fileManager), { bypass = true })
+hl.bind(config.mainMod .. " + E", hl.dsp.exec_cmd("~/.config/hypr/scripts/launch-file-manager.sh"), { bypass = true })
 hl.bind(config.mainMod .. " + B", hl.dsp.exec_cmd("~/.config/hypr/scripts/launch-browser.sh"), { bypass = true })
 hl.bind(config.mainMod .. " + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | swappy -f -'), { bypass = true })
 hl.bind(config.mainMod .. " + ALT + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | tesseract stdin stdout | wl-copy'), { bypass = true })
