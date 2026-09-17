@@ -1,5 +1,6 @@
 local config = require("modules.config")
 local monitor_utils = require("modules.utils.monitor_utils")
+local workspace_utils = require("modules.utils.workspace_utils")
 
 hl.bind(config.mainMod .. " + RETURN", hl.dsp.exec_cmd(config.terminal), { bypass = true })
 hl.bind(config.mainMod .. " + Q", hl.dsp.window.close(), { bypass = true })
@@ -39,6 +40,17 @@ hl.bind(config.mainMod .. " + G", hl.dsp.exec_cmd('~/.config/hypr/scripts/launch
 -- configure. Does nothing on a desktop, or on a laptop with no external screen
 -- attached -- see monitor_utils for why that guard is not optional.
 hl.bind(config.mainMod .. " + SHIFT + Z", monitor_utils.toggle_panel, { locked = true })
+-- Swaps which side the two monitors are on -- the right-hand one becomes the
+-- left-hand one. Inert unless exactly two are enabled; see monitor_utils for
+-- why two and not "the nearest pair". Not `locked`, unlike the panel toggle
+-- above: that one has to work for a lid closing on a locked session, and
+-- rearranging screens you cannot see is not a thing to do from a lock screen.
+hl.bind(config.mainMod .. " + CTRL + Z", monitor_utils.swap_monitors)
+-- Sends every window on the current workspace to an empty workspace on the
+-- other monitor -- the next one to the right, wrapping round -- and leaves the
+-- focus and the pointer on this screen. Inert with one enabled monitor, or on a
+-- workspace with nothing on it. See monitor_utils.dump_to_other_monitor.
+hl.bind(config.mainMod .. " + M", monitor_utils.dump_to_other_monitor)
 
 -- Move window focus using arrow keys
 hl.bind(config.mainMod .. " + left", hl.dsp.focus({ direction = "left" }))
@@ -58,11 +70,23 @@ hl.bind(config.mainMod .. " + CTRL + right", hl.dsp.window.resize({ x = 25, y = 
 hl.bind(config.mainMod .. " + CTRL + up", hl.dsp.window.resize({ x = 0, y = -25, relative = true }), { repeating = true, bypass = true })
 hl.bind(config.mainMod .. " + CTRL + down", hl.dsp.window.resize({ x = 0, y = 25, relative = true }), { repeating = true, bypass = true })
 
--- Workspaces 1-9 (Using a Lua loop to keep the config clean!)
+-- Workspaces 1-10 (Using a Lua loop to keep the config clean!)
+--
+-- Three keys per workspace, on one number row and over the same range, so there
+-- is no number that means workspace 10 under one modifier and nothing under
+-- another: go there, send the focused window there, send every window on this
+-- workspace there. The CTRL one is workspace_utils.move_all_to, and unlike the
+-- other two it takes the focus with the windows -- see that function for why.
+--
+-- `i` is a fresh local per iteration in Lua, so the closure below captures this
+-- pass's number rather than the loop's final one.
 for i = 1, 10 do
 	local key = i % 10 -- 10 maps to key 0
 	hl.bind(config.mainMod .. " + " .. key, hl.dsp.focus({ workspace = i }), { bypass = true })
 	hl.bind(config.mainMod .. " + SHIFT + " .. key, hl.dsp.window.move({ workspace = i }), { bypass = true })
+	hl.bind(config.mainMod .. " + CTRL + " .. key, function()
+		workspace_utils.move_all_to(i)
+	end, { bypass = true })
 end
 
 hl.bind(config.mainMod .. " + SHIFT + mouse:272", hl.dsp.window.move({ monitor = "+1" }))
@@ -114,13 +138,29 @@ hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { bypass = true,
 hl.bind("switch:on:Lid Switch", monitor_utils.panel_off, { locked = true })
 hl.bind("switch:off:Lid Switch", monitor_utils.panel_on, { locked = true })
 
--- No "monitor.added" handler on purpose. It used to restart the bar so the new
--- screen got one, but quickshell's shell.qml is `Variants { model:
--- Quickshell.screens }` -- it builds a Bar for a monitor appearing all by
--- itself. Worse, this event ALSO fires for the monitors already connected when
--- Hyprland starts, ~70ms before "hyprland.start" runs autostart.lua, so the
--- restart raced the bar autostart has not launched yet: killall found nothing,
--- setsid started one, and autostart then started a second. Two identical bars
--- on every login. It was invisible until the dropped-dispatcher bug below it
--- was fixed, which is what finally made the line run.
+-- A new screen: rebuild the bars a moment later. quickshell's shell.qml is
+-- `Variants { model: Quickshell.screens }`, so it does build a Bar for the new
+-- monitor by itself -- but one built while the compositor is still settling the
+-- output can come up with stale geometry, and the bar already on screen has
+-- just had its workspaces rearranged under it. `qs ipc call bar refresh`
+-- destroys and rebuilds every Bar against the settled layout.
+--
+-- This is NOT the old handler, which restarted quickshell outright
+-- (`killall quickshell; setsid quickshell &`) and put two bars on the screen at
+-- every login. This event ALSO fires for the monitors already connected when
+-- Hyprland starts, ~70ms before "hyprland.start" runs autostart.lua -- so back
+-- then killall found nothing to kill, setsid started a bar, and autostart
+-- started a second. An IPC call into a bar that is not up yet is a no-op
+-- ("Target not found", exit 0), so that same early event costs nothing now.
+-- Rebuilding only the Variants also keeps the notification history, the audio
+-- rotation and the five overlays, which a restart would throw away.
+--
+-- The sleep is why this is an exec_cmd rather than a direct call: the new
+-- wl_output has to reach quickshell before a rebuild can include it, and
+-- monitor.added fires before that. A second is cheap margin, and it runs in its
+-- own process rather than on Hyprland's config thread.
+hl.on("monitor.added", function()
+	hl.dispatch(hl.dsp.exec_cmd("sleep 1; qs ipc call bar refresh"))
+end)
+
 hl.on("monitor.removed", monitor_utils.handle_remove_monitor)

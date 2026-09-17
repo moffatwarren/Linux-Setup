@@ -111,6 +111,8 @@ stops defending the value, and the very next deploy overwrites it.
 ## The laptop panel, the lid, and SUPER+SHIFT+Z
 
 `hypr/modules/utils/monitor_utils.lua` is all of it. There is no configured monitor name.
+(Its sibling `workspace_utils.lua` holds the part about moving windows in bulk, which two
+of these keys share — see `workspace_utils.lua`, and `SUPER+CTRL+1`–`0` below.)
 
 **The panel is identified by its DRM connector.** The kernel only ever names a display
 wired to the board `eDP` (every current laptop), `LVDS` (pre-2013) or `DSI` (tablets, some
@@ -135,6 +137,8 @@ The rules:
 | lid closed, external connected | panel off, its workspaces move to the external |
 | lid opened | ACPI wakes it, `panel_on` brings the panel back |
 | `SUPER+SHIFT+Z` | the same off/on, by hand |
+| `SUPER+CTRL+Z` | swap which side the two monitors are on |
+| `SUPER+M` | this workspace's windows go to an empty workspace on the other monitor |
 
 **Half of that is systemd-logind's default and is deliberately not configured here.**
 `HandleLidSwitch=suspend` fires when the lid closes, *except* that logind counts "more than
@@ -166,8 +170,113 @@ properties with
 `busctl get-property org.freedesktop.login1 /org/freedesktop/login1 org.freedesktop.login1.Manager HandleLidSwitch HandleLidSwitchDocked HandleLidSwitchExternalPower HoldoffTimeoutUSec`
 before touching anything — on this machine they are all default and all correct.
 
-Four things in the Lua:
+Eight things in the Lua:
 
+- **The monitors that are staying are pinned where they are BEFORE the panel goes away,
+  because Hyprland moves them and does not bring their layer surfaces along.** An
+  external at `x=1920` slides to `x=0` once the panel at `x=0` is disabled — and
+  `hyprctl layers` then reads, for a monitor `hyprctl monitors` places at `x=0`:
+
+  ```
+  Monitor DP-2
+    awww-daemon  xywh: 1920 0 2560 1440   <- x should be 0
+    quickshell   xywh: 1925 2 2550 30     <- x should be 5
+  ```
+
+  Right size, wrong place: the bar and the wallpaper are drawn one screen-width to the
+  right of the screen they belong to, so the bar is a stub against the right edge and
+  most of the wallpaper is off the side. **Neither program is at fault** — the surfaces
+  are exactly where Hyprland put them, which is why "restart the bar" is the wrong
+  instinct here (`qs ipc call bar refresh` rebuilds the surface and Hyprland places the
+  new one at the same wrong x). Only the *removal* direction is affected: bringing the
+  panel back moves the external's layers with it correctly, because a monitor being
+  added runs a full re-layout and one going away does not.
+
+  **Writing a monitor's current position explicitly is the only thing that re-applies
+  the rule and drags its layers back.** A write that does not *change* the rule is
+  short-circuited, so `position = "auto"` on a monitor already set to auto does nothing
+  at all (measured — the layers stayed at 1920); neither `transform` nor
+  `hl.dsp.force_renderer_reload()` moves them either.
+
+  So `panel_off` pins first rather than repairing after. **Preventing the move beats
+  chasing it**: nothing moves, so there is no window in which a surface is misplaced and
+  no dependence on when Hyprland re-applies anything. The version that wrote the
+  position and then restored `auto` a moment later — to avoid leaving anything pinned —
+  is the shape to avoid: issued back to back the two writes **collapse into one** and the
+  fix does not happen at all. It only ever worked with seconds between the writes, which
+  a keypress does not have, and that is exactly the kind of timing-shaped fix this file
+  has already been burned by. The pin is written to the position auto had chosen, so it
+  changes no layout today, and it is a runtime rule that `hyprctl reload` clears. With
+  the panel off the remaining screen keeps its old origin instead of sliding to 0,0 — a
+  gap in the coordinate space to its left, which nothing can see.
+- **`pin_monitors` restates `mode` and `scale`, and leaving them out silently rescales a
+  monitor.** `modules/monitors.lua` is a **catch-all** rule — `output = ""`, mode
+  `highrr`, position `auto`, scale `1` — and a monitor-*specific* rule takes precedence
+  over it **wholesale rather than merging with it**. So a specific rule naming only a
+  position drops that monitor's scale to Hyprland's own auto scale, which for a
+  1920x1080 laptop panel is **1.5**. Measured exactly that way: one
+  `hl.monitor({ output = "eDP-1", mode = … })` took the panel from scale 1 to 1.5, its
+  layer surfaces resizing to 1280x720 to match — which looks like the very bug above and
+  is not one. Note the merge rule from `panel_on` below still holds *within* one
+  output's rule; what does not merge is the catch-all into a specific one.
+- **`handle_remove_monitor` must ignore the panel's own removal, or it undoes
+  `panel_off()` one event later.** `monitor.removed` fires for a monitor *this code*
+  disabled, not just for a cable coming out — Hyprland makes no distinction (verified:
+  `hl.monitor({ output = "eDP-1", disabled = true })` logs `monitor.removed: eDP-1`
+  immediately). So `panel_off()` disabled the panel, the handler called `panel_on()`, and
+  the panel came straight back. `SUPER+SHIFT+Z` looked like a key that did nothing while
+  quietly cycling a real DRM output every press.
+  **Every reported symptom was that one fight.** The panel never turned off; each press
+  was a disable/enable of the panel, which is a monitor replug as far as the rest of the
+  session is concerned, so it re-ran the layout and left WirePlumber holding one more
+  ghost sink node per press — the duplicate outputs in the audio menu, the same ghosting
+  `AudioService.uniqueByName()` already filters after an HDMI replug.
+  **It only started when `panel_on()` began working.** Before the `disabled = false` fix
+  below, `panel_on()` could not re-enable anything, so this handler had always been
+  calling a function that did nothing and the loop could not close. That is the **third**
+  time in this repo that repairing a dead line was itself the regression — see the
+  `monitor.added` duplicate bar, and hypridle's DPMS. The lesson has now cost three
+  outages: when a dead line comes back to life, look for what has been quietly relying
+  on it doing nothing.
+- **`panel_on()` must not restate `position`, and `panel_off()` is what records it.**
+  The merge that makes `disabled = false` necessary cuts both ways: the position and
+  scale are still in the rule, so naming them again can only overwrite them with
+  something worse. `position = "auto"` did exactly that — "auto" means *place me to the
+  right of everything already placed*, so every restore appended the panel to the far
+  right instead of putting it back. Measured: a panel at `x=0` beside one external came
+  back at `x=3840`, and each further toggle pushed it further out. **That is what the
+  growing row of "monitors that do not exist" actually was** — one panel being re-added
+  further and further off the side, carrying its workspaces with it, which is why they
+  were on neither the laptop nor the external.
+  A disabled monitor is not in `hl.get_monitors()` and its position cannot be read back,
+  so `panel_off()` writes `position` and `scale` into the rule on the way down, while the
+  monitor is still enabled and the values are still true. `panel_on()` then restores them
+  by saying nothing about either. Verified over six toggle cycles: the panel returns to
+  `x=0` every time and no output accumulates.
+- **Workspace handles are collected before any move, never during.** Moving a workspace
+  destroys and recreates workspace objects, which leaves every *other* handle in an
+  already-fetched list dangling — and **a dangling handle does not error, it reads every
+  field as `nil`**. So the obvious single loop crashed on the second eligible workspace:
+  `ws.id > 0` compiles to `0 < ws.id`, so a nil id raises "attempt to compare number with
+  nil" (note the order — that wording is what says the *left* side is the number, i.e.
+  the nil is `ws.id`), and the whole of `panel_off` died before it disabled anything.
+  Measured directly: with three workspaces up, moving the first made the third's captured
+  handle report `id = nil`. One loop now collects the ids, a second dispatches the moves.
+- **`panel_on()` must pass `disabled = false`, and omitting it is why the key only ever
+  worked one way.** `hl.monitor()` **merges** its spec into the rule already stored for
+  that output rather than replacing it, so the `disabled = true` `panel_off()` wrote
+  stays in force for every later call that does not say otherwise — a `mode`, a
+  `position` and a `scale` are then applied to a rule that is still disabled, and the
+  panel stays dark. Measured on 0.56.2 against a `hyprctl output create headless` output,
+  which is the safe way to test this (disabling the only real screen to test the restore
+  is how you end up with nowhere to type the fix): after
+  `hl.monitor({ output = o, disabled = true })`, the old spell — `{ output = o, mode =
+  "highrr", position = "auto", scale = "1" }` — returns **`ok`** and the output stays
+  gone; the same spec with `disabled = false` brings it back. The `ok` is the trap. There
+  is no error in any log, which is exactly what made `SUPER+SHIFT+Z` look like a dead
+  keybind on the way back rather than a wrong argument, and it is the same failure shape
+  as the `{ state = "on" }` dispatcher field below: a spec Hyprland accepts and does not
+  act on.
 - **`panel_off()` refuses while the panel is the only enabled monitor.** That is the whole
   "docked" condition, and it is the difference between a key that does nothing and a
   machine with every display disabled and no way to see the shortcut that undoes it.
@@ -178,26 +287,237 @@ Four things in the Lua:
   disabled monitor's workspaces itself, but not predictably to a monitor of your choosing,
   and "where did my windows go" is the whole question when the lid shuts. Special
   workspaces (negative id) are skipped: they are per-monitor overlays, so moving one is
-  meaningless. Note `ws.monitor` is a monitor *object*, not a name.
+  meaningless. Note `ws.monitor` is a monitor *object*, not a name — and see the
+  collect-then-dispatch rule above before touching that loop.
 - **The on/off state is read, never tracked.** `hl.get_monitors()` lists what is enabled,
   so presence in it *is* the state. This used to be a Lua boolean, which went stale the
   moment anything changed a monitor by another route — a reload, a hotplug, `hyprctl` by
   hand.
-- **There is no `monitor.added` handler, and adding one back is a trap.** It used to
-  restart the bar (`killall quickshell; setsid quickshell &`) so the new screen got one.
-  That is unnecessary — `shell.qml` is `Variants { model: Quickshell.screens }`, which
-  builds a `Bar` for a monitor appearing on its own — and it was actively harmful,
-  because **`monitor.added` also fires for the monitors already connected when Hyprland
-  starts**, about 70 ms *before* `hyprland.start` runs `autostart.lua`. So on every login
-  the handler's `killall` found nothing to kill, its `setsid` started a bar, and
-  `autostart.lua` then started a second one: **two identical bars, one of them orphaned to
-  `systemd --user`** (which is how you tell them apart in `ps` — the `setsid` one has
-  ppid 1-ish, the autostart one is a child of `/bin/sh -c "quickshell & awww-daemon &
-  hypridle"`). It was invisible for as long as the line was broken: `hl.dsp.exec_cmd` only
-  *describes* a command and `hl.dispatch` is what runs it, so the original dropped its
-  dispatcher on the floor and did nothing at all. Fixing that bug in `f7fd196` is what
-  made the duplicate bar appear, which is the lesson — a dead line is not a correct line,
-  and repairing one can be a behaviour change.
+- **`monitor.added` refreshes the bar, and must never restart it.** The handler is one
+  line — `qs ipc call bar refresh`, a second later — and the distinction between that and
+  what used to be here is the whole point of the bullet. `shell.qml` is `Variants { model:
+  Quickshell.screens }`, so it does build a `Bar` for a new monitor on its own; the
+  refresh is for the state around that, a bar built while the compositor is still settling
+  the output, and the bar already on screen whose workspaces have just been rearranged
+  under it.
+  **The old handler restarted quickshell outright** (`killall quickshell; setsid
+  quickshell &`), and that was actively harmful, because **`monitor.added` also fires for
+  the monitors already connected when Hyprland starts**, about 70 ms *before*
+  `hyprland.start` runs `autostart.lua`. So on every login the handler's `killall` found
+  nothing to kill, its `setsid` started a bar, and `autostart.lua` then started a second
+  one: **two identical bars, one of them orphaned to `systemd --user`** (which is how you
+  tell them apart in `ps` — the `setsid` one has ppid 1-ish, the autostart one is a child
+  of `/bin/sh -c "quickshell & awww-daemon & hypridle"`). It was invisible for as long as
+  the line was broken: `hl.dsp.exec_cmd` only *describes* a command and `hl.dispatch` is
+  what runs it, so the original dropped its dispatcher on the floor and did nothing at
+  all. Fixing that bug in `f7fd196` is what made the duplicate bar appear, which is the
+  lesson — a dead line is not a correct line, and repairing one can be a behaviour change.
+  **That same early event is what makes an IPC call safe where a restart was not**: `qs
+  ipc call` into a bar that does not exist yet prints "Target not found" and exits **0**
+  (verified), so the login-time firings cost nothing, where `setsid` started a process.
+  The refresh rebuilds only the `Variants`, so the notification history, the audio
+  rotation and the five overlays all survive it — a restart threw every one of them away.
+  **The `sleep 1` is load-bearing**: `monitor.added` fires before the new `wl_output`
+  reaches quickshell, so a rebuild without it would run against a screen list that does
+  not have the new monitor in it yet. It is an `exec_cmd` rather than a direct call for
+  exactly that reason — the wait belongs in its own process, not on Hyprland's config
+  thread.
+
+### Modes: `config.monitorMode`, and why there is no "highest of both"
+
+Every monitor rule this repo writes takes its mode from **one** value,
+`config.monitorMode` in `hypr/modules/config.lua`. `modules/monitors.lua` applies it to
+every output as the catch-all, and `utils/monitor_utils.lua` restates it in the four
+places it writes a monitor-specific rule — it has to, because a specific rule overrides
+the catch-all wholesale, and a rule that named no mode would silently drop that monitor
+to Hyprland's default. Five copies of the literal is how they drift apart, so there are
+none.
+
+**`highrr` and `highres` genuinely conflict, and the gap is large.** Verified live on the
+external here, which offers both `3840x2160@60` and `2560x1440@240`:
+
+| | picks |
+|---|---|
+| `highrr` | **2560x1440@240** — highest refresh rate, then the best resolution at it |
+| `highres` | **3840x2160@60** — highest resolution, then the best refresh rate at it |
+
+There is no keyword for "highest of both" because on hardware like this no such mode
+exists. The repo takes **`highrr`**: motion over pixels, and it costs nothing on a
+monitor with only one refresh rate, which still comes up at full resolution. Changing
+that policy is one line, and it then applies everywhere by construction.
+
+**Nothing here is tied to a resolution, a refresh rate or a scale.** Measured across the
+whole range rather than assumed:
+
+- **Sizes and refresh rates just flow through.** A monitor's layer surfaces follow its
+  logical size on their own — verified by driving the external through 2560x1440 →
+  1920x1080 → back, with the wallpaper resizing each time unaided.
+- **Mismatched fractional scales are handled, and that is what the division is for.**
+  With the panel at scale 1.5 (logical 1280) beside the external at 1.25 (logical 2048),
+  a swap left a gap of exactly **0**; using the raw 2560 would have left a 512px hole.
+  A panel off/on in that state came back at its recorded position *and* its recorded
+  scale of 1.5, still gap 0.
+- **The one lag worth knowing about is `awww` after a *scale* change** — not a size
+  change. Changing a monitor's scale left the wallpaper surface at the old logical size
+  while the bar resized correctly; re-running `awww img` fixed it. No keybind here
+  changes a scale (`panel_on` restores the recorded one, the swap carries each monitor's
+  own across), so nothing triggers it in normal use, and it is deliberately not
+  defended against with a speculative re-apply on every keypress.
+
+### `SUPER+CTRL+Z` swaps the two monitors left-to-right
+
+`swap_monitors()` puts the right-hand screen on the left and the left-hand one on the
+right. It is the arrangement that moves — **the windows stay on the screen they were
+already on**, which is what separates it from `hl.dsp.workspace.swap_monitors`, a
+dispatcher that exchanges two monitors' active *workspaces* and leaves the screens where
+they are. Easy to reach for the wrong one by name alone.
+
+**It does nothing unless exactly two monitors are enabled.** One has no other side to be
+on, and with three or more "swap the two of them" names no particular pair — guessing one
+would move a screen the keypress never mentioned. The count comes from `hl.get_monitors()`,
+which lists what is *enabled*, so a laptop whose panel is off after `SUPER+SHIFT+Z` counts
+as one and the key is inert: "connected and enabled", read at the moment of the press
+rather than tracked. A pair stacked vertically (same x) is also left alone — there is no
+left and right there to exchange, and inventing a horizontal layout is not what was asked
+for.
+
+Three things the geometry has to get right:
+
+- **Width is divided by scale.** Hyprland lays monitors out in **logical** pixels, so a
+  2560px screen at scale 1.25 occupies 2048 of the layout; placing the other monitor at
+  the raw 2560 would leave a 512px hole between them. `m.size` is the raw pixel size too,
+  so there is nothing to read that avoids the division.
+- **The origin is whatever the left edge already was, not 0.** A pair that is not flush
+  against x=0 keeps its place instead of jumping to the origin — and that is not
+  hypothetical, it is exactly what `panel_off`'s pinning leaves behind (see the
+  layer-surface bullet above: with the panel off the remaining screen keeps its old
+  origin).
+- **Both monitors are written explicitly, which is also what keeps their bars and
+  wallpapers with them.** A monitor whose rule is re-applied gets its layer surfaces
+  repositioned; one that is merely *moved* as a side effect of someone else's re-layout
+  does not. A swap names both sides, so both re-apply and the misplacement that bullet
+  describes cannot happen here. Verified over three consecutive swaps: positions
+  reversible with no gap, and every layer surface landing on its own monitor each time.
+
+`mode` and `scale` are restated for the reason `pin_monitors` restates them — a
+monitor-specific rule overrides `modules/monitors.lua`'s catch-all wholesale.
+
+The bind is **not** `locked`, unlike `SUPER+SHIFT+Z` beside it: that one has to work for a
+lid closing on a locked session, and rearranging screens you cannot see is not something to
+do from a lock screen. `KeybindsHelp.qml` carries the entry, as it must for every bind.
+
+### `SUPER+M` sends the current workspace's windows to the other monitor
+
+`dump_to_other_monitor()` takes every window on the focused monitor's active workspace and
+puts it on an **empty workspace on the other monitor**, leaving the keyboard focus and the
+pointer exactly where they were. It is the "clear this screen, I want to look at that lot
+over there" key, and the counterpart to `SUPER+SHIFT+Left-click`, which sends one window.
+
+**Inert unless more than one monitor is enabled**, read from `hl.get_monitors()` at the
+moment of the press like everything else here — so a laptop whose panel is off after
+`SUPER+SHIFT+Z` counts as one and the key does nothing. Inert too on a workspace with
+nothing on it: there is nothing to move, and every step below would still run.
+
+**"The other monitor" is the next one to the right, wrapping round from the rightmost.**
+With two that is simply the other one, which is the case the key exists for; with three it
+is at least an order you can predict and repeat rather than whichever
+`hl.get_monitors()` happened to list first. Unlike `swap_monitors` it does **not** refuse a
+third monitor — "swap the two of them" names no pair when there are three, where "send this
+lot next door" still names something.
+
+**The workspace is filled, then moved, then shown, and that order is the whole of it.**
+Each step was a wrong answer first, all measured on 0.56.2:
+
+- **The moves are silent** — `workspace_utils.move_windows`, below, where the
+  `follow = false` spelling of that is written up. The focus staying here is not only
+  tidiness: `input.lua` sets `follow_mouse = 1`, so focus left on the far screen with the
+  pointer still on this one is undone by the first twitch of the mouse. That is the
+  difference between this key and `SUPER+CTRL+1`–`0`, which does end on the windows it
+  moved.
+- **A workspace that does not exist yet is created on the monitor of the window moved into
+  it** (verified: a window on `DP-2` sent to workspace 9 took workspace 9 to `DP-2`), so it
+  is built here and moved across with `hl.dsp.workspace.move` afterwards. Building it on the
+  target first is the tempting order and costs more: an empty workspace only exists while
+  something displays it, so it has to be created by *focusing* the other monitor and
+  focusing back — which warps the pointer there and back (measured 1918,736 → 3520,556 →
+  1918,736). Filling it first means it always has windows in it and nothing has to hold it
+  open.
+- **`hl.dsp.workspace.move` relocates a workspace but does not show it.** The target monitor
+  goes on displaying whatever it was displaying, which is the one outcome worse than doing
+  nothing: the windows are gone from this screen and not visible on that one.
+  **`monitor:set_workspace()` is what displays it**, and unlike focusing the monitor it
+  moves neither the focus nor the pointer (verified: cursor unmoved, `focused` unchanged,
+  the target's active workspace changed). It takes a spec *table* holding a workspace
+  **object** — `m:set_workspace(6)` raises "attempt to index a number value",
+  `m:set_workspace({ workspace = 6 })` returns `ok` and does nothing, and a table naming an
+  id that does not exist yet does nothing either, which is the second reason the workspace
+  is filled before it is shown.
+
+**The id is the lowest free one**, where "free" excludes a workspace holding windows and
+also an empty one that *another* monitor is displaying — an empty workspace exists only
+while something shows it, so taking it would blank that screen. An empty workspace already
+on the target is the exception and is reused, since showing it there is what the key is
+about to do anyway. The current workspace can never be picked: it holds windows, or the
+function returned before asking.
+
+Window **addresses** are collected before the first move (`workspace_utils`, below), and
+the workspace and monitor handles `set_workspace` needs are fetched *after* them — both
+sides of the same dangling-handle rule.
+
+Not `locked`, like the swap beside it. `KeybindsHelp.qml` carries the entry, as it must for
+every bind.
+
+### `workspace_utils.lua`, and `SUPER+CTRL+1`–`0`
+
+Two keys move a whole workspace's worth of windows: `SUPER+M` sends them to the other
+monitor, and `SUPER+CTRL+1`–`0` sends them to a workspace you name. Everything they share
+about *how* a pile of windows is moved is in `hypr/modules/utils/workspace_utils.lua`, so
+the traps are written down once and `monitor_utils` calls in for the window-moving half.
+That is the same reason `config.monitorMode` is one value rather than five copies of
+`highrr`.
+
+- **`window_addresses(id)` collects addresses, not window handles, and all of them before
+  the first move.** A move re-lays-out, which can leave a handle from an already-fetched
+  list dangling — and a dangling handle does not error, it reads every field as `nil`. It
+  is the collect-then-dispatch rule `move_workspaces_off_panel` is written up for, where it
+  cost a crash on the second iteration; an address is a plain string and cannot go stale.
+- **`move_windows(addresses, id)` moves them silently, and the field for that is
+  `follow = false`, not `silent = true`.** `silent` is what the *legacy* dispatcher is
+  called (`movetoworkspacesilent`) and it is not a field here: passing it returns **`ok`**
+  and moves the focus along with the window — the same shape as the `{ state = "on" }` trap
+  in `hypridle.conf`, a spec Hyprland accepts and does not act on. Verified both ways on
+  0.56.2 against a scratch window. Silent is right even for the caller that wants to end up
+  on the target, because focus moved once at the end is one switch where a following move
+  per window is one per window.
+
+`move_all_to(id)` is the keybind: every window on the current workspace goes to workspace
+`id`, **and the focus goes with them**.
+
+**That is the opposite of `SUPER+M`, and what settles it is what is left on screen.**
+`SUPER+M` puts the windows on the other monitor and shows them there, so staying put still
+leaves them in sight; this sends them to a workspace that is by definition not the one on
+screen, so staying put would blank it. A key that looks like it closed everything you had
+open is a bad key even when it is recoverable — and the recovery, SUPER plus the same
+number, is exactly the press this saves. It also matches the bind next door: `SUPER+SHIFT+N`
+moves one window to workspace N and follows it.
+
+It does nothing when the target *is* the current workspace, and nothing on a workspace with
+no windows on it. **Nothing is asserted about where workspace `id` is**: if it already
+exists on another monitor the windows go there and the focus follows onto that monitor
+(verified — focusing a workspace that lives on another output focuses that output rather
+than dragging the workspace across), which is the honest reading of "move them to workspace
+5" when workspace 5 is over there. A workspace that does not exist yet is created on the
+monitor of the window moved into it, so the usual case lands on the screen you pressed the
+key from.
+
+**It is the third bind in `binds.lua`'s `for i = 1, 10` loop**, rather than a loop of its
+own beside it. All three keys on the number row now cover the same ten workspaces — go
+there, send the focused window there, send every window here there — so there is no number
+that means workspace 10 under one modifier and nothing at all under another. `0` is
+workspace 10, from the same `i % 10` the other two take. (Note `i` is a fresh local per
+iteration in Lua, so the `CTRL` bind's closure captures that pass's number and not the
+loop's last one — the one thing the other two, which pass a dispatcher rather than a
+function, did not have to care about.)
 
 ### `hyprctl dispatch` takes a Lua expression, and `hyprctl keyword` does not work at all
 
@@ -269,6 +589,16 @@ claim to ask about a choice that no longer existed.
 `Hyprland_Setup/quickshell/` has one file per module: `Bar.qml` lays out left/center/right,
 `Pill.qml` is the shared rounded-module background, and `Theme.qml` is a `pragma Singleton`
 holding the Catppuccin Mocha palette.
+
+**`qs ipc call bar refresh` rebuilds every `Bar`**, and it is the only IPC target that
+does not belong to a module. `shell.qml` holds a `barsLoaded` flag that the `Variants`
+model reads (`barsLoaded ? Quickshell.screens : []`), so flipping it false and back true
+100 ms later destroys and recreates the bars against whatever the screen list now says.
+Nothing else in the process is touched — the notification history, the audio rotation and
+the five overlays all outlive it, which is the difference between this and restarting
+quickshell. `hl.on("monitor.added", …)` in `binds.lua` is its only caller; see **The
+laptop panel, the lid, and SUPER+SHIFT+Z** for why a *restart* there put two bars on the
+screen at every login.
 
 ### `MenuPopup.qml` is the frame every drop-down wears
 
@@ -813,6 +1143,52 @@ so `SUPER+O` stepped from the first to the second, set the default to the name i
 had, and stayed on that output for ever — hence the `awk '!seen[$0]++'` there. Neither
 side tries to make the ghosts go away; `systemctl --user restart wireplumber` is what
 clears them, and nothing here should need that to be right.
+
+**Four identical HDMI outputs is a different problem, and it is not fixed here.** The
+ghosts above share a `node.name` and `uniqueByName()` collapses them. A GPU's HDMI audio
+codec instead exposes a pin per connector the chip *could* drive — four on this machine —
+and ALSA ships a UCM profile (`HiFi`) declaring a PCM for every one of them, so
+WirePlumber creates four **differently named** sinks
+(`…HiFi__HDMI1__sink` … `HDMI4`). Nothing in the bar can dedupe those, and they show up
+in pavucontrol too, which is the tell that it is not a bar problem.
+
+PipeWire already knows which one is real — with one monitor connected
+`pactl list cards` reports `HDMI1 … pcm=3, available` and HDMI2/3/4 `not available`, and
+the kernel agrees (`/proc/asound/card0/eld#0.0` has `monitor_present 1` and names the
+display, `eld#0.1`–`0.3` have `monitor_present 0`). The UCM profile is what ignores all
+of it: its PCMs are static.
+
+So the fix is one WirePlumber drop-in, `wireplumber/wireplumber.conf.d/50-hdmi-single-sink.conf`
+(hence `wireplumber` in `CONFIGS`), setting `api.alsa.use-ucm = false` for that card. That
+hands it back to ACP, the classic profile set, which exposes **one** sink on
+`output:hdmi-stereo` and switches its active port from exactly the availability above —
+the sink even picks up the monitor's ELD name (`… Digital Stereo (HDMI) [27E3QKS]`).
+Verified: four sinks before, one after, with the built-in analog card left on its own UCM
+profile untouched and the HDMI path confirmed to still open (a silent `pw-cat` took the
+sink to `RUNNING`).
+
+Two things that make that rule work, both of which cost a wrong attempt first:
+
+- **It matches on `device.product.name`, not `alsa.mixer_name`.** The mixer name is the
+  better discriminator on paper — `ATI R6xx HDMI` against the analog card's
+  `Realtek ALC257` — but `monitor.alsa.rules` runs when the device is created from
+  **udev** properties, and the mixer name is not known until the card has been opened.
+  A rule matching it is silently a no-op: the sinks stayed at four and
+  `api.alsa.use-ucm` never appeared on the device at all, which is how to tell a rule
+  that did not match from one that did not work.
+- **It must not match by card or PCI path.** Both cards here are called
+  `HD-Audio Generic` and `device.name` carries the slot
+  (`alsa_card.pci-0000_07_00.1`) — a value true of one machine, which is what **Nothing
+  is machine-specific any more** exists to keep out of a committed file. The pattern
+  `~.*HDMI.*` over the product name picks out GPU HDMI audio on AMD, Intel and NVIDIA
+  alike and cannot reach an analog card; on a machine with no such device it matches
+  nothing and does nothing.
+
+`reload_session` restarts wireplumber for the same reason it restarts the bar and
+hypridle: the `.conf.d` is read once at startup, so without it a changed rule waits for
+the next login and the deploy looks like it did nothing. The stale `records` the old
+four sinks left in `~/.cache/quickshell-audio.json` are inert — `records` is the memory
+and `outputs` is the menu, and only present sinks are drawn.
 
 Three traps in the service:
 

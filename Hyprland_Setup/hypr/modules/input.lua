@@ -12,7 +12,7 @@ hl.config({
 
 		touchpad = {
 			natural_scroll = false,
-			scroll_factor = 0.3, -- touchpad only; input.scroll_factor is the mouse wheel
+			scroll_factor = 0.5, -- touchpad only; input.scroll_factor is the mouse wheel
 		},
 	},
 })
