@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Config directories: Hyprland_Setup/<name> -> ~/.config/<name>
-CONFIGS=(btop fastfetch fish gtk-3.0 gtk-4.0 hypr kitty nvim quickshell swappy weathr)
+CONFIGS=(btop fastfetch fish gtk-3.0 gtk-4.0 hypr kitty nvim quickshell swappy weathr wireplumber)
 
 # Retired config paths to purge from ~/.config
 ORPHANS=(
@@ -395,6 +395,16 @@ reload_session() {
         setsid hypridle >/dev/null 2>&1 &
         disown
         echo "    hypridle restarted (idle and lock rules)"
+    fi
+
+    # wireplumber reads wireplumber.conf.d once at startup, like the bar reads its
+    # QML and hypridle its config. Without this a changed ALSA rule sits there
+    # until the next login -- and the one this repo ships decides how many sinks
+    # a monitor produces, so "the deploy did nothing" would be the whole symptom.
+    # Audio drops for the moment it takes; streams reconnect by themselves.
+    if systemctl --user is-active wireplumber >/dev/null 2>&1; then
+        systemctl --user restart wireplumber >/dev/null 2>&1 || true
+        echo "    wireplumber restarted (one HDMI sink per connected display)"
     fi
 
     check_notification_owner

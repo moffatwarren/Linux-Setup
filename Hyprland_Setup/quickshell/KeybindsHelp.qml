@@ -70,8 +70,11 @@ OverlayPanel {
             binds: [
                 { keys: "SUPER + 1 - 0",         desc: "Switch to workspace 1-10" },
                 { keys: "SUPER + SHIFT + 1 - 0", desc: "Move the window to workspace 1-10" },
+                { keys: "SUPER + CTRL + 1 - 0",  desc: "Move every window here to workspace 1-10" },
                 { keys: "SUPER + Scroll",        desc: "Previous / next workspace" },
                 { keys: "SUPER + SHIFT + Z",     desc: "Laptop screen off / on (needs external)" },
+                { keys: "SUPER + CTRL + Z",      desc: "Swap the two monitors left / right" },
+                { keys: "SUPER + M",             desc: "This workspace's windows to the other monitor" },
             ]
         },
         {

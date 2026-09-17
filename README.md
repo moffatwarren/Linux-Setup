@@ -68,6 +68,9 @@ values into the repo — review with `git diff` before committing.
 | `SUPER+L` / `SUPER+SHIFT+L` | lock / lock and suspend |
 | `SUPER+O` | next audio output |
 | `SUPER+SHIFT+Z` | laptop screen off / on (needs an external monitor) |
+| `SUPER+CTRL+Z` | swap the two monitors left / right (needs exactly two) |
+| `SUPER+M` | send this workspace's windows to an empty workspace on the other monitor |
+| `SUPER+CTRL+1`–`0` | send this workspace's windows to workspace 1-10, and follow them |
 
 `Hyprland_Setup/hypr/modules/binds.lua` is the full list, and `SUPER+K` puts a
 readable copy of it on screen.

@@ -9,11 +9,18 @@
 import Quickshell
 import Quickshell.Hyprland
 import Quickshell.Io
+import QtQuick
 
 ShellRoot {
+    id: root
+
+    // Flipped false and straight back true to destroy and rebuild every Bar.
+    // See the "bar" IpcHandler below.
+    property bool barsLoaded: true
+
     // One bar per connected monitor.
     Variants {
-        model: Quickshell.screens
+        model: root.barsLoaded ? Quickshell.screens : []
 
         Bar {}
     }
@@ -148,6 +155,36 @@ ShellRoot {
 
         function refresh(): void { UpdateService.check(true); }
         function revalidate(): void { UpdateService.revalidate(); }
+    }
+
+    // Rebuild every Bar. hypr/modules/binds.lua calls this a second after
+    // "monitor.added", because a bar built while the compositor was still
+    // settling the new output can come up with stale geometry -- and the one
+    // already on screen has just had its workspaces rearranged under it.
+    //
+    // Deliberately a rebuild of the Variants and NOT a restart of quickshell.
+    // Restarting is what the old monitor.added handler did, and it is the trap
+    // written up in binds.lua: the event also fires for the monitors already
+    // connected at startup, ~70ms before autostart.lua launches the bar, so a
+    // "killall + setsid" there found nothing to kill and left two bars running.
+    // An IPC call into a bar that is not up yet is a no-op ("Target not found",
+    // exit 0), so the same early event costs nothing here. Rebuilding only the
+    // Variants also keeps the notification history, the audio rotation and the
+    // five overlays, all of which a restart would throw away.
+    IpcHandler {
+        target: "bar"
+
+        function refresh(): void {
+            root.barsLoaded = false;
+            barRebuild.restart();
+        }
+    }
+
+    // One event loop turn is enough for the old windows to go; 100ms is margin.
+    Timer {
+        id: barRebuild
+        interval: 100
+        onTriggered: root.barsLoaded = true
     }
 
     // The screen recorder (SUPER+CTRL+S) writes a state file and then calls
