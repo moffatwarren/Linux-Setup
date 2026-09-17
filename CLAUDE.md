@@ -492,15 +492,15 @@ today picked out with a filled blue disc, with the leading and trailing days of 
 neighbouring months dimmed so every week is complete. It takes `MenuPopup`'s frame and
 supplies only a grid, rather than reusing `ListPopup`, which only stacks rows. It is a
 menu, so it keeps its own `open` flag and gets `grabFocus`, an Escape handler and a
-`HyprlandFocusGrab` from the frame, exactly like `PowerMenu`: a hover panel cannot
-own the keyboard and so could never answer Escape. The 300 ms open delay went with the
-hover — it existed to keep a panel from flashing up as the pointer crossed the pill, and
-a panel you asked for should not make you wait. Whole weeks that fall entirely outside the month are
-dropped, so a short month leaves no blank row. `ClockPill` feeds it a **midnight-
-truncated** date: `SystemClock` ticks every second, and a `date` property only signals
-a change when the value differs, so the grid rebuilds once a day instead of once a
-second. It is display-only — no month navigation — and **Google Calendar is a link in
-its footer**, where the pill's double-click used to be: `clicked` arrives before
+`HyprlandFocusGrab` from the frame, exactly like `PowerMenu`: a hover panel cannot own
+the keyboard and so could never answer Escape. The 300 ms open delay went with the hover
+— it existed to keep a panel from flashing up as the pointer crossed the pill, and a
+panel you asked for should not make you wait. Whole weeks that fall entirely outside the
+month are dropped, so a short month leaves no blank row. `ClockPill` feeds it a
+**midnight-truncated** date: `SystemClock` ticks every second, and a `date` property
+only signals a change when the value differs, so the grid rebuilds once a day instead of
+once a second. It is display-only — no month navigation — and **Google Calendar is a
+link in its footer**, where the pill's double-click used to be: `clicked` arrives before
 `doubleClicked`, so leaving it on the double-click would open the panel on the way to
 the browser. The footer is where pavucontrol and blueman already sit in their own menus.
 
@@ -511,49 +511,50 @@ delay). Both halves read one `hypr/scripts/`
 `weather-forecast.sh` poll, and both draw their glyph from one WMO code table, so
 the pill and the panel can never disagree about the weather or the icon for it.
 
-The panel's footer says how old the reading is, and carries the **Refresh button**
-that re-fetches immediately (`weather-forecast.sh --force`, which sets
-`FORECAST_MAX_AGE=0` so the age check can never pass) — the same `surface0` chip
-`BluetoothMenu` and `WifiMenu` use for Scan. That was the pill's right-click, and the
-footer could only *describe* it in words ("right-click to refresh"), which is a gesture
-you had to open the panel to discover sitting next to somewhere to put a button. The
-panel owns no state and runs no process: it raises `refreshRequested()` and `WeatherPill`
-fetches, the split `TailscaleMenu` and `PiaMenu` use. It does not close on the click —
-the point of pressing it is to watch the numbers land. The age stays on screen throughout
-and the *button* is what says "Refreshing…", so the one row that exists to report the
-reading's age does not stop reporting it mid-fetch. The age comes from the script, as `updated` — the
-**cache file's mtime**, not the time of the poll that read it. Almost every poll is
+The panel's footer says how old the reading is, and carries the **Refresh button** that
+re-fetches immediately (`weather-forecast.sh --force`, which sets `FORECAST_MAX_AGE=0`
+so the age check can never pass) — the same `surface0` chip `BluetoothMenu` and
+`WifiMenu` use for Scan. That was the pill's right-click, and the footer could only
+*describe* it in words ("right-click to refresh"), which is a gesture you had to open
+the panel to discover sitting next to somewhere to put a button. The panel owns no state
+and runs no process: it raises `refreshRequested()` and `WeatherPill` fetches, the split
+`TailscaleMenu` and `PiaMenu` use. It does not close on the click — the point of
+pressing it is to watch the numbers land. The age stays on screen throughout and the
+*button* is what says "Refreshing…", so the one row that exists to report the reading's
+age does not stop reporting it mid-fetch. The age comes from the script, as `updated` —
+the **cache file's mtime**, not the time of the poll that read it. Almost every poll is
 served from the ten-minute cache, so a QML-side "last fetched" clock would report when
 the bar last ran a `cat`; the mtime is when the data actually arrived, and it survives a
 bar restart. It is also what makes a failed refresh legible: the script prints the stale
 cache on a network error, so the footer keeps showing the old age instead of claiming to
 have just updated. `Process.command` is bound to a `force` flag, so `refresh()` must not
-fire while the process runs — a second press mid-fetch is ignored. The footer's
-"N min ago" is re-rendered by a 30 s timer gated on the popup being visible.
+fire while the process runs — a second press mid-fetch is ignored. The footer's "N min
+ago" is re-rendered by a 30 s timer gated on the popup being visible.
 
 It is **not** a `ScriptPill`, and **`hypr/scripts/weather.sh` is gone**. Its one
 remaining case, `--openWeather` — a floating kitty running the weathr TUI — was the
 pill's right-click, and the right button was given the refresh instead (which has since
-moved into the panel's footer), so nothing called the script at all. Retiring it took all three of the usual steps: the file deleted, the path
-added to `ORPHANS` so `cp -rf` does not leave it on a machine that already has it, and
-`rules.lua`'s `weathr-float` float rule dropped, since only that script ever set the
-class. **`weathr-bin` is out of `PARU_PKGS` too**, so a new machine does not install a
-TUI nothing on the desktop launches; a machine that already has it keeps it, because
-`install.sh` never uninstalls. `weathr/config.toml` stays in `CONFIGS` — it costs
-nothing to deploy and is the settings waiting if `weathr` is ever installed by hand. wttr.in publishes three days, not seven, and
-its one-line format exposes no condition code at all — only an emoji — so a pill fed
+moved into the panel's footer), so nothing called the script at all. Retiring it took
+all three of the usual steps: the file deleted, the path added to `ORPHANS` so `cp -rf`
+does not leave it on a machine that already has it, and `rules.lua`'s `weathr-float`
+float rule dropped, since only that script ever set the class. **`weathr-bin` is out of
+`PARU_PKGS` too**, so a new machine does not install a TUI nothing on the desktop
+launches; a machine that already has it keeps it, because `install.sh` never uninstalls.
+`weathr/config.toml` stays in `CONFIGS` — it costs nothing to deploy and is the settings
+waiting if `weathr` is ever installed by hand. wttr.in publishes three days, not seven,
+and its one-line format exposes no condition code at all — only an emoji — so a pill fed
 from wttr.in could not show the same icon as a panel fed from anywhere else. Both now
-come from Open-Meteo (free, no key), which publishes a WMO code for the current hour
-and for each day. The location still comes from wttr.in, so only one service does the
-IP geolocation. The script also probes `wttr.in/?format=%t` for whether this location
-is °C or °F — wttr.in picks that from the location and exposes it nowhere in its JSON
-— and asks Open-Meteo for the same unit, so the reading matches what wttr.in would
-have said. It prints raw numbers (WMO code, temperature, min/max, precipitation
-chance) and leaves the formatting to the QML, like `system-stats.sh`. Weather is
-cached for ten minutes (matching both the pill's refresh and Open-Meteo's own update
-rate) and the location for a week, so most ticks are a `cat` rather than a request;
-on a network failure it prints the stale cache, or nothing at all, and the module
-keeps its last good reading rather than blanking.
+come from Open-Meteo (free, no key), which publishes a WMO code for the current hour and
+for each day. The location still comes from wttr.in, so only one service does the IP
+geolocation. The script also probes `wttr.in/?format=%t` for whether this location is °C
+or °F — wttr.in picks that from the location and exposes it nowhere in its JSON — and
+asks Open-Meteo for the same unit, so the reading matches what wttr.in would have said.
+It prints raw numbers (WMO code, temperature, min/max, precipitation chance) and leaves
+the formatting to the QML, like `system-stats.sh`. Weather is cached for ten minutes
+(matching both the pill's refresh and Open-Meteo's own update rate) and the location for
+a week, so most ticks are a `cat` rather than a request; on a network failure it prints
+the stale cache, or nothing at all, and the module keeps its last good reading rather
+than blanking.
 
 `WeatherCodes.qml` is the singleton holding that table — WMO code to glyph, short
 label and colour. It is a singleton precisely because two things read it. An unmapped
@@ -621,10 +622,10 @@ suspending an unlocked session. The action list is a plain array at the top of
 `PowerMenu.qml`, so adding or removing an entry is one line.
 
 `PowerProfilePill.qml` is one glyph saying which power profile is in force, and
-`PowerProfileMenu.qml` is its **left-click dropdown**: the three profiles as named rows at
-the top, then the machine's vitals — CPU and memory
-use, GPU load and VRAM, root filesystem use, CPU/GPU temperature, and power consumption — because none of
-those warrant a pill of their own.
+`PowerProfileMenu.qml` is its **left-click dropdown**: the three profiles as named rows
+at the top, then the machine's vitals — CPU and memory use, GPU load and VRAM, root
+filesystem use, CPU/GPU temperature, and power consumption — because none of those
+warrant a pill of their own.
 
 **The profiles were a cycle on the pill and the vitals were a hover panel, and each fixed
 the other.** Clicking stepped saver → balanced → performance, so reaching a named profile
@@ -642,23 +643,24 @@ still the fastest way to step the profile once you know the order.
 (`LapDetected`, `HighTemperature`). Without it, picking Performance on a throttled machine
 looks like a click that did nothing.
 
-`hypr/scripts/system-stats.sh` gathers everything but
-the CPU figure and prints one JSON object of raw numbers (bytes, percent, millidegrees, microwatts),
-leaving all formatting to the QML. It discovers sensors by **name, not index**: hwmon
-numbering is assigned in probe order and changes between boots, and the DRM card index
-moves the same way. A value it cannot read is omitted from the JSON rather than reported
-as `0`, so the menu drops that row instead of showing a confidently wrong reading. On machines
-with proprietary NVIDIA drivers where sysfs hwmon exposes no GPU stats, a fallback query to
-`nvidia-smi` supplies GPU load, temperature, VRAM, and power draw. That
-script runs on a 2 s timer gated on `menu.open`, with one immediate read on the way open,
-so an idle bar spawns no processes — it was gated on `hovered` for the same reason.
+`hypr/scripts/system-stats.sh` gathers everything but the CPU figure and prints one JSON
+object of raw numbers (bytes, percent, millidegrees, microwatts), leaving all formatting
+to the QML. It discovers sensors by **name, not index**: hwmon numbering is assigned in
+probe order and changes between boots, and the DRM card index moves the same way. A
+value it cannot read is omitted from the JSON rather than reported as `0`, so the menu
+drops that row instead of showing a confidently wrong reading. On machines with
+proprietary NVIDIA drivers where sysfs hwmon exposes no GPU stats, a fallback query to
+`nvidia-smi` supplies GPU load, temperature, VRAM, and power draw. That script runs on a
+2 s timer gated on `menu.open`, with one immediate read on the way open, so an idle bar
+spawns no processes — it was gated on `hovered` for the same reason.
 
-**The pill samples and the menu draws, and the formatters cross that line as functions.**
-`humanBytes`, `usage`, `loadColor`, `tempColor`, `temp` and `watts` are passed into the menu as
-`property var`s rather than copied into it: they encode this module's idea of what counts
-as hot and what counts as loaded, and two copies of a threshold drift apart. Verified that
-a QML method bound into another object's `var` property stays callable and still resolves
-its own scope — `usage` calls `humanBytes` unqualified and gets the pill's.
+**The pill samples and the menu draws, and the formatters cross that line as
+functions.** `humanBytes`, `usage`, `loadColor`, `tempColor`, `temp` and `watts` are
+passed into the menu as `property var`s rather than copied into it: they encode this
+module's idea of what counts as hot and what counts as loaded, and two copies of a
+threshold drift apart. Verified that a QML method bound into another object's `var`
+property stays callable and still resolves its own scope — `usage` calls `humanBytes`
+unqualified and gets the pill's.
 
 CPU utilisation is the exception, because `/proc/stat` counts jiffies since boot and so
 only yields a percentage as a **delta between two samples** — there is nothing to read
@@ -706,15 +708,16 @@ all** — weather's right-click forced a re-fetch, `tailscale file get` was tail
 and PIA's started its daemon; all three are controls inside the menu now, the way
 `CalendarPopup` took the clock's old double-click into its own footer.
 
-**Nothing on this bar opens a panel on hover any more except `RecorderPill`.** The calendar and the forecast were hover panels and are dropdowns now, for
-one reason: a hover panel is dismissed only by moving the pointer, so it cannot answer
-Escape and cannot be closed by clicking past it. Every dropdown dismisses on a click
-anywhere outside via the `HyprlandFocusGrab` in `MenuPopup`
-(`windows: [root, barWindow]`, `active: root.open`, `onCleared: dismissed()`). A
-layer-shell popup receives no event for an outside click on its own, so without the grab
-the only way to close the menu was to right-click the module again. The grab coexists with
-`WifiMenu`'s `grabFocus`, which the password field needs for keyboard input — verified
-that revealing the field does not clear the grab and dismiss the menu.
+**Nothing on this bar opens a panel on hover any more except `RecorderPill`.** The
+calendar and the forecast were hover panels and are dropdowns now, for one reason: a
+hover panel is dismissed only by moving the pointer, so it cannot answer Escape and
+cannot be closed by clicking past it. Every dropdown dismisses on a click anywhere
+outside via the `HyprlandFocusGrab` in `MenuPopup` (`windows: [root, barWindow]`,
+`active: root.open`, `onCleared: dismissed()`). A layer-shell popup receives no event
+for an outside click on its own, so without the grab the only way to close the menu was
+to right-click the module again. The grab coexists with `WifiMenu`'s `grabFocus`, which
+the password field needs for keyboard input — verified that revealing the field does not
+clear the grab and dismiss the menu.
 
 Devices whose name is a bare MAC are filtered out — they are BLE beacons and there are
 usually a dozen of them. The row glyph is picked from the device's freedesktop `icon`
@@ -811,7 +814,7 @@ had, and stayed on that output for ever — hence the `awk '!seen[$0]++'` there.
 side tries to make the ghosts go away; `systemctl --user restart wireplumber` is what
 clears them, and nothing here should need that to be right.
 
-Two traps in the service:
+Three traps in the service:
 
 - **Nothing may be saved before the file has been read.** Sinks arrive one at a time as
   PipeWire enumerates them at startup, so the first `onSinksChanged` fires long before
@@ -1032,7 +1035,7 @@ The palette in `Theme.qml` is still stored as **strings** rather than `color` va
 QML converts on assignment, and `ScriptPill.altColors` was not the only thing that
 interpolated one into markup (`WeatherPill` still does).
 
-Seven things to know before editing the QML:
+Twelve things to know before editing the QML:
 
 - **Nerd font icons must be written as `\uXXXX` escapes.** The glyphs are private-use
   codepoints; pasting them literally silently produces empty strings, which makes the
@@ -1356,11 +1359,11 @@ gutter would strand a heading at the foot of one column with its binds at the
 head of the other; the cost is that one tall section can leave the columns
 visibly uneven under a filter, which is the better trade.
 
-Unlike the other three there is nothing to activate, so there is no selected row,
-no per-row `MouseArea` and no `navKey` handler — Enter is just a second Escape,
-and every other key falls through to the filter box.
+Unlike the launcher, the clipboard and the wallpaper picker there is nothing to
+activate, so there is no selected row, no per-row `MouseArea` and no `navKey` handler —
+Enter is just a second Escape, and every other key falls through to the filter box.
 
-### Five traps shared by the three bodies
+### Five traps shared by the three selectable bodies
 
 - **A per-row/per-tile `MouseArea` cannot drive hover selection.** Arrow keys
   scroll the view, which drags items under a stationary pointer, and the
@@ -1391,11 +1394,11 @@ and every other key falls through to the filter box.
 `DefaultsMenu.qml` is the fifth overlay: which app opens web links, text and code,
 video, images and folders — and the folder one is also what `SUPER+E` opens.
 `hypr/scripts/default-apps.sh` is the whole backend — `--list` (candidates and the
-current default per category, as JSON), `--get` (the defaults alone),
-`--set <category> <desktop_id> [name]`, `--resolve <category>` (the path of the
-resolved `.desktop`, which `launch-file-manager.sh` opens), and two one-shot
-migrations, `--prune` and `--ensure-filemanager` (both below). The QML draws and never classifies,
-the `system-stats.sh` split.
+current default per category, as JSON), `--get` (the defaults alone), `--set <category>
+<desktop_id> [name]`, `--resolve <category>` (the path of the resolved `.desktop`, which
+`launch-file-manager.sh` opens), and two one-shot migrations, `--prune` and
+`--ensure-filemanager` (both below). The QML draws and never classifies, the
+`system-stats.sh` split.
 
 **An app is a candidate because its own `.desktop` file says so, never because it is
 named in a list here.** The classifier is one line per category over the entry's
@@ -1542,14 +1545,14 @@ will do — a default inherited from a system-wide file or from the subclass tre
 a real answer rather than "No default set".
 
 The menu itself is `OverlayPanel` like the other four, with six category pills across
-the top (All plus the five), a scrolling body of two-column cards and a `countLabel`. `← →` change category,
-`↑ ↓`/PageUp/PageDown/Home/End scroll, Escape closes. Like `KeybindsHelp` and unlike the
-launcher, **there is no selected row** and Enter is a second Escape; the pills get their
-own `MouseArea`s, which is safe only because they sit in a static `Row` and not inside
-the flickable (see **Five traps shared by the three bodies**). A click updates the badge
-optimistically and `--list` reconciles when the write exits; a second click while one
-write is in flight is queued rather than run alongside it, so two python writers can
-never race for `mimeapps.list`.
+the top (All plus the five), a scrolling body of two-column cards and a `countLabel`. `←
+→` change category, `↑ ↓`/PageUp/PageDown/Home/End scroll, Escape closes. Like
+`KeybindsHelp` and unlike the launcher, **there is no selected row** and Enter is a
+second Escape; the pills get their own `MouseArea`s, which is safe only because they sit
+in a static `Row` and not inside the flickable (see **Five traps shared by the three
+selectable bodies**). A click updates the badge optimistically and `--list` reconciles
+when the write exits; a second click while one write is in flight is queued rather than
+run alongside it, so two python writers can never race for `mimeapps.list`.
 
 ### `SUPER+E` goes through `launch-file-manager.sh`
 
@@ -1785,7 +1788,6 @@ Four things worth knowing:
   later warns again. On this desktop UPower reports no battery at all and the whole
   thing is inert.
 
-
 ## The screen recorder (SUPER+CTRL+S)
 
 `hypr/scripts/screen-record.sh` is the whole backend — `--toggle` (slurp a region and
@@ -1828,7 +1830,6 @@ The pieces that took thought:
 
 `wf-recorder` is in `PACMAN_PKGS`; the region select reuses the `slurp` that `SUPER+S`
 already needed.
-
 
 ## Pending updates
 
@@ -1980,9 +1981,6 @@ tested behind a detached timer that re-enables it unconditionally a few seconds 
 otherwise the test is the outage. The cost of doing without it is that the panel stays
 powered behind hyprlock all night. That is the cheaper of the two failures.
 
-
-
-
 ## btop (Catppuccin Mocha)
 
 `btop/` is `btop.conf` plus `themes/catppuccin_mocha.theme`. btop is bound to
@@ -2042,7 +2040,7 @@ are), chrome — headerbar, sidebar — is the recessed `mantle`, popovers and c
 step up to `surface0`, and the accent is `blue`, the same one `CalendarPopup`'s
 today disc and swaync's normal-urgency stripe use.
 
-Five things to know before editing:
+Seven things to know before editing:
 
 - **The GTK4 palette is declared twice, and both are load-bearing.**
   `@define-color` is what libadwaita ≤ 1.5 reads; the `:root { --window-bg-color:
@@ -2066,16 +2064,16 @@ Five things to know before editing:
   own derivations.
 - **Folder icons are images; CSS cannot touch them.** They are the dominant
   colour in a file manager, so `papirus-folders -C cat-mocha-blue --theme
-  Papirus-Dark` recolours them, from `apply_gtk_theme()` rather than
-  `apply_gtk_theme` rather than a first-install-only step — it is how a new
-  machine gets the colour at all, and it is idempotent. It does *not* need to run to
-  survive a `papirus-icon-theme`
-  upgrade (which does reset the folder symlinks it owns):
-  `papirus-folders-catppuccin-git` ships a `PostTransaction` pacman hook that
-  re-applies the last used colour. Call it **without** `sudo` — it re-execs
-  itself under sudo and forwards `USER_HOME`/`XDG_DATA_DIRS` in the process.
-  Note it both *provides* and *conflicts with* plain `papirus-folders`, so
-  listing both in `PARU_PKGS` fails the whole transaction.
+  Papirus-Dark` recolours them, from `apply_gtk_theme()` rather than from a
+  first-install-only step — it is how a new machine gets the colour at all,
+  and it is idempotent. It does *not* need to run to survive a
+  `papirus-icon-theme` upgrade (which does reset the folder symlinks it
+  owns): `papirus-folders-catppuccin-git` ships a `PostTransaction` pacman
+  hook that re-applies the last used colour. Call it **without** `sudo` —
+  it re-execs itself under sudo and forwards `USER_HOME`/`XDG_DATA_DIRS` in
+  the process. Note it both *provides* and *conflicts with* plain
+  `papirus-folders`, so listing both in `PARU_PKGS` fails the whole
+  transaction.
 - **The `papirus-folders` call is wrapped in an `if`, and must stay that way.**
   It calls `fatal` for a colour the installed theme lacks, and its sudo re-exec
   fails on a declined password prompt. Either one, under `set -e`, aborts the
