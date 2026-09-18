@@ -2555,6 +2555,29 @@ JetBrainsMono the rest of the session uses.)
   is the only interpreter anything here calls. Without it that script prints nothing
   rather than guessing, so the PIA menu's Region row just reads `Automatic` for ever —
   a silent failure, which is exactly the shape this list exists to prevent.
+- **A package the distro's own desktop profile happened to install is still missing.**
+  The list was written on a machine CachyOS had already set up as a Hyprland desktop, so
+  eight packages nothing here installs were present anyway and nothing looked wrong. On
+  an install done *without* a desktop environment they are simply absent, and each one
+  fails silently in the way this list exists to prevent: `upower` (`BatteryPill`,
+  `BatteryWatcher`, `PowerProfileMenu` — nothing in either list depends on it),
+  `pipewire-pulse` (`wireplumber` depends on `pipewire`, not on a pulse provider, so
+  `audio-output-toggle.sh`'s `pactl` calls have no server and `SUPER+O` stops working),
+  `fish` (`fish` is in `CONFIGS`; the shell was in neither package list), `git` and
+  `base-devel` (paru builds `PARU_PKGS` with them, and LazyVim clones its plugins with
+  git on first launch), `xdg-desktop-portal-hyprland` (hyprland lists it as an
+  **optional** dep, so it never arrives on its own — no screencast),
+  `xdg-desktop-portal-gtk` (the portal file chooser `gtk-3.0/mocha.css` themes) and
+  `bluez-utils` (blueman pulls only `bluez` itself). The test for this list is not "does
+  it work here", it is "what would a machine with nothing but `base` be missing".
+- **`PACMAN_PKGS` is CachyOS-only, deliberately.** `paru`, `brave-origin-bin` and
+  `localsend` are in the `cachyos` repo and in no Arch repo (`quickshell` and `awww`
+  *are* in Arch `extra` — CachyOS only rebuilds them, which is easy to misread from
+  `pacman -Si`). One unresolvable name fails the whole `--noconfirm` transaction, so on
+  vanilla Arch the run aborts under `set -e` before `deploy_configs` — and `paru` is
+  circular there besides, since line 142 calls the tool line 141 was meant to install.
+  Supporting Arch means splitting those three out and bootstrapping paru from the AUR;
+  it is not a matter of adding a package.
 - **A package that only needs installing, not enabling, is worth saying so about.**
   `power-profiles-daemon` ships
   `/usr/share/dbus-1/system-services/net.hadess.PowerProfiles.service` with
@@ -2639,6 +2662,42 @@ JetBrainsMono the rest of the session uses.)
   second should be a last resort: every prompt that used to be here turned out to be a
   value that could be discovered, deferred to the UI that displays it, or simply always
   applied.
+
+## Services (`enable_services`)
+
+**This is the step that decides whether a fresh machine can log in at all.** `sddm` is
+in `PACMAN_PKGS`, `deploy_configs` puts `voidsddm` in `/usr/share/sddm/themes` and names
+it in `/etc/sddm.conf.d` — and until this function existed, nothing ever *enabled* the
+unit. The only `systemctl enable` in the repo was `avahi-daemon`. So a CachyOS install
+done without a desktop environment ran the whole script successfully, printed
+`Hyprland is not running -- the new config applies at next login`, and then had no next
+login: the first reboot landed on a TTY holding a fully configured session it had no way
+to reach. Two other units had the same shape — NetworkManager, which `WifiMenu` and
+`NetworkPill` read through, and `bluetoothd`, which `BluetoothPill` talks to — both
+installed by `PACMAN_PKGS` and neither running.
+
+`enable` is a no-op on an already-enabled unit, so like `apply_system_tweaks` these run
+every deploy rather than behind a "first install?" question.
+
+- **sddm is enabled without `--now`, and that matters.** It takes a VT, so starting it
+  from inside the very session it is meant to launch pulls the display out from under
+  Hyprland. It is a boot-time unit; the next boot is when it should first run.
+- **`[ -L /etc/systemd/system/display-manager.service ]` is what decides whether a
+  display manager is already installed — never `readlink`'s exit status.** `readlink -f`
+  canonicalizes a path whose last component does not exist and **still exits 0**
+  (verified: on a missing name it echoes the query path back). So the obvious
+  `dm="$(basename "$(readlink -f …)")"` yields `display-manager.service` on exactly the
+  machine this function exists for, which reads as "some other DM is in charge" and
+  skips the one enable that matters. A machine that genuinely has gdm or ly is left
+  alone, which is the branch that made the guard look necessary in the first place.
+- **NetworkManager is skipped where `systemd-networkd` is active**, because enabling it
+  alongside leaves two daemons fighting over the same interfaces.
+- **bluetooth is *not* guarded on an adapter being present.** `bluetoothd` with no
+  hardware just idles, and guarding would mean a dongle plugged in later found nothing
+  listening. `BluetoothPill` hides itself when there is no adapter anyway.
+- **Every branch is guarded rather than left to `set -e`.** A service that will not
+  enable is worth a warning, not a deploy that stops *after* the configs are already
+  copied — the same rule `papirus-folders` follows in `apply_gtk_theme`.
 
 ## System tweaks (`apply_system_tweaks`)
 

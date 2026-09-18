@@ -24,6 +24,10 @@ ORPHANS=(
     hypr/scripts/weather.sh
 )
 
+# CachyOS only: paru, brave-origin-bin and localsend live in the `cachyos` repo
+# and are not in Arch's. One unresolvable name fails the whole --noconfirm
+# transaction, and under `set -e` that aborts the run before deploy_configs --
+# so this list is not portable to vanilla Arch and is not meant to be.
 PACMAN_PKGS=(
     kitty hyprland quickshell hyprlock hypridle awww ttf-font-awesome
     ttf-jetbrains-mono-nerd swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look
@@ -32,6 +36,22 @@ PACMAN_PKGS=(
     speedtest-cli brave-origin-bin paru tesseract tesseract-data-eng adw-gtk-theme cantarell-fonts
     papirus-icon-theme jq libpulse wireplumber pavucontrol power-profiles-daemon networkmanager
     qt6-imageformats libnotify wl-clipboard curl python xdg-utils pacman-contrib fakeroot sddm avahi
+    # Present on this machine only because the CachyOS desktop profile installed
+    # them -- nothing above pulls any of them in, so a no-desktop install would
+    # deploy the configs that use them and have them silently do nothing:
+    #   upower                       BatteryPill, BatteryWatcher, PowerProfileMenu
+    #   pipewire-pulse               pactl in audio-output-toggle.sh (wireplumber
+    #                                depends on pipewire, not on a pulse provider)
+    #   fish                         `fish` is in CONFIGS; the shell itself was not
+    #                                in either list
+    #   git, base-devel              paru builds PARU_PKGS with them, and LazyVim
+    #                                clones its plugins with git on first launch
+    #   xdg-desktop-portal-hyprland  hyprland lists it as an OPTIONAL dep, so it
+    #                                does not arrive on its own: no screencast
+    #   xdg-desktop-portal-gtk       the portal file chooser gtk-3.0/mocha.css themes
+    #   bluez-utils                  bluetoothctl; blueman pulls only bluez itself
+    upower pipewire-pulse fish git base-devel xdg-desktop-portal-hyprland
+    xdg-desktop-portal-gtk bluez-utils
 )
 
 PARU_PKGS=(
@@ -321,6 +341,81 @@ apply_gtk_theme() {
     fi
 }
 
+# Units the session needs that deploy_configs cannot reach. `enable` is a no-op
+# on an already-enabled unit, so like apply_system_tweaks these run every time
+# rather than behind a "first install?" question.
+#
+# This is the step that decides whether a fresh machine can log in at all. sddm
+# is in PACMAN_PKGS, deploy_configs puts the theme in /usr/share/sddm/themes and
+# names it in /etc/sddm.conf.d -- and before this, nothing ever started it, so a
+# no-desktop install ended at a TTY holding a fully configured session it had no
+# way to reach. Same shape for the other two: NetworkManager is what WifiMenu and
+# NetworkPill read through, and bluetoothd is what BluetoothPill talks to; both
+# were installed and neither was running.
+#
+# Every branch is guarded rather than left to `set -e`: a service that will not
+# enable is worth a warning, not a deploy that stops after the configs are
+# already copied. Same rule as papirus-folders in apply_gtk_theme.
+enable_services() {
+    info "Enabling services"
+
+    # NOT --now. sddm takes a VT, and starting it from inside the very session
+    # it is meant to launch pulls the display out from under Hyprland. It is a
+    # boot-time unit, so the next boot is when it should first run.
+    # The -L test is what settles "is there a display manager", NOT readlink's
+    # exit status: `readlink -f` canonicalizes a path whose last component does
+    # not exist and still exits 0, so on the machine this whole function is for
+    # -- a fresh install with no DM -- it hands back the query path itself and
+    # dm becomes "display-manager.service", which reads as some other DM being
+    # in charge and skips the one enable that matters.
+    local dm=""
+    if [ -L /etc/systemd/system/display-manager.service ]; then
+        dm="$(basename "$(readlink -f /etc/systemd/system/display-manager.service)")"
+    fi
+    case "$dm" in
+        sddm.service)
+            echo "    sddm already enabled" ;;
+        "")
+            if sudo systemctl enable sddm >/dev/null 2>&1; then
+                echo "    sddm enabled (takes effect at the next boot)"
+            else
+                echo "    WARNING: could not enable sddm. Until it is, log in from a TTY"
+                echo "             by running 'Hyprland', or enable it by hand:"
+                echo "               sudo systemctl enable sddm"
+            fi ;;
+        *)
+            echo "    skip sddm (${dm%.service} is the display manager on this machine)" ;;
+    esac
+
+    # Enabling NetworkManager beside a running systemd-networkd makes two things
+    # fight over the same interfaces, so that machine keeps what it has.
+    if systemctl is-active NetworkManager >/dev/null 2>&1; then
+        sudo systemctl enable NetworkManager >/dev/null 2>&1 || true
+        echo "    NetworkManager already running"
+    elif systemctl is-active systemd-networkd >/dev/null 2>&1; then
+        echo "    skip NetworkManager (systemd-networkd is managing the network)"
+    elif sudo systemctl enable --now NetworkManager >/dev/null 2>&1; then
+        echo "    NetworkManager enabled"
+    else
+        echo "    WARNING: could not enable NetworkManager -- the network module"
+        echo "             and nmcli will have nothing to report."
+    fi
+
+    # Not guarded on an adapter being present: bluetoothd with no hardware just
+    # idles, and guarding would mean a dongle plugged in later found nothing
+    # listening. BluetoothPill hides itself when there is no adapter anyway.
+    if ! systemctl cat bluetooth.service >/dev/null 2>&1; then
+        echo "    skip bluetooth (no bluetooth.service on this machine)"
+    elif systemctl is-active bluetooth >/dev/null 2>&1; then
+        sudo systemctl enable bluetooth >/dev/null 2>&1 || true
+        echo "    bluetooth already running"
+    elif sudo systemctl enable --now bluetooth >/dev/null 2>&1; then
+        echo "    bluetooth enabled"
+    else
+        echo "    WARNING: could not enable bluetooth -- BluetoothMenu will stay empty."
+    fi
+}
+
 # System settings (mDNS daemon, terminal handler, text editor whitespace)
 apply_system_tweaks() {
     info "Applying system settings"
@@ -509,6 +604,7 @@ main() {
     prune_mime_sweep
     ensure_file_manager_default
     check_lid_handling
+    enable_services
     apply_system_tweaks
     apply_gtk_theme
     get_wallpapers
