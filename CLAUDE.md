@@ -1084,8 +1084,8 @@ role cannot be inferred from its name — on this machine the headphones are the
 jack and the speakers are USB, and other machines invert that. The answer therefore had to
 be edited into a shell script, could only be one of two roles, and needed four `PRESERVE`
 entries to survive a deploy. It is a click in the menu now: the glyph on each output row
-is a button that drops a palette of six icons underneath it (`AudioService.iconChoices` —
-volume, speakers, headphones, bluetooth, display, TV), and the choice is remembered with
+is a button that drops a palette of seven icons underneath it (`AudioService.iconChoices` —
+volume, speakers, headphones, earbuds, bluetooth, display, TV), and the choice is remembered with
 everything else about that sink. The palette is laid out inline rather than as a popup —
 a second layer-shell surface over a menu that already holds the keyboard is a lot of
 machinery for six glyphs.
@@ -1186,9 +1186,11 @@ Two things that make that rule work, both of which cost a wrong attempt first:
 
 `reload_session` restarts wireplumber for the same reason it restarts the bar and
 hypridle: the `.conf.d` is read once at startup, so without it a changed rule waits for
-the next login and the deploy looks like it did nothing. The stale `records` the old
-four sinks left in `~/.cache/quickshell-audio.json` are inert — `records` is the memory
-and `outputs` is the menu, and only present sinks are drawn.
+the next login and the deploy looks like it did nothing. **It restarts it before the
+bar, and that order is load-bearing** — see `reload_session()` under **install.sh
+conventions**. The stale `records` the old four sinks left in
+`~/.cache/quickshell-audio.json` are inert — `records` is the memory and `outputs` is
+the menu, and only present sinks are drawn.
 
 Three traps in the service:
 
@@ -2612,7 +2614,21 @@ JetBrainsMono the rest of the session uses.)
   reads `hypridle.conf` once at startup for the same reason the bar reads its QML once.
   Without that a changed timeout or lock command sits there until the next
   logout, which reads as the deploy having skipped the file. Every call is `|| true`: a
-  cosmetic reload must not abort a finished deploy under `set -e`. It is the **last**
+  cosmetic reload must not abort a finished deploy under `set -e`.
+  **wireplumber goes first, and the bar last, with two seconds between them.** The bar
+  binds to the sink nodes wireplumber is publishing at the moment it starts, and
+  restarting wireplumber underneath it destroys every one of them — after which the bar
+  does *not* re-resolve `Pipewire.defaultAudioSink`. `AudioPill`'s label is then empty,
+  and `Pill` hides a module with an empty label, so **the audio module simply vanishes
+  from the bar** and stays gone until something restarts it. That is a deploy which
+  silently takes a module off the bar, and it reads as whatever QML was edited that day
+  having broken it. Measured on a real deploy with the old order (bar, then wireplumber
+  1.5 s later): seven `Pipewire error on object N with code -116 no global M any more`
+  lines in `qs log` and no audio module; restarting quickshell alone, with nothing else
+  changed, brought it back with a clean log; and the new order has neither the errors nor
+  the missing module. Starting the bar against a wireplumber that has already finished
+  re-publishing is what makes it unreachable, rather than hoping the bar recovers.
+  It is the **last**
   step in `main()`, so the bar
   comes up reading everything the earlier steps wrote — including the icon theme
   `apply_gtk_theme` puts in gsettings, which is how `AppLauncher` resolves app icons on a
