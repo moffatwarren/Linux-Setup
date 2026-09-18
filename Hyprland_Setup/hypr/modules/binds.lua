@@ -35,6 +35,8 @@ hl.bind(config.mainMod .. " + SHIFT + N", hl.dsp.exec_cmd("qs ipc call notificat
 hl.bind(config.mainMod .. " + T", hl.dsp.exec_cmd(config.terminal .. " --class btop-float -e btop"), { bypass = true })
 hl.bind(config.mainMod .. " + G", hl.dsp.exec_cmd('~/.config/hypr/scripts/launch-browser.sh --app="https://gemini.google.com/app"'),
 	{ bypass = true })
+hl.bind(config.mainMod .. " + Y", hl.dsp.exec_cmd('~/.config/hypr/scripts/launch-browser.sh --app="https://youtube.com"'),
+	{ bypass = true })
 -- Turns the laptop's built-in screen off/on. Which monitor that is comes from
 -- the DRM connector name (monitor_utils.internal_panel); there is nothing to
 -- configure. Does nothing on a desktop, or on a laptop with no external screen
