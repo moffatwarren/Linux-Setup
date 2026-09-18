@@ -138,6 +138,7 @@ Singleton {
         { key: "volume",     glyph: "\udb81\udd7e", label: "Volume" },
         { key: "speaker",    glyph: "\udb81\udcc3", label: "Speakers" },
         { key: "headphones", glyph: "\udb80\udecb", label: "Headphones" },
+        { key: "earbuds",    glyph: "\udb86\udc4f", label: "Earbuds" },
         { key: "bluetooth",  glyph: "\udb80\udcb1", label: "Bluetooth" },
         { key: "display",    glyph: "\udb83\udf5f", label: "Display" },
         { key: "tv",         glyph: "\udb81\udd02", label: "TV" }

@@ -85,7 +85,7 @@ switched on — so a monitor's HDMI audio can be left out of the rotation withou
 being hidden. Inputs take a radio button, since only one can be the default.
 
 Clicking an output's icon opens a small palette — volume, speakers, headphones,
-bluetooth, display, TV — and that becomes its icon in the bar and in the popup
+earbuds, bluetooth, display, TV — and that becomes its icon in the bar and in the popup
 `SUPER+O` raises. Worth setting once: nothing can tell headphones from speakers
 by the sink name, so a wired headset otherwise just gets the generic volume icon.
 

@@ -224,7 +224,7 @@ MenuPopup {
                 // (see AudioService.defaultIconKey), so it is asked once and
                 // remembered. Laid out inline rather than as a popup: a second
                 // layer-shell surface over a menu that already holds the
-                // keyboard is a lot of machinery for six glyphs.
+                // keyboard is a lot of machinery for seven glyphs.
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.bottomMargin: 2

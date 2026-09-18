@@ -160,6 +160,7 @@ PanelWindow {
                                 if (icon.indexOf("muted") !== -1) return "\udb81\udf5f";    // volume-mute
                                 if (icon.indexOf("headphone") !== -1 || icon.indexOf("headset") !== -1)
                                     return "\udb80\udecb";                                  // headphones
+                                if (icon.indexOf("earbud") !== -1) return "\udb86\udc4f";    // earbuds
                                 if (icon.indexOf("bluetooth") !== -1) return "\udb80\udcb1";
                                 if (icon.indexOf("speaker") !== -1) return "\udb81\udcc3";
                                 if (icon.indexOf("display") !== -1) return "\udb83\udf5f";
@@ -187,6 +188,7 @@ PanelWindow {
                             // that output (AudioService.iconChoices), passed
                             // through so the OSD names the output the same way
                             // the pill does.
+                            if (icon.indexOf("earbud") !== -1) return "\udb86\udc4f";        // earbuds
                             if (icon.indexOf("bluetooth") !== -1) return "\udb80\udcb1";
                             if (icon.indexOf("speaker") !== -1) return "\udb81\udcc3";
                             if (icon.indexOf("display") !== -1) return "\udb83\udf5f";

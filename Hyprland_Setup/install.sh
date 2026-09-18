@@ -383,6 +383,29 @@ reload_session() {
     hyprctl reload >/dev/null 2>&1 || true
     echo "    hyprctl reload"
 
+    # wireplumber reads wireplumber.conf.d once at startup, like the bar reads its
+    # QML and hypridle its config. Without this a changed ALSA rule sits there
+    # until the next login -- and the one this repo ships decides how many sinks
+    # a monitor produces, so "the deploy did nothing" would be the whole symptom.
+    # Audio drops for the moment it takes; streams reconnect by themselves.
+    #
+    # It goes BEFORE the bar, and the settle is load-bearing. The bar binds to
+    # the sink nodes wireplumber is publishing when it starts; restarting
+    # wireplumber underneath it destroys every one of them, and the bar does not
+    # re-resolve Pipewire.defaultAudioSink afterwards -- AudioPill's label is
+    # then empty and Pill hides a module with an empty label, so the audio
+    # module simply disappears from the bar until something restarts it.
+    # Measured on a real deploy: the log filled with "Pipewire error on object N
+    # with code -116 no global M any more" for seven nodes, the audio module was
+    # gone, and restarting quickshell alone -- nothing else changed -- brought it
+    # straight back with a clean log. Starting the bar against a wireplumber
+    # that has already finished re-publishing is what makes that unreachable.
+    if systemctl --user is-active wireplumber >/dev/null 2>&1; then
+        systemctl --user restart wireplumber >/dev/null 2>&1 || true
+        sleep 2
+        echo "    wireplumber restarted (one HDMI sink per connected display)"
+    fi
+
     killall quickshell >/dev/null 2>&1 || true
     sleep 1
     setsid quickshell >/dev/null 2>&1 &
@@ -395,16 +418,6 @@ reload_session() {
         setsid hypridle >/dev/null 2>&1 &
         disown
         echo "    hypridle restarted (idle and lock rules)"
-    fi
-
-    # wireplumber reads wireplumber.conf.d once at startup, like the bar reads its
-    # QML and hypridle its config. Without this a changed ALSA rule sits there
-    # until the next login -- and the one this repo ships decides how many sinks
-    # a monitor produces, so "the deploy did nothing" would be the whole symptom.
-    # Audio drops for the moment it takes; streams reconnect by themselves.
-    if systemctl --user is-active wireplumber >/dev/null 2>&1; then
-        systemctl --user restart wireplumber >/dev/null 2>&1 || true
-        echo "    wireplumber restarted (one HDMI sink per connected display)"
     fi
 
     check_notification_owner
