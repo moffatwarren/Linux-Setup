@@ -119,3 +119,21 @@ hl.window_rule({
 	match = { class = "^steam_app_.*$" },
 	immediate = true,
 })
+
+-- gamescope in a Steam launch command replaces the game's own window with its
+-- own, app_id `gamescope` (verified: the nested Wayland backend sends
+-- xdg_toplevel.set_app_id("gamescope")), so the steam_app_ rule above cannot
+-- match it and this one is what a gamescope'd game needs instead.
+--
+-- Caveat measured on gamescope 3.16.25: nested under Hyprland it never binds
+-- `wp_tearing_control_manager_v1` -- Hyprland advertises the global and
+-- gamescope ignores it -- and its --immediate-flips flag is DRM-backend only.
+-- So gamescope will never ASK to tear; this rule is the forcing half, and
+-- gamescope's own internal frame pacing still sits between the game and the
+-- screen. `hyprctl monitors -j` reports `tearingBlockedBy` per monitor, which
+-- is the way to tell whether any of this actually engaged.
+hl.window_rule({
+	name = "gamescope-tearing",
+	match = { class = "^gamescope$" },
+	immediate = true,
+})
