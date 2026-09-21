@@ -1,0 +1,2 @@
+PROTON_ENABLE_NVAPI=0 RADV_PERFTEST=aco gamescope -w 3440 -h 1440 -f -- %command%
+PROTON_NO_NTSYNC=1 gamescope -w 3440 -h 1440 -f -- %command%
