@@ -106,3 +106,16 @@ hl.window_rule({
 	no_shortcuts_inhibit = true,
 })
 
+-- Steam launches every game with class `steam_app_<appid>`, so one regex covers
+-- the lot. `immediate` opts the window into tearing; `general.allow_tearing`
+-- (look.lua) is the master switch it needs beside it, and the game itself still
+-- has to request tearing through the tearing-control protocol -- so a game that
+-- does not ask is unaffected and nothing outside this class can ever tear.
+-- Wanted for frame generation: with the compositor holding every frame to
+-- vsync, interpolated frames arrive in pairs against a fixed refresh and pace
+-- as micro-stutter rather than as motion.
+hl.window_rule({
+	name = "steam-tearing",
+	match = { class = "^steam_app_.*$" },
+	immediate = true,
+})

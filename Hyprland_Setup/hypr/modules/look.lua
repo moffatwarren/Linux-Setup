@@ -22,7 +22,11 @@ hl.config({
 
 		resize_on_border = false,
 
-		allow_tearing = false,
+		-- This is only the master switch: it tears nothing on its own. A window
+		-- still has to be opted in by an `immediate` rule (rules.lua) AND ask for
+		-- it through the tearing-control protocol, so everything that is not a
+		-- fullscreen game stays vsynced exactly as before.
+		allow_tearing = true,
 
 		layout = "dwindle",
 	},
