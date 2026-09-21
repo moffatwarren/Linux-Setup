@@ -742,7 +742,16 @@ menu; its open flag moved from the popup onto the pill, because a `property bool
 `ListPopup` now shadows `MenuPopup`'s and the panel would never show.
 
 `tailscale.sh` and `pia.sh` are driven by `ScriptPill.qml`, which runs them with
-`Process` and parses the waybar-style JSON they still print. Audio/battery/network/
+`Process` and parses the waybar-style JSON they still print. **`tailscale.sh` asks
+`tailscale status --json` once and derives every field from that one capture** — the
+BackendState test, the peer list and the exit node each used to run their own, three
+daemon round trips a tick for ever to answer one question (measured: 15 forks a poll
+against 6). Building the object in one `jq` also makes the output *valid* JSON, which it
+was not: the peer list is joined with raw carriage returns and the old `echo` emitted them
+unescaped, which is what `ScriptPill`'s control-character pass exists to survive. That
+pass stays as a defence. Nothing reads `tooltip` anyway — `TailscaleMenu` gets its
+peers from its own `tailscale status --json` — so the field is kept only because dropping
+it is a separate decision. Audio/battery/network/
 bluetooth/workspaces/media use Quickshell's native services instead, so the bar is
 event-driven rather than polling.
 
@@ -1062,6 +1071,29 @@ Clicking an output row is separate from its switch — the row makes that output
 default right now, the switch decides whether `SUPER+O` will ever land on it. pavucontrol
 is the footer, where blueman's is in `BluetoothMenu`.
 
+**The `Output` and `Input` headers each carry a `VolumeSlider` and the percentage it
+sets** — the default sink's level and the default source's, the same two numbers the
+pill draws and the `XF86Audio*` keys move. There is one slider per *section*, not one per
+row: a row names an output, and a slider on a row that is not the default would be
+offering to set the level of something nothing is playing through. The sink's readout
+moved down out of the `Audio` header to get there, so the level is rendered once rather
+than twice; it is still the click target that mutes, as it was up there.
+
+`VolumeSlider.qml` is drawn by hand — a track, a fill and a handle — like the switch and
+the radio button beside it. Nothing in this bar imports `QtQuick.Controls`, and a styled
+`Slider` would be more machinery than three rectangles. Three things in it:
+
+- **It writes the `PwNodeAudio` directly**, the object `AudioPill`'s wheel already sets,
+  so there is no state of its own to fall out of step with the node.
+- **The handle's travel is `width - handleSize`, and the track is inset by half a handle
+  at each end**, so the fill's right edge and the handle's centre are the same x at every
+  value. Verified at both ends and the middle: `x` at the left inset gives exactly 0, the
+  midpoint 0.5, the right inset 1, and out-of-range x clamps rather than overshooting.
+- **A drag unmutes**, the way `AudioPill`'s wheel does. A slider that moves and makes no
+  sound reads as a broken slider, and the percentage beside it is the mute toggle for
+  when muting was what was wanted. Its wheel is the same 1% a notch the pill and the
+  volume keys use.
+
 `AudioService.qml` is a `pragma Singleton` owning the rotation, the icon choices and the
 file both are persisted to. It is a singleton for the reason `NotificationService` and
 `RecorderService` are: there is one `Bar` — and so one `AudioPill` and one `AudioMenu` —
@@ -1104,9 +1136,18 @@ deliberately not guessed; that is the distinction the picker exists for.
 **The OSD gets the same icon.** `audio-output-toggle.sh` reads the chosen key back out and
 sends `-i audio-<key>-symbolic`, which `NotificationToasts.qml` matches to pick its glyph
 (Qt never renders the SVG behind an icon *name* — see **OSDs are not messages**). Without
-that the popup naming the new output would disagree with the pill showing it. The script
-carries its own copy of `defaultIconKey`'s inference for a sink with no record, so the two
-agree before anything has been picked either.
+that the popup naming the new output would disagree with the pill showing it.
+
+**The shell side of that inference lives in `hypr/scripts/audio-lib.sh`**, sourced by
+`audio-output-toggle.sh` and `volume-notify.sh` — `icon_key` (the record lookup plus the
+same fallback `defaultIconKey` makes), `icon_name` (the volume ladder and the mute case),
+and `get_volume`/`get_mute`/`get_default_sink`. It exists because the two scripts had
+each carried their own copy and **the copies had already drifted**: both checked `hdmi`
+and neither checked `displayport`, so a DisplayPort sink drew the display glyph on the
+pill and a volume glyph in the OSD beside it — the exact disagreement passing the icon
+name through exists to prevent. Two copies of one inference is one too many; the third is
+in QML and cannot be helped, so one shell copy is the floor. A change to
+`AudioService.defaultIconKey` is a change to `icon_key`, and the comment above it says so.
 
 Four things follow from how that file is read:
 
@@ -1259,8 +1300,21 @@ the bar at all. Four things to know:
   `connecting` and `disconnecting` itself, so unlike `TailscaleMenu`'s `toggling` there is
   nothing to hold and nothing to expire. What the pill does add is `act()`: every menu
   action runs `pia.sh` and then starts *two* polls, because `ScriptPill.pollFast()` only
-  re-runs `--status` while the region and the IPs come from separate processes on a 20 s
-  tick — and those are exactly the rows a region change moves.
+  re-runs `--status` while the region and the IPs come from separate processes — and those
+  are exactly the rows a region change moves.
+- **Only `--status` and the service check poll while the menu is shut.** The region, both
+  IPs and the protocol appear nowhere on the pill, and `pia-region.sh` is a curl against
+  PIA's server list plus a python match, so `refreshDetails()`'s 20 s timer is gated on
+  `piaMenu.open` — the rule `PowerProfilePill` already follows for `system-stats.sh`, with
+  the same immediate read in `openMenu()` so the menu opens on fresh numbers. Measured
+  over 25 s of an idle bar before that gate, this module was the largest single source of
+  process churn in the session: nine `pia.sh --status`, four `piactl get` and one
+  `pia-region.sh`, every one of the last five updating a row nobody could see.
+  `refreshService()` is what stays unconditional, because `serviceAbsent` blanks the label
+  and `Pill` hides a module with no label — so it decides whether the module is in the bar
+  at all. Two minutes is enough for it: the question it really asks is "is PIA installed",
+  and the two moments the daemon's own state can change (`startService()`, `act()`) each
+  drive their own burst.
 - **Picking a region connects.** `piactl connect` doubles as "reconnect to apply new
   settings" (`piactl --help`), so `--set-region` runs it either way: to apply the change
   when connected, and because choosing a place to connect to means you want to be there

@@ -1,91 +1,42 @@
 #!/bin/bash
+#
+# The XF86AudioRaise/Lower/Mute keys: change the level and draw the OSD.
+#
+# get_volume / get_mute / get_default_sink / icon_key / icon_name are shared
+# with audio-output-toggle.sh -- see audio-lib.sh for why they are not copied
+# into both any more.
 
-# Function to get the current volume percentage
-get_volume() {
-  wpctl get-volume @DEFAULT_AUDIO_SINK@ | awk '{print int($2 * 100)}'
-}
+set -uo pipefail
 
-# Function to check if the volume is muted
-get_mute() {
-  wpctl get-volume @DEFAULT_AUDIO_SINK@ | grep -q MUTED && echo "yes" || echo "no"
-}
+source "$(dirname "$(readlink -f "$0")")/audio-lib.sh"
 
-get_default_sink() {
-  local name
-  name=$(wpctl inspect @DEFAULT_AUDIO_SINK@ 2>/dev/null | awk -F'"' '/node.name =/{print $2; exit}')
-  if [ -z "$name" ]; then
-    name=$(pactl get-default-sink 2>/dev/null)
-  fi
-  printf '%s\n' "$name"
-}
-
-STATE="$HOME/.cache/quickshell-audio.json"
-
-icon_key() {
-  local key=""
-  if [ -r "$STATE" ]; then
-    key=$(jq -r --arg n "$1" \
-          '(.outputs // [])[] | select(.name == $n) | .icon // empty' \
-          "$STATE" 2>/dev/null | head -n 1)
-  fi
-  if [ -n "$key" ]; then
-    printf '%s\n' "$key"
-  elif [ "${1#bluez}" != "$1" ]; then
-    printf 'bluetooth\n'
-  elif [ "${1#*hdmi}" != "$1" ]; then
-    printf 'display\n'
-  else
-    printf 'volume\n'
-  fi
-}
-
-# The icon NAME is the OSD's glyph selector: NotificationToasts.qml matches
-# "muted" / "volume-low" / "volume-medium" / "headphone" / "speaker" / etc. in it
-# and draws the matching Material Design glyph from the nerd font. The icon file
-# is not rendered -- these are Adwaita *-symbolic SVGs, which GTK recoloured from
-# a stylesheet but Qt would draw in the near-black fill baked into the file.
-# Thresholds and sink icon lookups match AudioPill.qml's glyph choice, so the
-# popup and the bar agree.
-get_icon() {
-  local volume=$1
-  local current
-  current=$(get_default_sink)
-  local key
-  key=$(icon_key "$current")
-
-  if [ "$key" != "volume" ]; then
-    echo "audio-${key}-symbolic"
-  elif [ "$volume" -eq 0 ]; then
-    echo "audio-volume-muted-symbolic"
-  elif [ "$volume" -lt 34 ]; then
-    echo "audio-volume-low-symbolic"
-  elif [ "$volume" -lt 67 ]; then
-    echo "audio-volume-medium-symbolic"
-  else
-    echo "audio-volume-high-symbolic"
-  fi
-}
-
-# Function to send the notification
+# The x-canonical-private-synchronous hint is what marks this as an OSD rather
+# than a message: NotificationService.qml replaces the popup carrying the same
+# tag instead of stacking one (so holding the key leaves a single card counting
+# up), and keeps the reading out of the notification list entirely -- a volume
+# tap is not something to come back to. int:value is the 0-100 the card draws
+# as a progress bar; neither hint has a dedicated property on Notification, so
+# both are listed in the server's extraHints.
 send_notification() {
+  local volume mute
   volume=$(get_volume)
   mute=$(get_mute)
 
-  # The 'x-canonical-private-synchronous' hint tells SwayNC to replace the existing notification
-  if [ "$mute" == "yes" ]; then
+  if [ "$mute" = "yes" ]; then
+    # No int:value: there is no level to report while muted, and a bar sitting
+    # at the old number under the word "Muted" reads as a contradiction.
     notify-send -a "volume" -h string:x-canonical-private-synchronous:audio-volume \
-      -u low -i audio-volume-muted-symbolic "Volume Muted"
+      -u low -i "$(icon_name "$volume" yes)" "Volume Muted"
   else
     notify-send -a "volume" -h string:x-canonical-private-synchronous:audio-volume \
       -h int:value:"$volume" \
-      -u low -i "$(get_icon "$volume")" "Volume: ${volume}%"
+      -u low -i "$(icon_name "$volume" no "$(get_default_sink)")" "Volume: ${volume}%"
   fi
 }
 
-# Handle the arguments passed from Hyprland
-case $1 in
+case "${1:-}" in
 up)
-  # The '-l 1.0' flag limits the volume to 100%
+  # -l 1.0 caps the level at 100%.
   wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 1%+
   send_notification
   ;;
@@ -98,7 +49,7 @@ mute)
   send_notification
   ;;
 *)
-  echo "Usage: $0 {up|down|mute}"
+  echo "Usage: ${0##*/} {up|down|mute}" >&2
   exit 1
   ;;
 esac
