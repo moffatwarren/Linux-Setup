@@ -141,21 +141,56 @@ ScriptPill {
         }
     }
 
-    function refreshDetails() {
-        if (!details.running) details.running = true;
-        if (!regionProc.running) regionProc.running = true;
+    // The one poll the PILL needs. serviceAbsent blanks the label, and Pill
+    // hides a module with no label -- so this is what decides whether the
+    // module is in the bar at all, and it cannot be gated on the menu.
+    //
+    // It is cheap to run rarely because of what it actually asks: pia.sh
+    // --service is `systemctl cat` (does the unit exist?) then `is-active`,
+    // and the first of those is the answer that matters here. Whether PIA is
+    // *installed* does not change under a running session, and the two moments
+    // the daemon's own state can change -- startService() and act() -- both
+    // drive their own burst below.
+    function refreshService() {
         if (!serviceProc.running) serviceProc.running = true;
     }
 
-    // Refresh on a slow tick, and immediately whenever the state flips or the
-    // panel is about to be shown.
+    // Everything the MENU draws. The region, both IPs and the protocol appear
+    // nowhere on the pill, and regionProc is pia-region.sh -- a curl against
+    // PIA's server list plus a python match. Polling all of that while the
+    // menu is shut was five processes every 20 s to update rows nobody could
+    // see; measured over 25 s of an idle bar it was the single largest source
+    // of process churn in the session.
+    //
+    // Gated on the menu the way PowerProfilePill gates system-stats.sh, with
+    // the same immediate read in openMenu() below so the menu opens on fresh
+    // numbers rather than on a tick that could be 20 s away.
+    function refreshDetails() {
+        if (!details.running) details.running = true;
+        if (!regionProc.running) regionProc.running = true;
+        refreshService();
+    }
+
     Timer {
         interval: 20000
+        running: piaMenu.open
+        repeat: true
+        onTriggered: root.refreshDetails()
+    }
+
+    // Slow, and unconditional. Two minutes rather than twenty seconds because
+    // the question is "is PIA installed", not "is it connected" -- the pill's
+    // own padlock comes from ScriptPill's --status poll, which is unchanged.
+    Timer {
+        interval: 120000
         running: true
         repeat: true
         triggeredOnStart: true
-        onTriggered: root.refreshDetails()
+        onTriggered: root.refreshService()
     }
+
+    // An event, not a poll: this is exactly when the region and the IPs change,
+    // so it is worth the processes whether or not the menu happens to be up.
     onConnectedChanged: { if (!connected) actualRegion = ""; refreshDetails(); }
 
     menu: piaMenu

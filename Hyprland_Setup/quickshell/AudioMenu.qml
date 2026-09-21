@@ -17,6 +17,12 @@ import QtQuick.Layouts
 // for it here would be a control with nothing to control -- SUPER+O cycles the
 // present sinks, and can never land on an output that is not there.
 //
+// The Output and Input headers each carry a VolumeSlider and the percentage it
+// sets: the default sink's level and the default source's. They are the levels
+// the pill draws and the XF86Audio keys move, so there is one of each here
+// rather than one per row -- a per-row slider would be offering to set the
+// level of an output that is not playing anything.
+//
 // AudioService owns both the rotation and the file it persists to -- there is
 // one of these menus per monitor and only one of them may write.
 MenuPopup {
@@ -51,39 +57,15 @@ MenuPopup {
         spacing: 5
 
         // --- header -----------------------------------------------------
-        RowLayout {
-            Layout.fillWidth: true
-
-            Text {
-                text: "Audio"
-                color: Theme.lavender
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize
-                font.bold: true
-            }
-
-            Item { Layout.fillWidth: true }
-
-            // The same mute the pill's right-click does, kept here as the
-            // discoverable way to reach it -- the split BluetoothMenu uses
-            // for the adapter.
-            Text {
-                text: {
-                    if (!root.sinkAudio) return "\u2014";
-                    return root.sinkAudio.muted
-                        ? "muted" : Math.round(root.sinkAudio.volume * 100) + "%";
-                }
-                color: !root.sinkAudio ? Theme.overlay0
-                     : root.sinkAudio.muted ? Theme.red : Theme.green
-                font.family: Theme.fontFamily
-                font.pixelSize: Theme.fontSize
-
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: if (root.sinkAudio) root.sinkAudio.muted = !root.sinkAudio.muted
-                }
-            }
+        // Just the title: the sink's level and its mute toggle used to sit on
+        // the right of this row and now live in the Output header, beside the
+        // slider that sets them.
+        Text {
+            text: "Audio"
+            color: Theme.lavender
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize
+            font.bold: true
         }
 
         Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: Theme.surface1 }
@@ -99,13 +81,44 @@ MenuPopup {
                 font.pixelSize: Theme.fontSize - 3
             }
 
-            Item { Layout.fillWidth: true }
-
             Text {
                 text: AudioService.enabledCount + " in SUPER+O"
                 color: Theme.overlay0
                 font.family: Theme.fontFamily
                 font.pixelSize: Theme.fontSize - 3
+            }
+
+            Item { Layout.fillWidth: true }
+
+            // The default sink's volume. The rows below pick which output is
+            // default; this is the level of whichever one that is, which is
+            // also what the pill draws and what the volume keys move.
+            VolumeSlider {
+                Layout.preferredWidth: 110
+                audio: root.sinkAudio
+            }
+
+            // The mute toggle that used to sit in the "Audio" header, moved
+            // down beside the slider that sets the number it reports -- one
+            // rendering of the sink's level, not two.
+            Text {
+                Layout.preferredWidth: 42
+                horizontalAlignment: Text.AlignRight
+                text: {
+                    if (!root.sinkAudio) return "\u2014";
+                    return root.sinkAudio.muted
+                        ? "muted" : Math.round(root.sinkAudio.volume * 100) + "%";
+                }
+                color: !root.sinkAudio ? Theme.overlay0
+                     : root.sinkAudio.muted ? Theme.red : Theme.green
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSize - 3
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: if (root.sinkAudio) root.sinkAudio.muted = !root.sinkAudio.muted
+                }
             }
         }
 
@@ -300,7 +313,15 @@ MenuPopup {
 
             Item { Layout.fillWidth: true }
 
+            // The default source's level, the sinks' slider's counterpart.
+            VolumeSlider {
+                Layout.preferredWidth: 110
+                audio: root.sourceAudio
+            }
+
             Text {
+                Layout.preferredWidth: 42
+                horizontalAlignment: Text.AlignRight
                 text: {
                     if (!root.sourceAudio) return "\u2014";
                     return root.sourceAudio.muted
