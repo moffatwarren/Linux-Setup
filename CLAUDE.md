@@ -987,7 +987,11 @@ object of raw numbers (bytes, percent, millidegrees, microwatts), leaving all fo
 to the QML. It discovers sensors by **name, not index**: hwmon numbering is assigned in
 probe order and changes between boots, and the DRM card index moves the same way. A
 value it cannot read is omitted from the JSON rather than reported as `0`, so the menu
-drops that row instead of showing a confidently wrong reading. On machines with
+drops that row instead of showing a confidently wrong reading. **The GPU is the card
+that exposes VRAM or utilisation, not the first card**: on a machine with an Intel iGPU
+beside a discrete card the iGPU enumerates first, and i915/xe expose no load, no VRAM and
+no hwmon — so taking the first card silently dropped the GPU, VRAM, GPU-temp *and* Power
+rows at once (measured on an i915 UHD 770 + amdgpu RX 9070 XT desktop). On machines with
 proprietary NVIDIA drivers where sysfs hwmon exposes no GPU stats, a fallback query to
 `nvidia-smi` supplies GPU load, temperature, VRAM, and power draw. That script runs on a
 2 s timer gated on `menu.open`, with one immediate read on the way open, so an idle bar

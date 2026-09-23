@@ -52,15 +52,22 @@ power_input() {
     return 1
 }
 
-# The first amdgpu/i915/nouveau render card. `device/gpu_busy_percent` only
-# exists on amdgpu, so utilisation is simply absent on the others.
+# The GPU to report on. A card exposing VRAM or utilisation (amdgpu) wins over
+# the first card found, because on a machine with an iGPU *and* a discrete card
+# the iGPU usually enumerates first -- and i915/xe expose no load, no VRAM and
+# no hwmon, so picking it silently drops every GPU row and the power reading.
+# Only with no such card does the first one (i915/nouveau) get used.
 gpu_device() {
-    local card
+    local card first=""
     for card in /sys/class/drm/card[0-9]*; do
         [ -e "$card/device/vendor" ] || continue
-        echo "$card/device"
-        return 0
+        if [ -e "$card/device/mem_info_vram_total" ] || [ -e "$card/device/gpu_busy_percent" ]; then
+            echo "$card/device"
+            return 0
+        fi
+        [ -n "$first" ] || first="$card/device"
     done
+    [ -n "$first" ] && { echo "$first"; return 0; }
     return 1
 }
 
