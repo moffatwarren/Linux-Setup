@@ -2,5 +2,7 @@
 
 lsblk
 sudo umount /dev/sda#   -->  unmout if the partition is mounted
-sudo dd bs=4M if=/path/to/archlinux.iso of=/dev/sda conv=fsync oflag=direct status=progress
-sync
+sudo dd bs=128M if=/path/to/archlinux.iso of=/dev/sda conv=fsync oflag=direct status=progress
+
+---> bzcat to unzip the compressed file and pipe directly to sdX usb
+bzcat steamdeck-recovery-4.img.bz2 | sudo dd if=/dev/stdin of=/dev/sdX oflag=sync status=progress bs=128M
