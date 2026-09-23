@@ -5,5 +5,8 @@ sudo umount /dev/sda#   -->  unmout if the partition is mounted
 sudo dd bs=4M if=/path/to/archlinux.iso of=/dev/sda status=progress conv=fdatasync
 sudo sync
 
+-----> if .bz2 file you can unzip like this and then run the dd command
+bunzip2 -k "file path"
+
 ---> bzcat to unzip the compressed file and pipe directly to sdX usb
 bzcat steamdeck-recovery-4.img.bz2 | sudo dd if=/dev/stdin of=/dev/sdX oflag=sync status=progress bs=4M
