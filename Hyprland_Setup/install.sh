@@ -36,7 +36,7 @@ PACMAN_PKGS=(
     speedtest-cli brave-origin-bin paru tesseract tesseract-data-eng adw-gtk-theme cantarell-fonts
     papirus-icon-theme jq libpulse wireplumber pavucontrol power-profiles-daemon networkmanager
     qt6-imageformats libnotify wl-clipboard curl python xdg-utils pacman-contrib fakeroot sddm avahi
-    protonup-qt gamescope
+    protonup-qt gamescope gnome-calculator
     # Present on this machine only because the CachyOS desktop profile installed
     # them -- nothing above pulls any of them in, so a no-desktop install would
     # deploy the configs that use them and have them silently do nothing:
