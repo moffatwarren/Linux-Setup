@@ -1,1 +1,2 @@
 PROTON_NO_NTSYNC=1 gamescope -W 2560 -H 1440 -w 2560 -h 1440 -r 240 -f -- %command%
+MANGOHUD=1   --------> at start to show mangohud
