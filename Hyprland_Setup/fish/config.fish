@@ -13,5 +13,5 @@ alias p "paru -S"
 alias ff "fastfetch"
 alias pk "pokemon-colorscripts -r"
 function lazyg
-    git add --all && git commit -m "Update" && git push origin main
+    git add --all && git commit -m "Update" && git push
 end
