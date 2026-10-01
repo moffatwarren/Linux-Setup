@@ -15,3 +15,13 @@ git diff --staged                       -> after having run git add
 git diff HEAD                           -> all changes in both staged and unstaged
 git diff path/to/your/file.txt
 git diff --staged path/to/your/file.txt
+
+
+------- initial setup ----------
+----> create new repo in git hub and get the url
+git init -b main
+echo ".claude/" >> .gitignore
+git add .
+git commit -m "Initial commit"
+git remote add origin https://github.com/you/your-repo.git
+git push -u origin main
