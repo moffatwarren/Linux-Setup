@@ -22,9 +22,10 @@ git clone <this repo>
 ```
 
 It installs the packages and deploys the configs, and handles both a first-time
-install and a routine update — there is no separate `update.sh`. **It asks one
-question**, "Do you want to get wallpapers?", which copies `wallpapers/` into
-`~/Pictures`; everything else runs unattended apart from `sudo`.
+install and a routine update — there is no separate `update.sh`. It asks no
+questions and runs unattended apart from `sudo`. The one starter wallpaper in
+`wallpapers/` is copied into `~/Pictures/wallpapers` if it is not already there;
+the full collection lives in its own repo.
 
 Nothing in it is specific to the machine it runs on. There is no first-install
 mode and no set-up to answer: audio outputs are configured in the bar's audio
@@ -129,7 +130,7 @@ Hyprland_Setup/
   gtk-3.0/ gtk-4.0/   Catppuccin Mocha over adw-gtk3-dark (thunar, dialogs)
   btop/ fastfetch/ fish/ kitty/ nvim/ swappy/ weathr/
   voidsddm/ sddm.conf.d/   SDDM theme (deployed to /usr, needs sudo)
-wallpapers/           copied to ~/Pictures/wallpapers on request
+wallpapers/           one starter wallpaper, seeded into ~/Pictures/wallpapers
 *.txt                 personal command reference notes
 ```
 

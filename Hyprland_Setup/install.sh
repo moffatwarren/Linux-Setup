@@ -71,8 +71,8 @@ usage() {
 Usage: install.sh [OPTION]
 
   (no option)   Install packages and deploy this repo's configs to the live
-                system. Handles both first-time install and routine updates;
-                the only question it asks is whether to copy in the wallpapers.
+                system. Handles both first-time install and routine updates,
+                and asks no questions (sudo aside).
   --pull        Copy the LIVE configs back into this repo so changes made on
                 the machine can be reviewed and committed. Does not commit.
   --help        Show this message.
@@ -431,14 +431,22 @@ apply_system_tweaks() {
     echo "    gnome-text-editor: show whitespace"
 }
 
+# Seed ~/Pictures/wallpapers with the repo's starter wallpaper(s) so a fresh
+# machine has at least one for the picker, wallpaper-random.sh and hyprlock.
+# The full collection lives in its own repo; this only copies files that are
+# not already there (-n), so nothing in the live folder is ever overwritten.
 get_wallpapers() {
-    local reply
-    read -p "Do you want to get wallpapers? (y/N): " reply
-    if [[ "$reply" =~ ^[Yy]$ ]]; then
-        info "Getting wallpapers"
-        mkdir -p "$HOME/Pictures"
-        \cp -rn "$REPO_ROOT/wallpapers" "$HOME/Pictures"
-    fi
+    local dest="$HOME/Pictures/wallpapers" f copied=0
+    [ -d "$REPO_ROOT/wallpapers" ] || return 0
+    mkdir -p "$dest"
+    for f in "$REPO_ROOT/wallpapers"/*; do
+        [ -f "$f" ] || continue
+        [ -e "$dest/${f##*/}" ] && continue
+        [ "$copied" -eq 1 ] || info "Seeding wallpapers"
+        \cp -n "$f" "$dest/"
+        echo "    ${f##*/}"
+        copied=1
+    done
 }
 
 # Ensure hyprlock background points to a valid file on the current system
