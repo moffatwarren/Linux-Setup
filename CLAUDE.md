@@ -54,8 +54,11 @@ Currently retired: `rofi`, `swaync`, `hypr/scripts/clipboard-menu.sh`,
 installs.
 
 Non-`~/.config` destinations are still explicit in `deploy_configs()`:
-`voidsddm` → `/usr/share/sddm/themes`, `sddm.conf.d` → `/etc` (both sudo). Wallpapers
-go to `~/Pictures/wallpapers` via an opt-in prompt using `cp -rn` (never overwrites).
+`voidsddm` → `/usr/share/sddm/themes`, `sddm.conf.d` → `/etc` (both sudo). The repo's
+`wallpapers/` holds a single starter image (the collection lives in its own repo);
+`get_wallpapers` copies each file into `~/Pictures/wallpapers` only if that name is not
+already there, unprompted, so a fresh machine has one wallpaper and nothing live is ever
+overwritten.
 
 Both of those copies `mkdir -p` their destination first, for the same reason: `cp -r
 src dest` creates `dest` **as a copy of `src`** when `dest` does not exist. A machine
@@ -90,7 +93,9 @@ about to copy the committed one over it, so the live value is read before and wr
 after. It declines to restore a path that no longer resolves, which leaves the field to
 `normalize_hyprlock_wallpaper` — that runs later and can do better than a dead path.
 
-**install.sh asks exactly one question**, and it is "Do you want to get wallpapers?". The
+**install.sh asks no questions.** The last one, "Do you want to get wallpapers?", went
+when the wallpaper collection moved to its own repo and `wallpapers/` shrank to one
+starter image that is now always seeded. The
 "is this the first install" branch went with the rest: the three settings that were behind
 it (`avahi-daemon`, the `xdg-terminal-exec` symlink, gnome-text-editor whitespace) are
 idempotent, so `apply_system_tweaks` just runs them every time. The prompt only ever
@@ -2715,9 +2720,8 @@ JetBrainsMono the rest of the session uses.)
   `apply_gtk_theme` puts in gsettings, which is how `AppLauncher` resolves app icons on a
   machine that has never had one set. With Hyprland not running (installing from a TTY) it
   says so and does nothing.
-- **One prompt, and it is optional.** "Do you want to get wallpapers?" is the only
-  question `install.sh` asks, so a run is otherwise unattended (`sudo` aside). Adding a
-  second should be a last resort: every prompt that used to be here turned out to be a
+- **No prompts.** A run is unattended (`sudo` aside). Adding one should be a last
+  resort: every prompt that used to be here turned out to be a
   value that could be discovered, deferred to the UI that displays it, or simply always
   applied.
 
