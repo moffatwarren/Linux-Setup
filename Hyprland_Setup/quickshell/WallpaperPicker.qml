@@ -5,10 +5,11 @@ import Quickshell.Io
 import Quickshell.Widgets
 import Qt.labs.folderlistmodel
 import QtQuick
+import QtQuick.Shapes
 
-// SUPER+W wallpaper picker: a horizontally-scrolling grid of thumbnails driven
-// by the arrow keys, in place of the old `rofi -show-icons` grid that
-// hypr/scripts/wallpaper-selector.sh used to draw.
+// SUPER+W wallpaper picker: a horizontally-scrolling strip of slanted
+// thumbnails driven by the arrow keys, in place of the old `rofi -show-icons`
+// grid that hypr/scripts/wallpaper-selector.sh used to draw.
 //
 // The window, the header, the filter box and the footer are OverlayPanel's --
 // shared with the app launcher and the clipboard history, so all three are
@@ -41,10 +42,34 @@ OverlayPanel {
         return m ? m[1].trim() : "";
     }
 
-    // Whole columns only: a partly-visible tile at the right edge reads as a
-    // rendering glitch rather than as "there is more this way".
-    readonly property int columns: Math.max(2, Math.min(6,
-        Math.floor((root.width - 96) / grid.cellWidth)))
+    // Tile geometry. Every tile is the same parallelogram: a tileWidth x
+    // tileHeight box with its top edge pushed tileSkew to the right. Tiles
+    // nest slope against slope, so one tile further along is tilePitch.
+    readonly property int tileWidth: 250
+    readonly property int tileHeight: 360
+    readonly property int tileSkew: 80
+    readonly property int tileGap: 8
+    readonly property int tilePitch: root.tileWidth - root.tileSkew + root.tileGap
+    // The selected tile is tileGrow wider than the rest and stands tileRise
+    // proud of the strip at both top and bottom, its sloping sides extended
+    // along the same line so it still nests against its neighbours.
+    readonly property int tileGrow: 260
+    readonly property int tileRise: 20
+    readonly property int growDuration: 170
+    // Room for the selected tile's outline, which straddles its edge, inside
+    // the strip's clip: the extra height above and below every tile, and the
+    // extra width either side of the selected one.
+    readonly property int tileEdge: 2
+    // How far the selected tile's extended slopes reach past its slot each
+    // side at full size, plus its outline. The slot is padded by this much so
+    // nothing of it hangs past the strip's clip at either end.
+    readonly property real tilePad: root.tileSkew * root.tileRise / root.tileHeight + root.tileEdge
+
+    // Whole tiles only: a partly-visible tile at the right edge reads as a
+    // rendering glitch rather than as "there is more this way". The strip is
+    // as wide as the screen allows, less a margin and OverlayPanel's padding.
+    readonly property int columns: Math.max(2,
+        Math.floor((root.width - 132 - root.tileWidth - root.tileGrow) / root.tilePitch) + 1)
 
     title: "Wallpaper"
     placeholder: "type to filter"
@@ -53,12 +78,13 @@ OverlayPanel {
     countLabel: root.shown.length + " / " + root.wallpapers.length
     footerText: root.shown.length === 0
                 ? "No wallpapers match"
-                : "← →  move    ↑ ↓  page    ↵  apply    Esc  cancel"
+                : "← →  wheel  move    ↑ ↓  page    ↵  apply    Esc  cancel"
     footerColor: root.shown.length === 0 ? Theme.red : Theme.overlay0
 
     // 36 = OverlayPanel's padding on both sides, which the body sits inside.
-    panelWidth: grid.cellWidth * root.columns + 36
-    bodyHeight: grid.cellHeight
+    panelWidth: Math.ceil((root.columns - 1) * root.tilePitch + root.tileWidth
+                          + root.tileGrow + 2 * root.tilePad) + 36
+    bodyHeight: root.tileHeight + (root.tileRise + root.tileEdge) * 2
 
     onOpened: {
         gridMouse.lastX = -1;
@@ -72,10 +98,10 @@ OverlayPanel {
 
     onNavKey: event => {
         switch (event.key) {
-        case Qt.Key_Left:  grid.moveCurrentIndexLeft();  break;
-        case Qt.Key_Right: grid.moveCurrentIndexRight(); break;
-        // Up/Down step within a column, so in a one-row grid they are dead
-        // keys. Page with them instead, as PageUp/PageDown do.
+        case Qt.Key_Left:  root.step(-1); break;
+        case Qt.Key_Right: root.step(1);  break;
+        // There is only one row, so Up/Down would be dead keys. Page with
+        // them instead, as PageUp/PageDown do.
         case Qt.Key_Up:
         case Qt.Key_PageUp:
             root.jumpTo(grid.currentIndex - root.columns); break;
@@ -95,6 +121,39 @@ OverlayPanel {
     // Narrowing the list invalidates the old cursor position.
     onFilterTextChanged: root.jumpTo(root.shown.length > 0 ? 0 : -1)
 
+    // One tile along, animated. Clamped rather than wrapping, so holding an
+    // arrow stops at the end of the strip instead of flying back to the start.
+    function step(delta: int): void {
+        const i = Math.max(0, Math.min(root.shown.length - 1, grid.currentIndex + delta));
+        if (i === grid.currentIndex) return;
+        grid.currentIndex = i;
+        root.reveal(true);
+    }
+
+    // Keep the selected tile in view. Done twice, because the tile is still
+    // its old width when the cursor lands on it: once now, so a tile that was
+    // off the edge comes on screen at all, and again once it has finished
+    // widening, so the extra width does not hang off the right-hand side.
+    function reveal(animate: bool): void {
+        grid.jumping = !animate;
+        grid.positionViewAtIndex(grid.currentIndex, ListView.Contain);
+        grid.jumping = false;
+        revealAgain.animate = animate;
+        revealAgain.restart();
+    }
+
+    Timer {
+        id: revealAgain
+        property bool animate: true
+        interval: root.growDuration + 20
+        onTriggered: {
+            if (grid.currentIndex < 0) return;
+            grid.jumping = !revealAgain.animate;
+            grid.positionViewAtIndex(grid.currentIndex, ListView.Contain);
+            grid.jumping = false;
+        }
+    }
+
     // Move the cursor somewhere far away -- opening, filtering, Home/End,
     // PageUp/PageDown. Jump, do not scroll: the contentX animation on the grid
     // would otherwise drag the view across every column in between, and each
@@ -102,10 +161,8 @@ OverlayPanel {
     // chew through before it reaches the ones actually on screen. Only the
     // one-column arrow step is worth animating.
     function jumpTo(index: int): void {
-        grid.jumping = true;
         grid.currentIndex = Math.max(-1, Math.min(root.shown.length - 1, index));
-        grid.positionViewAtIndex(grid.currentIndex, GridView.Contain);
-        grid.jumping = false;
+        root.reveal(false);
     }
 
     // Put the cursor on the wallpaper that is already applied, falling back to
@@ -153,27 +210,27 @@ OverlayPanel {
         root.wallpapers = out;
     }
 
-    GridView {
+    ListView {
         id: grid
 
-        // One row, running off the right edge rather than wrapping: a
-        // filmstrip that scrolls sideways under the arrows. FlowTopToBottom
-        // with a height of exactly one cell is what fixes it to one row.
-        flow: GridView.FlowTopToBottom
-        cellWidth: 440
-        cellHeight: 256
+        // One row of slanted tiles, running off the right edge: a filmstrip
+        // that scrolls sideways under the arrows. Each tile is a parallelogram
+        // whose sloping sides run parallel to its neighbours', so the strip
+        // interlocks -- the spacing is negative by the skew, and what is left
+        // is `tileGap` measured horizontally between two sloping edges.
+        orientation: ListView.Horizontal
+        spacing: root.tileGap - root.tileSkew
 
         anchors.fill: parent
 
         clip: true
         model: root.shown
         boundsBehavior: Flickable.StopAtBounds
-        cacheBuffer: cellWidth * 4
-        highlightMoveDuration: 0
+        cacheBuffer: root.tilePitch * 6
+        highlightFollowsCurrentItem: false
 
-        // moveCurrentIndex* already scrolls the view to keep the cursor
-        // visible; this only softens the one-column step. Suppressed for a
-        // deliberate jump (see selectCurrent) and while dragging.
+        // Only the one-tile arrow step is animated; suppressed for a
+        // deliberate jump (see jumpTo) and while dragging.
         property bool jumping: false
 
         Behavior on contentX {
@@ -190,17 +247,54 @@ OverlayPanel {
             readonly property bool selected: tile.index === grid.currentIndex
             readonly property bool isCurrent: tile.modelData.path === root.currentPath
 
-            width: grid.cellWidth
-            height: grid.cellHeight
+            // 0 → 1 as the tile becomes the selected one. Everything about
+            // the wider, taller shape is scaled by it, so it animates as one.
+            property real grow: tile.selected ? 1 : 0
+            Behavior on grow { NumberAnimation { duration: root.growDuration; easing.type: Easing.OutCubic } }
 
-            ClippingRectangle {
-                anchors.fill: parent
-                anchors.margins: 6
-                radius: 10
-                color: Theme.surface0
-                border.width: tile.selected ? 3 : 1
-                border.color: tile.selected ? Theme.lavender
-                                            : (tile.isCurrent ? Theme.surface2 : Theme.mantle)
+            // The slope, as horizontal shift per pixel of height.
+            readonly property real slope: root.tileSkew / root.tileHeight
+            readonly property real rise: root.tileRise * tile.grow
+
+            // The layout slot is wide enough for the whole drawn shape, so
+            // the ListView moves the neighbours aside as it widens -- which
+            // also leaves the selected tile a few pixels more gap either side
+            // than the rest have. The rise goes into the tileRise margin
+            // above and below the strip that nothing else occupies.
+            width: root.tileWidth + (root.tileGrow + 2 * root.tilePad) * tile.grow
+            height: root.tileHeight + (root.tileRise + root.tileEdge) * 2
+            // The outline straddles the sloping edge, so the selected tile is
+            // drawn over its neighbours rather than under the next one.
+            z: tile.selected ? 1 : 0
+
+            opacity: 0.72 + 0.28 * tile.grow
+
+            // The drawn shape's bounding box. Extending a sloping side by
+            // `rise` at each end moves it `slope * rise` sideways, so the box
+            // is that much wider each side as well as `rise` taller each way;
+            // it sits inside the padded slot with the outline's room spare.
+            readonly property real boxX: root.tileEdge * tile.grow
+            readonly property real boxY: root.tileRise + root.tileEdge - tile.rise
+            readonly property real boxW: tile.width - 2 * root.tileEdge * tile.grow
+            readonly property real boxH: root.tileHeight + 2 * tile.rise
+
+            // The thumbnail, cropped to the shape's bounding box and rendered
+            // into a layer -- a texture of exactly the cropped picture, which
+            // the Shape below then cuts to a parallelogram. An Image is a
+            // texture provider by itself, but its texture is the whole decoded
+            // file: PreserveAspectCrop happens in the scene graph, after. It
+            // shares the Shape's geometry exactly, so the texture lands on it
+            // one to one.
+            Item {
+                id: picture
+
+                x: tile.boxX
+                y: tile.boxY
+                width: tile.boxW
+                height: tile.boxH
+                visible: false
+                layer.enabled: true
+                layer.smooth: true
 
                 Image {
                     id: thumb
@@ -209,55 +303,102 @@ OverlayPanel {
                     source: "file://" + tile.modelData.path
                     fillMode: Image.PreserveAspectCrop
                     // Decode near tile size -- a 4K jpeg scaled down by the
-                    // loader, not a 4K pixmap scaled by the scene. 2x so the
-                    // crop still has pixels to spare.
-                    sourceSize.width: grid.cellWidth * 2
-                    sourceSize.height: grid.cellHeight * 2
+                    // loader, not a 4K pixmap scaled by the scene. Fixed, not
+                    // bound to the animated size, or every frame of the
+                    // widening would decode the file again.
+                    sourceSize.width: root.tileWidth * 2
+                    sourceSize.height: root.tileHeight * 2
                     asynchronous: true
                     cache: true
                     smooth: true
-
-                    // 312 wallpapers do not all decode at once; fade each
-                    // one in over its placeholder rather than popping.
-                    opacity: status === Image.Ready ? 1 : 0
-                    Behavior on opacity { NumberAnimation { duration: 120 } }
-                }
-
-                // An image Qt has no decoder for would otherwise sit
-                // there as an empty tile, indistinguishable from one still
-                // loading. (qt6-imageformats covers webp and avif.)
-                Text {
-                    anchors.fill: parent
-                    anchors.margins: 8
-                    visible: thumb.status === Image.Error
-                    text: tile.modelData.name
-                    color: Theme.overlay0
-                    wrapMode: Text.Wrap
-                    elide: Text.ElideRight
-                    horizontalAlignment: Text.AlignHCenter
-                    verticalAlignment: Text.AlignVCenter
-                    font.family: Theme.fontFamily
-                    font.pixelSize: Theme.fontSize - 2
-                }
-
-                // A dot on the wallpaper that is currently applied.
-                Rectangle {
-                    anchors { right: parent.right; top: parent.top; margins: 6 }
-                    visible: tile.isCurrent
-                    width: 8
-                    height: 8
-                    radius: 4
-                    color: Theme.green
                 }
             }
+
+            Shape {
+                x: tile.boxX
+                y: tile.boxY
+                width: tile.boxW
+                height: tile.boxH
+                // Antialiased slopes; the default renderer leaves them jagged.
+                preferredRendererType: Shape.CurveRenderer
+
+                // A placeholder while the thumbnail decodes, so a tile still
+                // loading is a dim slab rather than a hole in the strip.
+                SkewPath {
+                    w: tile.boxW; h: tile.boxH; skew: tile.slope * tile.boxH
+                    fillColor: Theme.surface0
+                    strokeColor: "transparent"
+                }
+
+                SkewPath {
+                    w: tile.boxW; h: tile.boxH; skew: tile.slope * tile.boxH
+                    fillItem: thumb.status === Image.Ready ? picture : null
+                    fillColor: "transparent"
+                    strokeColor: "transparent"
+                }
+
+                SkewPath {
+                    w: tile.boxW; h: tile.boxH; skew: tile.slope * tile.boxH
+                    fillColor: "transparent"
+                    strokeColor: tile.selected ? Theme.peach : "transparent"
+                    strokeWidth: 3
+                    joinStyle: ShapePath.MiterJoin
+                }
+            }
+
+            // An image Qt has no decoder for would otherwise sit there as an
+            // empty tile, indistinguishable from one still loading.
+            // (qt6-imageformats covers webp and avif.)
+            Text {
+                anchors.centerIn: parent
+                width: tile.width - root.tileSkew * 2
+                visible: thumb.status === Image.Error
+                text: tile.modelData.name
+                color: Theme.overlay0
+                wrapMode: Text.Wrap
+                elide: Text.ElideRight
+                maximumLineCount: 4
+                horizontalAlignment: Text.AlignHCenter
+                font.family: Theme.fontFamily
+                font.pixelSize: Theme.fontSize - 2
+            }
+
+            // A dot on the wallpaper that is currently applied, tucked into
+            // the top-right corner -- which, on a tile leaning right, is the
+            // one corner with room inside the slope.
+            Rectangle {
+                x: tile.boxX + tile.boxW - 22
+                y: tile.boxY + 10
+                visible: tile.isCurrent
+                width: 8
+                height: 8
+                radius: 4
+                color: Theme.green
+            }
         }
+    }
+
+    // The parallelogram every tile is drawn with: a w x h box with its top
+    // edge pushed `skew` to the right, so the tiles lean like the strip in a
+    // film gate.
+    component SkewPath: ShapePath {
+        property real w
+        property real h
+        property real skew
+
+        startX: skew
+        startY: 0
+        PathLine { x: w; y: 0 }
+        PathLine { x: w - skew; y: h }
+        PathLine { x: 0; y: h }
+        PathLine { x: skew; y: 0 }
     }
 
     // One stationary hover/click surface over the grid rather than a
     // MouseArea per tile. A per-tile one is dragged under the pointer every
     // time the arrow keys scroll the view, and the synthetic hover that
     // produces yanks the cursor straight back off the tile the keyboard
-    // just moved to. It is a sibling of the GridView, not a child: a child
+    // just moved to. It is a sibling of the ListView, not a child: a child
     // would go into the flickable's content item and scroll with it.
     MouseArea {
         id: gridMouse
@@ -273,8 +414,23 @@ OverlayPanel {
         property real lastX: -1
         property real lastY: -1
 
+        // Not grid.indexAt on the pointer: neighbouring tiles' bounding boxes
+        // overlap by the skew, so a box test picks the wrong tile in every
+        // sloping strip. Undo the slope at this height first -- an unselected
+        // tile's left edge is item.x + slope * (tileRise + tileEdge +
+        // tileHeight - y), and the selected tile's runs along the same line
+        // shifted a few pixels right by its padding -- and the tiles become
+        // side-by-side intervals of [x, next.x), each owning the gap after it.
+        // indexAt can still land on the left one of two overlapping boxes,
+        // so the next tile gets the point if it starts at or before it.
         function indexUnder(x: real, y: real): int {
-            return grid.indexAt(x + grid.contentX, y + grid.contentY);
+            const u = x + grid.contentX - root.tileSkew
+                      * (root.tileRise + root.tileEdge + root.tileHeight - y) / root.tileHeight;
+            let i = grid.indexAt(u, grid.contentY + grid.height / 2);
+            if (i < 0) return -1;
+            const next = grid.itemAtIndex(i + 1);
+            if (next && u >= next.x) i++;
+            return i;
         }
 
         onPositionChanged: mouse => {
@@ -294,7 +450,22 @@ OverlayPanel {
             if (i >= 0) root.apply(root.shown[i].path);
         }
 
-        // Let the wheel reach the GridView underneath.
-        onWheel: wheel => wheel.accepted = false
+        // The wheel moves the selection a tile per notch rather than
+        // scrolling the strip: a strip scrolled out from under the selection
+        // would leave the wide tile somewhere off screen. Down and right are
+        // forward. Accumulated, so a touchpad's stream of small deltas steps
+        // once per notch's worth rather than once per event.
+        property real wheelAccum: 0
+
+        onWheel: wheel => {
+            const d = wheel.angleDelta.y !== 0 ? -wheel.angleDelta.y : wheel.angleDelta.x;
+            if ((d > 0) !== (gridMouse.wheelAccum > 0)) gridMouse.wheelAccum = 0;
+            gridMouse.wheelAccum += d;
+            while (Math.abs(gridMouse.wheelAccum) >= 120) {
+                const dir = gridMouse.wheelAccum > 0 ? 1 : -1;
+                root.step(dir);
+                gridMouse.wheelAccum -= dir * 120;
+            }
+        }
     }
 }
