@@ -1753,16 +1753,62 @@ has dropped.
 
 ### The wallpaper picker (SUPER+W)
 
-A full-screen overlay holding a **single row** of large thumbnails that
-**scrolls sideways** — a filmstrip. `flow: GridView.FlowTopToBottom` with the
-view's height set to exactly one `cellHeight` is what pins it to one row; columns
-then run off the right edge. Up/Down would step *within* a column, so in a one-row
-grid they are dead keys; they page by a screenful instead, as PageUp/PageDown do.
+A full-screen overlay holding a **single row** of tall, **slanted** thumbnails
+that **scrolls sideways** — a filmstrip. It is a horizontal `ListView`; every
+tile is the same parallelogram (a `tileWidth` x `tileHeight` box with its top
+edge pushed `tileSkew` to the right), and neighbours nest slope against slope
+because the view's `spacing` is `tileGap - tileSkew` — negative. Up/Down page
+by a screenful, as PageUp/PageDown do, since one row has nothing above or below.
+**The mouse wheel steps the selection one tile per notch** rather than scrolling
+the strip, so the strip can never be scrolled out from under the selected tile.
 
-`columns` derives the panel width from whole cells only, because a partly-visible
+**The selected tile is `tileGrow` wider than the rest and stands `tileRise`
+proud of the strip top and bottom**, with a `peach` outline and full opacity
+where the rest sit at 0.72. Its sloping sides are the *same lines* as a normal
+tile's, extended, so it still nests against its neighbours. One `grow` property
+(0→1, animated) scales all of it. Only the width is laid out — the `ListView`
+moves the neighbours aside — while the rise is drawn into a margin above and
+below the strip that nothing else uses. The slot is padded by `tilePad` (how far
+the extended slopes reach sideways, plus room for the outline), because the
+`ListView` clips: without it the wide tile's top-right corner was cut off at the
+right end of the strip and its bottom-left at the left.
+
+**A step reveals the tile twice** (`reveal()` and the `revealAgain` timer):
+`positionViewAtIndex` measures the tile at the width it has *now*, which is
+still the narrow one at the moment the cursor lands. The first call brings it on
+screen; the second, once it has finished widening, stops the extra width hanging
+off the right-hand edge. `sourceSize` stays fixed rather than following the
+animated size, or every frame of the widening would decode the file again.
+
+Four things in how a tile is drawn:
+
+- **The parallelogram is a `Shape` with `ShapePath.fillItem`**, on
+  `Shape.CurveRenderer` — the default renderer leaves the slopes jagged.
+- **The fill is a layered `Item` around the `Image`, not the `Image` itself.**
+  An `Image` is a texture provider on its own, but its texture is the whole
+  decoded file: `PreserveAspectCrop` is applied in the scene graph afterwards, so
+  an `Image` handed straight to `fillItem` would map the whole uncropped file onto
+  the tile (reasoned from the API, not measured — the layered form is what was
+  tested). `layer.enabled` renders the already-cropped picture to a texture of
+  exactly the tile's size, and that is what gets cut.
+- **Hit-testing undoes the slope before asking `indexAt`.** Bounding boxes
+  overlap by the skew, so a box test on the raw pointer picks the wrong tile
+  anywhere along a slope. `indexUnder()` shifts the pointer by the slope at its
+  height, after which each tile owns `[item.x, next.x)` — widths vary now that
+  the selected one is wide, so positions come from the delegates rather than
+  from `i * tilePitch`. `indexAt` can still return the left one of two
+  overlapping boxes, so the next tile takes the point if it starts at or before
+  it. Hovering is stable under the widening: the tile under the pointer grows
+  from its left edge, and anything after it moves by exactly what the old
+  selection gave back.
+- **The selected tile is raised (`z: 1`)** because its outline straddles the
+  sloping edge and would otherwise be painted under the next tile's.
+
+`columns` (which counts the selected tile at its full width) derives the panel width from whole tiles only, because a partly-visible
 tile at the right edge reads as a rendering glitch rather than as "there is more
-this way". Tile size is the two constants `grid.cellWidth`/`cellHeight` (roughly
-16:9, since that is what a wallpaper is); everything else follows from them.
+this way". The one exception is built in: the next tile's lower-left corner always
+reaches into the strip, because that is where its slope starts. Tile shape is the
+four constants at the top of the file; everything else follows from them.
 
 `hypr/scripts/wallpaper-set.sh <path>` is the one place a wallpaper is applied —
 `awww img` plus the `path =` rewrite in `hyprlock.conf`, so the lock screen
@@ -1810,8 +1856,9 @@ Enter is just a second Escape, and every other key falls through to the filter b
   scroll the view, which drags items under a stationary pointer, and the
   synthetic hover that produces yanks the cursor straight back off the item the
   keyboard just moved to. One stationary `MouseArea` anchored over the view
-  resolves the index with `view.indexAt(x + contentX, y + contentY)` instead. It
-  must be a **sibling** of the `GridView`/`ListView` — a child goes into the
+  resolves the index with `view.indexAt(x + contentX, y + contentY)` instead (the
+  wallpaper picker does the same sum by hand, for its slanted tiles). It
+  must be a **sibling** of the `ListView` — a child goes into the
   flickable's content item and scrolls with it, reintroducing the bug.
 - Mapping the window in still delivers one motion event for wherever the pointer
   already was, so the hover surface ignores the first event and any that has not
