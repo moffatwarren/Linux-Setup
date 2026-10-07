@@ -2279,9 +2279,16 @@ Four things worth knowing:
 ## The screen recorder (SUPER+CTRL+S)
 
 `hypr/scripts/screen-record.sh` is the whole backend — `--toggle` (slurp a region and
-start, or stop what is running), `--toggle-audio` (the same plus the default input,
-unbound), `--stop`, `--status`. One key does both halves, so there is nothing to
-remember about how to stop.
+start with desktop audio, or stop what is running), `--toggle-mic` (the same with the
+default input instead, unbound), `--stop`, `--status`. One key does both halves, so
+there is nothing to remember about how to stop.
+
+**Desktop audio is the default sink's `.monitor` source**, passed to wf-recorder as
+`--audio=<sink>.monitor` (bare `--audio` is the default *input*, i.e. the mic). The sink
+is read with `pactl get-default-sink` once, when the recording starts, so a `SUPER+O`
+mid-recording does not follow — the audio stays on the output it started on. With no
+default sink the recording goes ahead video-only rather than failing. Verified: a 3 s
+test gives an h264 + aac file.
 
 `RecorderService.qml` is a `pragma Singleton` holding the state, and `RecorderPill.qml`
 draws it. The pill has to be a singleton's client rather than owning the state because

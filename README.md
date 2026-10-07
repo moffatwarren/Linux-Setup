@@ -110,7 +110,8 @@ does right-clicking the pill, which is how the count catches up after an
 upgrade the bar knew nothing about; it also re-checks itself every ten minutes
 while anything is pending, and syncs properly every six hours.
 
-`SUPER+CTRL+S` selects a region and starts recording it. A red pill with the
+`SUPER+CTRL+S` selects a region and starts recording it, along with whatever
+audio is playing on the current output. A red pill with the
 elapsed time appears in the bar while it runs, and stops the recording when
 clicked — as does pressing `SUPER+CTRL+S` again. Recordings land in
 `~/Videos/recordings`, and the path of a finished one is put on the clipboard.

@@ -4,8 +4,8 @@
 # One key starts and stops it: --toggle picks a region with slurp and starts
 # wf-recorder, or stops the recording already running.
 #
-#   --toggle        record a region (video only)
-#   --toggle-audio  the same, plus the default audio input
+#   --toggle        record a region, with desktop audio (whatever is playing)
+#   --toggle-mic    the same, but with the default audio input instead
 #   --stop          stop, if recording
 #   --status        print the state file, or an idle object
 #
@@ -78,8 +78,19 @@ start() {
 
 supervise() {
   local geometry=$1 file=$2 with_audio=$3
-  local args=(-g "$geometry" -f "$file")
-  if [ "$with_audio" = "audio" ]; then args+=(--audio); fi
+  local args=(-g "$geometry" -f "$file") sink
+  case "$with_audio" in
+    desktop)
+      # Desktop audio is the default sink's monitor source. It is resolved once,
+      # here, so a SUPER+O mid-recording keeps capturing the output it started
+      # on. No default sink (no pipewire-pulse) records video alone rather than
+      # failing the whole recording.
+      if sink=$(pactl get-default-sink 2>/dev/null) && [ -n "$sink" ]; then
+        args+=(--audio="$sink.monitor")
+      fi
+      ;;
+    mic) args+=(--audio) ;;
+  esac
 
   wf-recorder "${args[@]}" >/dev/null 2>&1 &
   local pid=$!
@@ -114,10 +125,10 @@ stop() {
 
 case "${1:-}" in
   --toggle)
-    if is_recording; then stop; else start noaudio; fi
+    if is_recording; then stop; else start desktop; fi
     ;;
-  --toggle-audio)
-    if is_recording; then stop; else start audio; fi
+  --toggle-mic)
+    if is_recording; then stop; else start mic; fi
     ;;
   --stop)
     # `|| true` so a --stop with nothing running is a no-op, not an exit 1
@@ -135,7 +146,7 @@ case "${1:-}" in
     fi
     ;;
   *)
-    echo "Usage: $0 {--toggle|--toggle-audio|--stop|--status}" >&2
+    echo "Usage: $0 {--toggle|--toggle-mic|--stop|--status}" >&2
     exit 1
     ;;
 esac

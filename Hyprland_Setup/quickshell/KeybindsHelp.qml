@@ -82,7 +82,7 @@ OverlayPanel {
             binds: [
                 { keys: "SUPER + S",         desc: "Screenshot a region, annotate in swappy" },
                 { keys: "SUPER + ALT + S",   desc: "OCR a region to the clipboard" },
-                { keys: "SUPER + CTRL + S",  desc: "Start / stop a screen recording" },
+                { keys: "SUPER + CTRL + S",  desc: "Start / stop a screen recording, with desktop audio" },
             ]
         },
         {
