@@ -1426,6 +1426,18 @@ The button replaced a **double-click** on the pill. Two things followed from mov
   `Timer` behind it for a toggle that never lands (`tailscale up` waiting on a login),
   which would otherwise leave the button disabled for the rest of the session.
 
+**A peer that offers itself as an exit node carries a chip on its row** — `Use exit`,
+or `Stop exit` in red on the one currently routing (whose name also turns `sapphire`,
+the colour of the `Exit node` row above). The two flags are different fields in
+`tailscale status --json`: `ExitNodeOption` is "approved to route", `ExitNode` is "routing
+for us now". The chip runs `tailscale.sh --exit-node <ip> <name>` (no ip clears it), which
+is `tailscale set --exit-node=` — targeted by Tailscale IP, since a short hostname can be
+ambiguous, and needing no sudo because this user is the tailscale operator
+(`tailscale set --operator=$USER`, the same thing `--toggle` relies on). A failure goes
+through `notify-send`, as `pia.sh`'s do. An offline exit node keeps its chip, dimmed and
+inert. Unlike `toggling`, the pill's `exitNodeBusy` is cleared by the `Process` exiting —
+a definite end — so it needs no guard timer; every chip reads `…` while one is in flight.
+
 **Both are just their mark — the tailscale logo and a padlock, green when
 connected and `Theme.text` when not.** They used to spell the state out in words
 (`Tailscale: on | Exit-node: …`, `PIA: Connected`), which made them two of the widest
