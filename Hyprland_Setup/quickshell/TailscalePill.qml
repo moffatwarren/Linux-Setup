@@ -90,7 +90,12 @@ ScriptPill {
                         out.push({
                             name: String(p.DNSName || "").split(".")[0],
                             online: !!p.Online,
-                            exitNode: !!p.ExitNode
+                            // ExitNode: we are routing through it now.
+                            // ExitNodeOption: it advertises itself as one
+                            // and the tailnet has approved it.
+                            exitNode: !!p.ExitNode,
+                            exitNodeOption: !!p.ExitNodeOption,
+                            ip: (p.TailscaleIPs || [])[0] || ""
                         });
                     }
                     // Online first, then alphabetical.
@@ -144,6 +149,33 @@ ScriptPill {
         root.pollFast();
     }
 
+    // Set while `tailscale set --exit-node` runs, so every exit-node button in
+    // the menu goes inert: two switches racing each other end on whichever
+    // happened to land last. Cleared by the process exiting, which is a
+    // definite end, so unlike `toggling` it needs no guard timer.
+    property bool exitNodeBusy: false
+
+    Process {
+        id: exitNodeProc
+        onExited: {
+            root.exitNodeBusy = false;
+            // The peer list is what draws the per-row state and --status is
+            // what draws the "Exit node" row; refresh both now rather than
+            // waiting out their timers.
+            if (!peerProc.running) peerProc.running = true;
+            root.pollFast();
+        }
+    }
+
+    // An empty ip clears the exit node.
+    function setExitNode(ip, name) {
+        if (exitNodeBusy || exitNodeProc.running) return;
+        exitNodeBusy = true;
+        exitNodeProc.command = [Quickshell.env("HOME") + "/.config/hypr/scripts/tailscale.sh",
+                                "--exit-node", ip, name];
+        exitNodeProc.running = true;
+    }
+
     menu: tsMenu
     onClicked: root.menuOpen ? tsMenu.requestClose() : root.openMenu()
     onRightClicked: root.toggle()
@@ -155,12 +187,15 @@ ScriptPill {
         exitNode: root.exitNode
         peers: root.peers
         toggling: root.toggling
+        exitNodeBusy: root.exitNodeBusy
 
         // The peer poll only ticks every 10s, so ask once on the way open
         // rather than showing a list up to that stale.
         onOpenChanged: if (open && root.connected && !peerProc.running) peerProc.running = true;
 
         onToggleRequested: root.toggle()
+
+        onExitNodeRequested: (ip, name) => root.setExitNode(ip, name)
 
         onGetFileRequested: Quickshell.execDetached(["bash", "-lc", root.getFileCommand])
     }

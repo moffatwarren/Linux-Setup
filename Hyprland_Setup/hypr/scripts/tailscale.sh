@@ -44,6 +44,25 @@ get_file() {
   tailscale file get ~/Downloads/
 }
 
+# Route through a peer, or stop routing through one when the target is empty.
+# Targeted by Tailscale IP rather than hostname: a MagicDNS short name can be
+# ambiguous across a tailnet, an IP cannot. `tailscale set` needs no sudo once
+# this user is the operator (`tailscale set --operator=$USER`), which is also
+# what `--toggle` already relies on. A failure goes out through notify-send for
+# the reason pia.sh's do: a menu button that silently does nothing is the worst
+# version of a failure.
+set_exit_node() {
+  local target="${1:-}" name="${2:-$1}" err
+  if ! err=$(tailscale set --exit-node="$target" 2>&1); then
+    if [ -n "$target" ]; then
+      notify-send -u critical "Tailscale: exit node failed" "Could not route through ${name}: ${err}"
+    else
+      notify-send -u critical "Tailscale: exit node failed" "Could not stop using the exit node: ${err}"
+    fi
+    return 1
+  fi
+}
+
 case "${1:-}" in
 --status)
   # Not installed at all: print nothing, which hides the module. (The logo is
@@ -79,5 +98,9 @@ case "${1:-}" in
   ;;
 --getFile)
   get_file
+  ;;
+--exit-node)
+  # --exit-node <ip> [name] uses a peer; --exit-node with no ip clears it.
+  set_exit_node "${2:-}" "${3:-}"
   ;;
 esac

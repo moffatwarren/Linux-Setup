@@ -28,11 +28,15 @@ MenuPopup {
     property bool toggling: false
     property string exitNode: ""
     property var peers: []
+    // Set by the pill while `tailscale set --exit-node` runs.
+    property bool exitNodeBusy: false
 
     signal toggleRequested()
+    // An empty ip means "stop using the exit node".
+    signal exitNodeRequested(string ip, string name)
     signal getFileRequested()
 
-    implicitWidth: 260
+    implicitWidth: 320
     implicitHeight: body.implicitHeight + 20
 
     ColumnLayout {
@@ -170,23 +174,67 @@ MenuPopup {
             model: root.peers
 
             delegate: RowLayout {
+                id: peerRow
                 required property var modelData
+                readonly property bool usable: modelData.online && !root.exitNodeBusy
                 width: ListView.view.width
-                height: 20
-                spacing: 12
+                height: 22
+                spacing: 8
 
                 Text {
                     Layout.fillWidth: true
-                    text: modelData.name + (modelData.exitNode ? "  (exit node)" : "")
+                    text: peerRow.modelData.name
                     elide: Text.ElideRight
-                    color: Theme.text
+                    // The peer we are routing through takes the colour the
+                    // "Exit node" row above draws its name in.
+                    color: peerRow.modelData.exitNode ? Theme.sapphire : Theme.text
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSize
                 }
 
+                // Only on a peer that offers itself as an exit node. It says
+                // which state the peer is in and is the switch for it: "Use
+                // exit" on one that could route, "Stop exit" on the one that
+                // is. Offline it stays visible -- the peer is still an exit
+                // node, just not one you can use now -- but dimmed and inert.
+                Rectangle {
+                    visible: peerRow.modelData.exitNodeOption
+                    implicitWidth: exitLabel.implicitWidth + 14
+                    implicitHeight: 18
+                    radius: 6
+                    color: exitMouse.containsMouse && peerRow.usable ? Theme.surface1 : Theme.surface0
+                    border.width: 1
+                    border.color: peerRow.modelData.exitNode ? Theme.sapphire : Theme.surface2
+                    opacity: peerRow.modelData.online ? 1.0 : 0.5
+
+                    Text {
+                        id: exitLabel
+                        anchors.centerIn: parent
+                        text: root.exitNodeBusy ? "\u2026"
+                            : peerRow.modelData.exitNode ? "Stop exit" : "Use exit"
+                        color: !peerRow.modelData.online ? Theme.overlay0
+                             : peerRow.modelData.exitNode ? Theme.red : Theme.sapphire
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSize - 3
+                    }
+
+                    MouseArea {
+                        id: exitMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        enabled: peerRow.usable
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: root.exitNodeRequested(
+                            peerRow.modelData.exitNode ? "" : peerRow.modelData.ip,
+                            peerRow.modelData.name)
+                    }
+                }
+
                 Text {
-                    text: modelData.online ? "online" : "offline"
-                    color: modelData.online ? Theme.green : Theme.overlay0
+                    Layout.preferredWidth: 42
+                    horizontalAlignment: Text.AlignRight
+                    text: peerRow.modelData.online ? "online" : "offline"
+                    color: peerRow.modelData.online ? Theme.green : Theme.overlay0
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSize - 2
                 }
