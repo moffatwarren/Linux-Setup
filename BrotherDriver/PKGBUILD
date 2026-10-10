@@ -1,0 +1,47 @@
+# Maintainer: Brli <brli [at] aur.no.reply>
+_pkgname='brlaser'
+pkgname="${_pkgname}-git"
+pkgver=6.2.8.r5.gedf2770
+pkgrel=1
+pkgdesc="Brother laser printer driver, git version"
+arch=('x86_64' 'armv7h' 'aarch64')
+url="https://github.com/Owl-Maintain/brlaser"
+license=('GPL2')
+depends=('cups')
+makedepends=('cmake' 'git')
+conflicts=("$_pkgname")
+provides=("$_pkgname")
+replaces=("$_pkgname")
+source=("git+https://github.com/Owl-Maintain/${_pkgname}.git"
+        "long-edge-duplex.patch")
+b2sums=('SKIP' 'SKIP')
+
+pkgver() {
+    cd "${_pkgname}" || exit
+    git describe --long --tags --abbrev=7 | sed 's/^v//;s/\([^-]*-g\)/r\1/;s/-/./g'
+}
+
+prepare() {
+	cd "${_pkgname}"
+	patch -p1 < "${srcdir}/long-edge-duplex.patch"
+	# The printer now flips long-edge sheets itself, so stop asking CUPS to
+	# rotate back pages too (it does not today, but a future filter might).
+	sed -i '/ModelName "HL-2270DW series"/,/^}/s/Duplex rotated/Duplex normal/' brlaser.drv.in
+}
+
+build() {
+	cmake -S "${_pkgname}" \
+	      -B build \
+	      -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+	      -D CMAKE_BUILD_TYPE=Release
+	cmake --build build
+}
+
+check() {
+	cd build || exit
+	make -k check
+}
+
+package() {
+    DESTDIR="$pkgdir" cmake --install build
+}

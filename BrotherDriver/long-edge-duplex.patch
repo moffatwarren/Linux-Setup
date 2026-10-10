@@ -1,0 +1,16 @@
+--- a/src/job.cc
++++ b/src/job.cc
+@@ -93,8 +93,12 @@
+   fprintf(out_, "\033*t%dR",
+           page_params_.ras1200 ? 600 : page_params_.resolution);
+ 
+-  if (page_params_.duplex || page_params_.tumble) {
++  // Long-edge and short-edge need different PCL binding codes; sending
++  // &l2S for both made the back of every long-edge sheet upside down.
++  if (page_params_.duplex && page_params_.tumble) {
+     fputs("\033&l2S", out_);
++  } else if (page_params_.duplex) {
++    fputs("\033&l1S", out_);
+   } else {
+     fputs("\033&l0S", out_);
+   }
