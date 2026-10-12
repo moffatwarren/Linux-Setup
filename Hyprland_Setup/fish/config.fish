@@ -1,10 +1,18 @@
 source /usr/share/cachyos-fish-config/cachyos-config.fish
 
-# overwrite greeting
-# potentially disabling fastfetch
+# overwrite greeting -- cachyos-config.fish defines one that runs fastfetch, so
+# an empty function is what makes a new shell open clean
 function fish_greeting
-    # fastfetch
-    fastfetch --data-raw "$(pokemon-colorscripts -r)"
+end
+
+# bare `fastfetch` gets a random pokemon as its logo; with arguments
+# (--help, -c, ...) it is the real thing, untouched
+function fastfetch
+    if test (count $argv) -eq 0
+        command fastfetch --data-raw "$(pokemon-colorscripts -r)"
+    else
+        command fastfetch $argv
+    end
 end
 
 alias i "sudo pacman -S"
