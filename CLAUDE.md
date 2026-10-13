@@ -54,7 +54,20 @@ Currently retired: `rofi`, `swaync`, `hypr/scripts/clipboard-menu.sh`,
 installs.
 
 Non-`~/.config` destinations are still explicit in `deploy_configs()`:
-`voidsddm` → `/usr/share/sddm/themes`, `sddm.conf.d` → `/etc` (both sudo). The repo's
+`voidsddm` → `/usr/share/sddm/themes`, `sddm.conf.d` → `/etc` (both sudo), and
+`applications/*.desktop` → `~/.local/share/applications`, copied file by file because
+that directory is shared with every other app's entries (and so is never pulled back).
+`applications/superfile.desktop` is the one entry there: the `superfile` package ships
+none, and without `MimeType=inode/directory` plus `Categories=FileManager` `spf` cannot
+be offered in SUPER+D or opened by `SUPER+E`. `Terminal=true` is what puts it in kitty.
+
+`superfile/` in `CONFIGS` is **`config.toml` alone**, deliberately. spf writes its own
+`hotkeys.toml` and `theme/` beside it on first run (verified against scratch
+`XDG_CONFIG_HOME`/`XDG_DATA_HOME`: both appear, and the shipped `config.toml` is left
+untouched), so shipping them would only pin today's defaults. Two lines in it are the
+reason it is shipped at all: `editor = "nvim"` — the default is `$EDITOR`, which a spf
+started by `SUPER+E` never has, since nothing in that chain is a fish shell — and
+`zoxide_support = true`, which is why `zoxide` is in `PACMAN_PKGS`. The repo's
 `wallpapers/` holds a single starter image (the collection lives in its own repo);
 `get_wallpapers` copies each file into `~/Pictures/wallpapers` only if that name is not
 already there, unprompted, so a fresh machine has one wallpaper and nothing live is ever

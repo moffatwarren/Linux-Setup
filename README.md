@@ -131,6 +131,8 @@ Hyprland_Setup/
   gtk-3.0/ gtk-4.0/   Catppuccin Mocha over adw-gtk3-dark (thunar, dialogs)
   btop/ fastfetch/ fish/ kitty/ nvim/ swappy/ weathr/
   voidsddm/ sddm.conf.d/   SDDM theme (deployed to /usr, needs sudo)
+  applications/       desktop entries for apps that ship none (superfile), to ~/.local/share
+  superfile/          spf settings: nvim as the editor, zoxide on
 wallpapers/           one starter wallpaper, seeded into ~/Pictures/wallpapers
 *.txt                 personal command reference notes
 ```

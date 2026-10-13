@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Config directories: Hyprland_Setup/<name> -> ~/.config/<name>
-CONFIGS=(btop fastfetch fish gtk-3.0 gtk-4.0 hypr kitty nvim quickshell swappy weathr wireplumber)
+CONFIGS=(btop fastfetch fish gtk-3.0 gtk-4.0 hypr kitty nvim quickshell superfile swappy weathr wireplumber)
 
 # Retired config paths to purge from ~/.config
 ORPHANS=(
@@ -36,7 +36,7 @@ PACMAN_PKGS=(
     speedtest-cli brave-origin-bin paru tesseract tesseract-data-eng zbar adw-gtk-theme cantarell-fonts
     papirus-icon-theme jq libpulse wireplumber pavucontrol power-profiles-daemon networkmanager
     qt6-imageformats libnotify wl-clipboard curl python xdg-utils pacman-contrib fakeroot sddm avahi
-    protonup-qt gamescope gnome-calculator mangohud lib32-mangohud github-cli
+    protonup-qt gamescope gnome-calculator mangohud lib32-mangohud github-cli superfile zoxide
     # Present on this machine only because the CachyOS desktop profile installed
     # them -- nothing above pulls any of them in, so a no-desktop install would
     # deploy the configs that use them and have them silently do nothing:
@@ -228,6 +228,12 @@ deploy_configs() {
     sudo \cp -rf "$SCRIPT_DIR/voidsddm" /usr/share/sddm/themes
     sudo \cp -rf "$SCRIPT_DIR/sddm.conf.d" /etc
     echo "    voidsddm + sddm.conf.d (system)"
+    # Desktop entries for apps whose package ships none (superfile). Copied file
+    # by file: the directory is shared with every other app's entries and with
+    # mimeinfo.cache, so it is never deployed or pulled as a whole.
+    mkdir -p "$HOME/.local/share/applications"
+    \cp -f "$SCRIPT_DIR"/applications/*.desktop "$HOME/.local/share/applications"
+    echo "    applications (~/.local/share)"
 }
 
 # Delete what an older release of this repo deployed and this one has dropped

@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=superfile
+GenericName=Terminal File Manager
+Comment=Pretty fancy and modern terminal file manager
+# The superfile package ships no desktop entry, and SUPER+D only offers what
+# declares itself: inode/directory plus Categories=FileManager is what makes
+# this a file explorer to default-apps.sh. Terminal=true is what puts it in
+# kitty -- gio launches it through the xdg-terminal-exec symlink.
+Exec=spf %f
+TryExec=spf
+Terminal=true
+Icon=system-file-manager
+Categories=System;FileManager;ConsoleOnly;
+MimeType=inode/directory;
