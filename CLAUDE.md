@@ -2680,6 +2680,14 @@ off-palette element left in the session. `decoration.shadow.color` in
 `look.lua` is still a generic `0xee1a1a1a` rather than `crust`; it is visible
 (shadows are on), so it is the one deliberate leftover.
 
+**The fish prompt is `fish/functions/fish_prompt.fish`**, a powerline strip drawn in
+plain fish — no starship or oh-my-posh. A rounded `blue` segment holds the CachyOS glyph
+and `user@host`, a `teal` one the directory, and a `mauve` one the git branch when there
+is one, all with `crust` text. It works by shadowing `fish-pure-prompt`'s `fish_prompt`
+in `vendor_functions.d`; pure is still installed, and its `fish_prompt` *event* handler
+is what prints the blank line between prompts. The glyphs are `\uXXXX` escapes for the
+same reason the QML's are.
+
 **swappy's `custom_color` is the annotation pen** for every `SUPER+S`
 screenshot. It takes a GdkRGBA string, so channels are 0-255 and only the alpha
 is 0-1 — `rgba(243,139,168,1)` is `#f38ba8`. Red rather than one of the
