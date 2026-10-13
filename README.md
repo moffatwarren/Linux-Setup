@@ -35,8 +35,8 @@ value a deploy still carries across is the lock screen wallpaper, which
 `SUPER+W` writes into `hyprlock.conf`. Updating a machine that predates the
 audio menu carries its old headphone and bluetooth sinks into it as icons, once.
 
-Tailscale and PIA are not installed from here — see `tailscale_commands.txt` and
-`pia_install.txt`. Their bar modules hide themselves when the tool is absent.
+Tailscale and PIA are not installed from here — see `tailscale_commands.md` and
+`pia_install.md`. Their bar modules hide themselves when the tool is absent.
 
 ## Pulling live changes back
 
@@ -134,7 +134,7 @@ Hyprland_Setup/
   applications/       desktop entries for apps that ship none (superfile), to ~/.local/share
   superfile/          spf settings: nvim as the editor, zoxide on
 wallpapers/           one starter wallpaper, seeded into ~/Pictures/wallpapers
-*.txt                 personal command reference notes
+*.md                  personal command reference notes (everything but README.md and CLAUDE.md)
 ```
 
 `CLAUDE.md` documents the internals — the architecture, the bar modules and
