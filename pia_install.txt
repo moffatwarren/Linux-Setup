@@ -1,6 +1,0 @@
-paru -Syu piavpn-bin
-sudo systemctl enable --now piavpn.service
-sudo systemctl start piavpn.service
-sudo systemctl status piavpn.service
-
-open pia and login

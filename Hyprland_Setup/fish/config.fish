@@ -23,3 +23,10 @@ alias pk "pokemon-colorscripts -r"
 function lazyg
     git add --all && git commit -m "Update" && git push
 end
+
+# zoxide: `z <part of a path>` jumps to the best match among directories you
+# have visited, `zi` picks one interactively. Guarded so a machine without the
+# package gets a working shell rather than an error on every prompt.
+if status is-interactive; and command -q zoxide
+    zoxide init fish | source
+end

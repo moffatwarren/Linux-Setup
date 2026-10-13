@@ -116,7 +116,7 @@ existed because they sat beside the optional Tailscale/PIA installers, and answe
 wrong on a real first install left a machine subtly unfinished with nothing to say so.
 Tailscale and PIA are no longer installed from here at all — each is one `pacman`/`paru`
 line followed by an interactive login this script could never do anyway, the notes are in
-`tailscale_commands.txt` and `pia_install.txt`, and both bar modules already hide
+`tailscale_commands.md` and `pia_install.md`, and both bar modules already hide
 themselves when the tool is absent.
 
 `migrate_audio_icons()` survives all this. It carries `HEADPHONE_SINK`/`BLUETOOTH_SINK`
@@ -2889,16 +2889,16 @@ every deploy rather than behind a "first install?" question.
 
 They used to sit behind that question alongside optional Tailscale/PIA installers and a
 global git identity prompt, all of which are gone — see **Nothing is machine-specific any
-more**. The automatable halves of `tailscale_commands.txt` and `pia_install.txt` are
+more**. The automatable halves of `tailscale_commands.md` and `pia_install.md` are
 therefore *not* in `install.sh` any more; those files are back to being lookup notes like
 the rest.
 
 ## Not code
 
-The top-level `*.txt` files are personal command references. The automatable parts of
-`tailscale_commands.txt` and `pia_install.txt` were kept manual; all of them
-(`git_command.txt`, `hyprctl_commands.txt`, `nmcli.txt`, `systemctl_commands.txt`,
-`write_iso_commands.txt`, and the troubleshooting half of `package_management.txt`) are
+The top-level `*.md` notes (everything but `README.md` and this file) are personal command references. The automatable parts of
+`tailscale_commands.md` and `pia_install.md` were kept manual; all of them
+(`git_command.md`, `hyprctl_commands.md`, `nmcli.md`, `mount_instructions.md`, `systemctl_commands.md`,
+`write_iso_commands.md`, and the troubleshooting half of `package_management.md`) are
 lookup notes and deliberately stay manual. `README.md` is the human-facing half of this
 file — install, `--pull`, the keybinds and the directory layout. Keep the two in step;
 the internals (the architecture, the bar modules, the traps) live here, not there.
