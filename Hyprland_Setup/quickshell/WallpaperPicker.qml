@@ -75,10 +75,14 @@ OverlayPanel {
     placeholder: "type to filter"
     subtitle: grid.currentIndex >= 0 && grid.currentIndex < root.shown.length
               ? root.shown[grid.currentIndex].name : ""
-    countLabel: root.shown.length + " / " + root.wallpapers.length
+    // Position in the filtered strip, not "matches / everything" as the other
+    // overlays show: with one row scrolling sideways, where you are in it is
+    // the number worth having.
+    countLabel: (grid.currentIndex >= 0 && grid.currentIndex < root.shown.length
+                 ? grid.currentIndex + 1 : 0) + " / " + root.shown.length
     footerText: root.shown.length === 0
                 ? "No wallpapers match"
-                : "← →  wheel  move    ↑ ↓  page    ↵  apply    Esc  cancel"
+                : "← →  wheel  move    ↑ ↓  page    Ctrl+R  random    ↵  apply    Esc  cancel"
     footerColor: root.shown.length === 0 ? Theme.red : Theme.overlay0
 
     // 36 = OverlayPanel's padding on both sides, which the body sits inside.
@@ -97,6 +101,13 @@ OverlayPanel {
     }
 
     onNavKey: event => {
+        // Checked before the switch: a bare R has to go on typing into the
+        // filter box.
+        if (event.key === Qt.Key_R && (event.modifiers & Qt.ControlModifier)) {
+            root.jumpRandom();
+            event.accepted = true;
+            return;
+        }
         switch (event.key) {
         case Qt.Key_Left:  root.step(-1); break;
         case Qt.Key_Right: root.step(1);  break;
@@ -120,6 +131,17 @@ OverlayPanel {
 
     // Narrowing the list invalidates the old cursor position.
     onFilterTextChanged: root.jumpTo(root.shown.length > 0 ? 0 : -1)
+
+    // Somewhere else in the strip, picked from what the filter has left. Drawn
+    // from one fewer than the list and stepped past the cursor, so it always
+    // moves and a repeat press never looks like a dead key.
+    function jumpRandom(): void {
+        const n = root.shown.length;
+        if (n < 2) return;
+        let i = Math.floor(Math.random() * (n - 1));
+        if (i >= grid.currentIndex) i++;
+        root.jumpTo(i);
+    }
 
     // One tile along, animated. Clamped rather than wrapping, so holding an
     // arrow stops at the end of the strip instead of flying back to the start.
