@@ -81,7 +81,7 @@ OverlayPanel {
             name: "Screenshots",
             binds: [
                 { keys: "SUPER + S",         desc: "Screenshot a region, annotate in swappy" },
-                { keys: "SUPER + ALT + S",   desc: "OCR a region to the clipboard" },
+                { keys: "SUPER + ALT + S",   desc: "Copy a QR code or text (OCR) from a region" },
                 { keys: "SUPER + CTRL + S",  desc: "Start / stop a screen recording, with desktop audio" },
             ]
         },
