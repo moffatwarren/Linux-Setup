@@ -2338,6 +2338,38 @@ The pieces that took thought:
 `wf-recorder` is in `PACMAN_PKGS`; the region select reuses the `slurp` that `SUPER+S`
 already needed.
 
+## Reading a region: QR code or OCR (SUPER+ALT+S)
+
+`hypr/scripts/screen-read.sh` is the whole of it: `slurp` a region, `grim` it to a
+temporary PNG under `XDG_RUNTIME_DIR`, and copy what it says. **A QR code wins** — its
+payload, usually a URL, goes to the clipboard — and a region with no code in it is OCRed
+with `tesseract`, which is all the key did when it was an inline
+`grim | tesseract | wl-copy`. Either way a toast says what was copied (`QR code copied` /
+`Text copied`), so you see where a link goes, or what the OCR made of the region, before
+pasting it. It became a script because the one capture is read twice.
+Given a path as its argument it reads that image instead of asking for a region, which
+is how to test the decoding without a hand on the mouse.
+
+Five things in it:
+
+- **Only the QR symbology is enabled** (`-Sdisable -Sqrcode.enable`), so a block of text
+  or a table edge cannot be read as a 1D barcode and take the OCR path away.
+- **`zbarimg` exits 4 for "no code found"**, which is the normal case for this key, so
+  the call is `|| true` and the test is on the output being empty.
+- **zbar cannot read a light-on-dark code at all** — a negated QR gives exit 4 where the
+  original decodes — and dark-theme pages draw them that way. A miss is retried on
+  `magick -negate`, piped in as `png:-`. imagemagick is a hard dependency of `zbar`, so
+  it needs no package line of its own.
+- **The toast body is escaped, and has to be.** `NotificationToasts.qml` draws a body as
+  `Text.StyledText`, so an unescaped `&lt=` in a URL or a `<` in OCRed code is eaten as
+  markup and line breaks collapse. `announce()` escapes `&`, `<`, `>`, turns newlines into
+  `<br>`, and caps the body at 400 characters — the card shows four lines anyway.
+- **An empty OCR result is not copied.** The old pipeline piped whatever tesseract said
+  into `wl-copy`, so a miss wiped the clipboard.
+
+`zbar` is in `PACMAN_PKGS` for this script. It was already on this machine, but only as a
+dependency of `gst-plugins-bad` — the "arrived as somebody else's dependency" case.
+
 ## Pending updates
 
 `hypr/scripts/updates.sh` is the backend, `UpdateService.qml` holds the answer and

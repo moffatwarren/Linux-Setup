@@ -33,7 +33,7 @@ PACMAN_PKGS=(
     ttf-jetbrains-mono-nerd swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look
     wf-recorder gvfs gvfs-smb samba nvim mpv imv brightnessctl playerctl blueman gnome-text-editor
     swayimg imagemagick thunar-archive-plugin xarchiver unzip net-tools localsend spotify-launcher
-    speedtest-cli brave-origin-bin paru tesseract tesseract-data-eng adw-gtk-theme cantarell-fonts
+    speedtest-cli brave-origin-bin paru tesseract tesseract-data-eng zbar adw-gtk-theme cantarell-fonts
     papirus-icon-theme jq libpulse wireplumber pavucontrol power-profiles-daemon networkmanager
     qt6-imageformats libnotify wl-clipboard curl python xdg-utils pacman-contrib fakeroot sddm avahi
     protonup-qt gamescope gnome-calculator mangohud lib32-mangohud github-cli

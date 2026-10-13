@@ -22,7 +22,8 @@ hl.bind(config.mainMod .. " + D", hl.dsp.exec_cmd("qs ipc call defaults toggle")
 hl.bind(config.mainMod .. " + E", hl.dsp.exec_cmd("~/.config/hypr/scripts/launch-file-manager.sh"), { bypass = true })
 hl.bind(config.mainMod .. " + B", hl.dsp.exec_cmd("~/.config/hypr/scripts/launch-browser.sh"), { bypass = true })
 hl.bind(config.mainMod .. " + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | swappy -f -'), { bypass = true })
-hl.bind(config.mainMod .. " + ALT + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | tesseract stdin stdout | wl-copy'), { bypass = true })
+-- Copies a QR code's contents if the region holds one, and OCRs it otherwise.
+hl.bind(config.mainMod .. " + ALT + S", hl.dsp.exec_cmd("~/.config/hypr/scripts/screen-read.sh"), { bypass = true })
 -- One key starts and stops a region recording; the bar grows a red pill with
 -- the elapsed time while it runs (quickshell/RecorderPill.qml).
 hl.bind(config.mainMod .. " + CTRL + S", hl.dsp.exec_cmd("~/.config/hypr/scripts/screen-record.sh --toggle"), { bypass = true })
