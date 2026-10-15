@@ -19,7 +19,7 @@ OverlayPanel {
     readonly property string home: Quickshell.env("HOME")
     readonly property string script: root.home + "/.config/hypr/scripts/clipboard-history.sh"
 
-    // { id, kind: "text"|"image", label, detail, thumb }, newest first.
+    // { id, kind: "text"|"image", label, detail, thumb, preview }, newest first.
     property var entries: []
 
     readonly property var shown: {
@@ -54,7 +54,7 @@ OverlayPanel {
         root.jumpTo(0);
     }
 
-    onAccepted: if (root.current) root.copy(root.current.id)
+    onAccepted: if (root.current) root.copy(root.current)
 
     onNavKey: event => {
         switch (event.key) {
@@ -94,11 +94,19 @@ OverlayPanel {
         if (!listProc.running) listProc.running = true;
     }
 
-    function copy(id: string): void {
+    function copy(entry: var): void {
         // Close first so the keyboard grab is gone before the paste target
         // gets it back.
         root.close();
-        Quickshell.execDetached([root.script, "--copy", id]);
+        // The preview goes along because the id may already be dead: copying
+        // an entry makes cliphist re-store it under a new id, so a list read
+        // before the last copy -- this one's, or a Ctrl+C of text already in
+        // the history -- can name an id that no longer exists, and the paste
+        // was silently whatever was there before. See clipboard-history.sh.
+        Quickshell.execDetached([root.script, "--copy", entry.id, entry.preview || ""]);
+        // Re-read once the copy has been re-stored, so the next opening starts
+        // from the renumbered ids rather than from this one's.
+        reconcile.restart();
     }
 
     function remove(id: string): void {
@@ -135,11 +143,12 @@ OverlayPanel {
 
     // Reload once the deletes have settled: the optimistic removal above is
     // only the display, and a reload racing an in-flight delete would put the
-    // row back for a frame.
+    // row back for a frame. copy() uses it too, with the menu shut, to pick up
+    // the id the copied entry was re-stored under.
     Timer {
         id: reconcile
         interval: 300
-        onTriggered: if (root.open) root.refresh()
+        onTriggered: root.refresh()
     }
 
     ListView {
@@ -264,9 +273,13 @@ OverlayPanel {
             const first = listMouse.lastY < 0;
             const moved = Math.abs(mouse.x - listMouse.lastX) > 1
                        || Math.abs(mouse.y - listMouse.lastY) > 1;
+            // The anchor only advances on a move that counts. Updating it on
+            // every event meant a slow drift -- one pixel per event -- never
+            // got past the threshold, and the highlight stayed behind.
+            if (!first && !moved) return;
             listMouse.lastX = mouse.x;
             listMouse.lastY = mouse.y;
-            if (first || !moved) return;
+            if (first) return;
 
             const i = listMouse.indexUnder(mouse.x, mouse.y);
             if (i >= 0) list.currentIndex = i;
@@ -276,7 +289,7 @@ OverlayPanel {
             const i = listMouse.indexUnder(mouse.x, mouse.y);
             if (i < 0) return;
             if (mouse.button === Qt.RightButton) root.remove(root.shown[i].id);
-            else root.copy(root.shown[i].id);
+            else root.copy(root.shown[i]);
         }
 
         // Let the wheel reach the ListView underneath.
