@@ -396,7 +396,13 @@ PY
 # listed. Note application/x-desktop is NOT here: it is a text/plain subclass,
 # and mapping it to the editor makes a double-clicked .desktop open in the
 # editor instead of launching.
+#
+# inode/x-empty and application/x-zerosize are what a 0-byte file is called --
+# by `file` (which xdg-open uses outside a known DE) and by GIO respectively --
+# whatever its extension. Unclaimed, xdg-open falls back to the browser, so a
+# freshly `touch`ed notes.txt opened in brave.
 EDITOR_MIMES=(
+    inode/x-empty application/x-zerosize
     text/plain text/markdown text/x-markdown text/x-log text/csv
     text/tab-separated-values text/x-ini text/x-env text/x-readme
     text/css text/x-scss text/x-sass text/x-less
