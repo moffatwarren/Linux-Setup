@@ -16,14 +16,33 @@ import QtQuick.Shapes
 // visibly the same menu. Only the body below is specific to wallpapers.
 //
 // It lives inside the bar process rather than in a `qs -p` of its own, so
-// opening it costs nothing and the decoded thumbnails stay in Qt's pixmap
-// cache between openings. shell.qml holds it in a LazyLoader and owns the
+// opening it costs no startup. shell.qml holds it in a LazyLoader and owns the
 // IpcHandler the keybind pokes: `qs ipc call wallpaper toggle`.
+//
+// Tiles are drawn from hypr/scripts/wallpaper-thumbs.sh's JPEG cache, not the
+// wallpapers themselves. Qt's pixmap cache does NOT keep decoded tiles between
+// openings -- its unreferenced pool is a couple of MB and expires in seconds,
+// smaller than one tile -- so every opening decoded the originals again, most
+// of them 4K PNGs, which have no reduced-size decode, one at a time on Qt's
+// single reader thread. A cached thumbnail is ~200 KB and decodes in a blink.
 OverlayPanel {
     id: root
 
     readonly property string home: Quickshell.env("HOME")
     readonly property string wallpaperDir: root.home + "/Pictures/wallpapers"
+    readonly property string thumbDir: (Quickshell.env("XDG_CACHE_HOME") || root.home + "/.cache")
+                                       + "/wallpaper-thumbs"
+    // Bumped whenever a run of wallpaper-thumbs.sh changed something. It goes
+    // into every thumbnail URL as `?v=` -- Qt ignores the query when opening a
+    // local file but keys its cache on it -- so a tile whose thumbnail did not
+    // exist yet retries rather than being served the cached failure, and one
+    // whose wallpaper was replaced does not keep the old picture.
+    property int thumbGeneration: 0
+    // False until the first run has finished. Tiles exist from bar startup
+    // (the LazyLoader builds the picker hidden), and before this they would
+    // each fail on a thumbnail not written yet and decode the original
+    // instead -- the very work the cache is for. A warm cache answers in ms.
+    property bool thumbsChecked: false
 
     // Every image in the directory, name-sorted, as { name, path }.
     property var wallpapers: []
@@ -93,6 +112,45 @@ OverlayPanel {
     onOpened: {
         gridMouse.lastX = -1;
         root.selectCurrent();
+        // A no-op run is a few stat calls, so checking on every opening is
+        // what catches a wallpaper replaced in place (same name, same count).
+        root.refreshThumbs();
+    }
+
+    // At most one run at a time; a request that lands mid-run is remembered
+    // and run once it finishes, so a burst of folder changes is two runs.
+    property bool thumbsPending: false
+    function refreshThumbs(): void {
+        if (thumbs.running) root.thumbsPending = true;
+        else thumbs.running = true;
+    }
+
+    Process {
+        id: thumbs
+        command: [root.home + "/.config/hypr/scripts/wallpaper-thumbs.sh"]
+        stdout: StdioCollector {
+            onStreamFinished: if (parseInt(text) > 0) root.thumbGeneration++
+        }
+        onExited: {
+            root.thumbsChecked = true;
+            if (root.thumbsPending) {
+                root.thumbsPending = false;
+                // Later, so the restart is not issued from inside the
+                // signal of the run that is still finishing.
+                Qt.callLater(root.refreshThumbs);
+            }
+        }
+    }
+
+    // The bar starts at login, so this is what has the cache warm before the
+    // first SUPER+W -- the whole collection takes a few seconds the first time.
+    Component.onCompleted: root.refreshThumbs()
+
+    // FolderListModel's count climbs one file at a time while it scans.
+    Timer {
+        id: thumbsDebounce
+        interval: 500
+        onTriggered: root.refreshThumbs()
     }
 
     onAccepted: {
@@ -220,7 +278,10 @@ OverlayPanel {
         // The model populates asynchronously, so rebuild on both signals: the
         // count climbs while it scans and status only settles at the end.
         onStatusChanged: if (status === FolderListModel.Ready) root.rebuild()
-        onCountChanged: root.rebuild()
+        onCountChanged: {
+            root.rebuild();
+            thumbsDebounce.restart();
+        }
     }
 
     function rebuild(): void {
@@ -268,6 +329,16 @@ OverlayPanel {
 
             readonly property bool selected: tile.index === grid.currentIndex
             readonly property bool isCurrent: tile.modelData.path === root.currentPath
+            // Set when the cached thumbnail could not be loaded -- not written
+            // yet on a first run, or one magick could not convert -- so the
+            // tile decodes the wallpaper itself, slowly, as it always used to.
+            // Cleared by a new generation, which is a chance the thumbnail now
+            // exists.
+            property bool useOriginal: false
+            Connections {
+                target: root
+                function onThumbGenerationChanged() { tile.useOriginal = false; }
+            }
 
             // 0 → 1 as the tile becomes the selected one. Everything about
             // the wider, taller shape is scaled by it, so it animates as one.
@@ -322,12 +393,18 @@ OverlayPanel {
                     id: thumb
 
                     anchors.fill: parent
-                    source: "file://" + tile.modelData.path
+                    source: !root.thumbsChecked ? ""
+                            : tile.useOriginal
+                            ? "file://" + tile.modelData.path
+                            : "file://" + root.thumbDir + "/" + tile.modelData.name
+                              + ".jpg?v=" + root.thumbGeneration
+                    onStatusChanged: if (status === Image.Error && !tile.useOriginal) tile.useOriginal = true
                     fillMode: Image.PreserveAspectCrop
-                    // Decode near tile size -- a 4K jpeg scaled down by the
-                    // loader, not a 4K pixmap scaled by the scene. Fixed, not
-                    // bound to the animated size, or every frame of the
-                    // widening would decode the file again.
+                    // Decode near tile size, mostly for the fallback to the
+                    // original: a 4K file scaled down by the loader, not a 4K
+                    // pixmap scaled by the scene. Fixed, not bound to the
+                    // animated size, or every frame of the widening would
+                    // decode the file again.
                     sourceSize.width: root.tileWidth * 2
                     sourceSize.height: root.tileHeight * 2
                     asynchronous: true

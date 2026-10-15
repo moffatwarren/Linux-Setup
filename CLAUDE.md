@@ -1702,8 +1702,9 @@ keys it handles (arrows, Home/End, Delete) and lets everything else fall through
 and type into the box. There is no second focus item to fight over.
 
 All five live **inside the bar process**, not in a `qs -p` of their own, so
-opening one is instant and decoded thumbnails stay in Qt's pixmap cache between
-openings. `shell.qml` holds each in a `LazyLoader` (`loading: true`, built in the
+opening one is instant. (It does **not** keep decoded images between openings, which
+an earlier note here claimed — see the wallpaper picker's thumbnail cache below.)
+`shell.qml` holds each in a `LazyLoader` (`loading: true`, built in the
 background at startup) beside an `IpcHandler`; the keybinds are just `qs ipc call
 {wallpaper,launcher,clipboard,keybinds,defaults} toggle`. The bar is the only quickshell
 instance and runs the default config path, so `qs ipc call` finds it with no
@@ -1841,6 +1842,46 @@ follows the desktop. `wallpaper-random.sh` (SUPER+SHIFT+W) and the picker both
 `exec` it. That `path =` line is the one `save_lock_wallpaper` /
 `restore_lock_wallpaper` carry across a deploy, so a deploy does not undo a pick.
 
+**The tiles are drawn from a thumbnail cache, never from the wallpapers themselves.**
+`hypr/scripts/wallpaper-thumbs.sh` keeps one JPEG per wallpaper in
+`~/.cache/wallpaper-thumbs/<filename>.jpg`, sized to cover the selected tile at 2x
+(`1020x800^`). It regenerates a thumbnail when the wallpaper is newer, prunes those
+whose wallpaper has gone, converts in parallel (`xargs -P $(nproc)`), and prints how
+many it changed. Measured here: the whole 114-image, 1.1 GB collection in 2.7 s cold,
+5 ms when nothing changed, 19 MB of cache.
+
+That replaced decoding the originals on every opening, which is why the picker loaded
+visibly slower than WarrenTool's Windows one. Three things made it slow, and the first
+is the one an earlier note here had backwards:
+
+- **Qt's pixmap cache does not keep tiles between openings.** Images whose delegate
+  is gone drop into an *unreferenced* pool of a couple of MB that expires in about
+  30 s — smaller than one ~3.7 MB tile. So almost every SUPER+W decoded everything
+  again. WarrenTool keeps its decoded images alive with the window, which is the whole
+  difference after the first opening.
+- **Most of the collection is 4K PNG**, 15–20 MB each, and PNG has no reduced-size
+  decode, so `sourceSize` only saved memory and never saved time: each tile was a full
+  decompress.
+- **`asynchronous: true` images share one reader thread**, so they decoded one at a
+  time, and only for the tiles inside the view plus `cacheBuffer`.
+
+How the QML uses it:
+
+- **The script runs at bar startup, on every opening, and (debounced) when
+  `FolderListModel`'s count changes.** Startup is what has the cache warm before the
+  first SUPER+W; the opening run is what catches a wallpaper replaced in place under
+  the same name. One run at a time — a request mid-run is queued once.
+- **Tiles have no source until the first run has finished** (`thumbsChecked`). The
+  `LazyLoader` builds the picker hidden at startup, and without the gate every tile
+  failed on a thumbnail not written yet and decoded the original instead — the very
+  work the cache exists to avoid — with a `Cannot open` warning apiece.
+- **The URL carries `?v=<thumbGeneration>`**, bumped when a run reports changes.
+  Qt ignores the query when opening a local file but keys its cache on it (verified
+  with `qs -p`: a missing file, created afterwards, loads under `?v=1`), so a tile
+  that failed earlier retries, and a replaced wallpaper does not keep its old picture.
+- **A thumbnail that cannot be loaded falls back to the original** (`useOriginal`),
+  slowly, as every tile used to — so a file magick could not convert still shows.
+
 ### The keybind list (SUPER+K)
 
 `KeybindsHelp.qml` is the cheat sheet: every bind in `hypr/modules/binds.lua`
@@ -1896,8 +1937,9 @@ Enter is just a second Escape, and every other key falls through to the filter b
   `selectCurrent()` sets `grid.jumping` around `positionViewAtIndex` for exactly
   this.
 - Qt decodes only jpg/png/gif out of the box; `qt6-imageformats` (in
-  `PACMAN_PKGS`) adds webp and avif. A tile whose image fails falls back to its
-  filename, so a missing decoder does not look like a thumbnail that never loaded.
+  `PACMAN_PKGS`) adds webp and avif — for the fallback to the original; the cached
+  thumbnails are always JPEG, written by `magick` (`imagemagick`, also in
+  `PACMAN_PKGS`). A tile whose image fails falls back to its filename, so a missing decoder does not look like a thumbnail that never loaded.
 - The current wallpaper is read from `hyprlock.conf` with a `FileView`, not from
   `awww query` — same value, no process. It marks that tile with a green dot and
   is where the cursor lands on open.
