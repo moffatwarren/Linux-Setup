@@ -41,11 +41,12 @@ OverlayPanel {
         {
             name: "Applications",
             binds: [
-                { keys: "SUPER + RETURN", desc: "Terminal" },
-                { keys: "SUPER + E",      desc: "File explorer (default set in SUPER + D)" },
-                { keys: "SUPER + B",      desc: "Web browser" },
-                { keys: "SUPER + T",      desc: "btop, floating system monitor" },
-                { keys: "SUPER + G",      desc: "Gemini, in an app window" },
+                { keys: "SUPER + RETURN",    desc: "Terminal" },
+                { keys: "SUPER + E",         desc: "File explorer (default set in SUPER + D)" },
+                { keys: "SUPER + SHIFT + E", desc: "Thunar, whatever the default is" },
+                { keys: "SUPER + B",         desc: "Web browser" },
+                { keys: "SUPER + T",         desc: "btop, floating system monitor" },
+                { keys: "SUPER + G",         desc: "Gemini, in an app window" },
             ]
         },
         {
