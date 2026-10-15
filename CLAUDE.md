@@ -1767,6 +1767,19 @@ Five things in that script are load-bearing:
   a few dozen forks otherwise, and that was the entire cost of a `--list` (1.0s
   down to 0.02s).
 
+**An id can be dead by the time it is clicked.** Copying an entry makes
+`cliphist store` (behind `wl-paste --watch`) delete it and re-store it under a
+new id — verified: `--copy 484` left it as 494, and a second `--copy 484` exited 1
+with the clipboard untouched. So a list read before the last copy (this menu's,
+or a Ctrl+C of text already in the history) pastes whatever was there before.
+`--copy <id> <preview>` falls back to the newest entry with that exact preview,
+and the menu re-reads the list after every copy.
+
+The hover surface's movement threshold advances its anchor only on a move that
+counts; updating it on every event meant a slow, one-pixel-per-event drift never
+crossed the threshold and the highlight lagged behind the pointer. The launcher
+and the wallpaper picker had the same bug.
+
 `Delete` (and a right-click) removes an entry and leaves the menu open, so a run
 of junk can be cleared without reopening between each one. The row disappears
 from the model immediately and the reload afterwards reconciles with what

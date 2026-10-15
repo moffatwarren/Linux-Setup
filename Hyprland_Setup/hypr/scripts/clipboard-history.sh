@@ -9,7 +9,9 @@
 # upgrading from the rofi layout.)
 #
 #   --list            the history as a JSON array, newest first
-#   --copy   <id>     put that entry back on the clipboard
+#   --copy   <id> [preview]
+#                     put that entry back on the clipboard; the preview is the
+#                     fallback for an id cliphist has since renumbered
 #   --delete <id>     drop that entry from the history
 #
 # Image entries get a real thumbnail rather than cliphist's
@@ -34,6 +36,20 @@ BINARY_RE='^\[\[ binary data ([0-9.]+ [A-Za-z]+) (png|jpe?g|gif|bmp|webp|tiff|ic
 # actually succeeded, and do_copy's `|| return 1` swallowed every copy.
 entry_line() {
     grep -am1 -P "^$1\t" < <(cliphist list)
+}
+
+# The newest entry whose preview is exactly $1, for when its id has gone.
+#
+# Re-copying an entry makes `cliphist store` (behind wl-paste --watch) delete it
+# and store it again under a new id -- verified: --copy 484 left it as 494, and
+# a second --copy 484 exited 1 with the clipboard untouched. So any id the
+# picker read before the most recent copy can be dead by the time it is clicked,
+# and the paste is silently whatever was there before. The preview is what the
+# picker showed, so it is the honest thing to fall back on. ENVIRON rather than
+# -v, which would interpret backslashes in the clipboard text.
+entry_line_by_preview() {
+    P="$1" awk -F'\t' '{ p = substr($0, index($0, "\t") + 1) }
+                       p == ENVIRON["P"] { print; exit }' < <(cliphist list)
 }
 
 do_list() {
@@ -98,13 +114,14 @@ do_list() {
             # array, so the argument has to be hoisted out first.
             | ([.preview | match($binre)] | first) as $b
             | if $b == null then
-                { id, kind: "text", label: .preview, detail: "" , thumb: "" }
+                { id, kind: "text", label: .preview, detail: "" , thumb: "", preview }
               else
                 { id,
                   kind: "image",
                   label: ($b.captures[2].string + "  " + $b.captures[1].string),
                   detail: $b.captures[0].string,
-                  thumb: (if ($ids | index($id)) != null then $dir + "/" + $id + ".png" else "" end) }
+                  thumb: (if ($ids | index($id)) != null then $dir + "/" + $id + ".png" else "" end),
+                  preview }
               end
           )
     '
@@ -115,16 +132,24 @@ do_copy() {
     # cannot hold a NUL -- it drops it and warns on stderr for every text entry
     # that happens to contain one. do_delete pipes instead, so the line it hands
     # cliphist stays byte-for-byte what cliphist printed.
-    local line preview
-    line=$(entry_line "$1" | tr -d '\0') || return 1
+    local line preview id=$1
+    line=$(entry_line "$id" | tr -d '\0')
+    if [[ -z $line && -n ${2:-} ]]; then
+        line=$(entry_line_by_preview "$2" | tr -d '\0')
+        id=${line%%$'\t'*}
+    fi
+    if [[ -z $line ]]; then
+        notify-send -u low "Clipboard" "That entry is no longer in the history"
+        return 1
+    fi
     preview=${line#*$'\t'}
 
     if [[ $preview =~ $BINARY_RE ]]; then
         local fmt=${BASH_REMATCH[2]}
         [[ $fmt == jpg ]] && fmt=jpeg
-        cliphist decode "$1" | wl-copy --type "image/$fmt"
+        cliphist decode "$id" | wl-copy --type "image/$fmt"
     else
-        cliphist decode "$1" | wl-copy
+        cliphist decode "$id" | wl-copy
     fi
 }
 
@@ -136,8 +161,8 @@ do_delete() {
 case "${1:---list}" in
     --list)   do_list ;;
     --copy)   [[ $# -ge 2 ]] || { echo "usage: $0 --copy <id>" >&2; exit 2; }
-              do_copy "$2" ;;
+              do_copy "$2" "${3:-}" ;;
     --delete) [[ $# -ge 2 ]] || { echo "usage: $0 --delete <id>" >&2; exit 2; }
               do_delete "$2" ;;
-    *)        echo "usage: $0 [--list | --copy <id> | --delete <id>]" >&2; exit 2 ;;
+    *)        echo "usage: $0 [--list | --copy <id> [preview] | --delete <id>]" >&2; exit 2 ;;
 esac

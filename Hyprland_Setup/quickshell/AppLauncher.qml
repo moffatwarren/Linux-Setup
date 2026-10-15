@@ -262,9 +262,13 @@ OverlayPanel {
             const first = listMouse.lastY < 0;
             const moved = Math.abs(mouse.x - listMouse.lastX) > 1
                        || Math.abs(mouse.y - listMouse.lastY) > 1;
+            // The anchor only advances on a move that counts. Updating it on
+            // every event meant a slow drift -- one pixel per event -- never
+            // got past the threshold, and the highlight stayed behind.
+            if (!first && !moved) return;
             listMouse.lastX = mouse.x;
             listMouse.lastY = mouse.y;
-            if (first || !moved) return;
+            if (first) return;
 
             const i = listMouse.indexUnder(mouse.x, mouse.y);
             if (i >= 0) list.currentIndex = i;
