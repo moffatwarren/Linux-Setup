@@ -59,6 +59,7 @@ values into the repo — review with `git diff` before committing.
 | Bind | Does |
 |---|---|
 | `SUPER+RETURN` / `SPACE` / `E` / `B` | terminal / launcher / default file explorer / default browser |
+| `SUPER+SHIFT+E` | thunar, regardless of the default file explorer |
 | `SUPER+W` / `SUPER+SHIFT+W` | wallpaper picker / random wallpaper |
 | `SUPER+V` | clipboard history |
 | `SUPER+K` | this keybind list, on screen |

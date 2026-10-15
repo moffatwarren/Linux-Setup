@@ -20,6 +20,8 @@ hl.bind(config.mainMod .. " + SPACE", hl.dsp.exec_cmd("qs ipc call launcher togg
 hl.bind(config.mainMod .. " + K", hl.dsp.exec_cmd("qs ipc call keybinds toggle"), { bypass = true })
 hl.bind(config.mainMod .. " + D", hl.dsp.exec_cmd("qs ipc call defaults toggle"), { bypass = true })
 hl.bind(config.mainMod .. " + E", hl.dsp.exec_cmd("~/.config/hypr/scripts/launch-file-manager.sh"), { bypass = true })
+-- Always thunar, whatever SUPER + E resolves to. $HOME for the same reason launch-file-manager.sh passes it.
+hl.bind(config.mainMod .. " + SHIFT + E", hl.dsp.exec_cmd('thunar "$HOME"'), { bypass = true })
 hl.bind(config.mainMod .. " + B", hl.dsp.exec_cmd("~/.config/hypr/scripts/launch-browser.sh"), { bypass = true })
 hl.bind(config.mainMod .. " + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | swappy -f -'), { bypass = true })
 -- Copies a QR code's contents if the region holds one, and OCRs it otherwise.
