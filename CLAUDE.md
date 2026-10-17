@@ -49,8 +49,8 @@ existing. Beyond that, entries are removed unconditionally, so list only paths t
 put there.
 Currently retired: `rofi`, `swaync`, `hypr/scripts/clipboard-menu.sh`,
 `hypr/scripts/wallpaper-selector.sh`, `hypr/modules/utils/wallpaper_utils.lua`,
-`hypr/scripts/monitor-toggle.sh`, the two `noctalia.css`, and the three
-`quickshell/Tray*.qml`. `ORPHANS` never uninstalls a *package* — `install.sh` only ever
+`hypr/scripts/monitor-toggle.sh`, the two `noctalia.css`, the three
+`quickshell/Tray*.qml`, and `swappy`. `ORPHANS` never uninstalls a *package* — `install.sh` only ever
 installs.
 
 Non-`~/.config` destinations are still explicit in `deploy_configs()`:
@@ -2406,6 +2406,53 @@ The pieces that took thought:
 `wf-recorder` is in `PACMAN_PKGS`; the region select reuses the `slurp` that `SUPER+S`
 already needed.
 
+## The screenshot editor (SUPER+S)
+
+`hypr/scripts/screenshot.sh` slurps a region, grims it to
+`$XDG_RUNTIME_DIR/screenshot-capture-<ns>.png` and opens it with
+`qs ipc call screenshot open <png>`; `quickshell/ScreenshotEditor.qml` is the editor,
+modelled on WarrenTool's Windows one. It replaced swappy: `swappy/` is out of
+`CONFIGS`, the package out of `PACMAN_PKGS`, and `~/.config/swappy` is in `ORPHANS`
+(the package stays installed, since `install.sh` uninstalls nothing).
+
+The toolbar is pen, arrow, rectangle, ellipse, text and pixelate; eight swatches (the
+seven accents plus `crust`, the one that shows on a white page); a size from 1 to 20;
+undo, redo and clear; then Save and Copy. Keys: `1`–`6` pick a tool, `-`/`+` the size,
+`Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`, `Ctrl+C` or Enter copies, `Ctrl+S` saves, Delete
+clears, Escape closes. WarrenTool's seventh tool (OCR) is not here — that is `SUPER+ALT+S`.
+
+Copy and Save render the annotated image to `$XDG_RUNTIME_DIR/screenshot-edited-*.png`
+and hand it back to `screenshot.sh --copy` / `--save`, which own `wl-copy` and
+`~/Pictures/Screenshots` (swappy's old `save_dir`), so no shell string is built in QML.
+Both close the editor. The backdrop deliberately does **not** close it on a click,
+unlike the other overlays — one stray click is not worth losing the annotations to.
+
+Things that took measuring, all against quickshell 0.3.2:
+
+- **Two Canvases at the capture's native size, scaled down as one `Item`.** Strokes are
+  recorded in image pixels (the `MouseArea` sits inside the scaled item, so its
+  coordinates already are), and `Canvas.save(path, size)` writes a full-resolution file
+  — verified 2560x1440 out for a 2560x1440 capture. Sizes are divided by the fit
+  factor, so a 5 looks like a 5 on screen however far a 4K capture was shrunk.
+- **`paper` (Image-backed) paints only on commit, incrementally, and in full only on
+  undo**; `live` (FBO-backed) holds the shape being dragged and is cleared each
+  frame. An Image canvas uploads its whole texture on every paint, which at 4K is the
+  difference between a pen that follows the mouse and one that does not.
+- **Pixelate reads `paper`'s own pixels** (`getImageData`), so it mosaics whatever is
+  under it, earlier annotations included, in drawing order. Five samples per block,
+  not every pixel.
+- **Clear is an op**, which redraws the bare capture, so Undo brings everything back.
+- **The export waits for a paint, and must not wait on `onPainted`.** Committing an
+  open text box queues a paint, so the save is triggered from the end of `onPaint` via
+  `Qt.callLater`. `painted` is *not* emitted for a `requestPaint()` that drew nothing
+  new — which is the usual export — and waiting on it made Save silently do nothing.
+- **Every capture gets a unique filename**: the Canvas caches a loaded image by URL, so
+  a reused path would show the previous screenshot. The script deletes earlier
+  captures and exports before each new one.
+- With no bar running, `qs ipc call` still exits 0 ("Target not found"), so the script
+  checks `pgrep -x quickshell` first and otherwise copies the raw capture to the
+  clipboard rather than losing it.
+
 ## Reading a region: QR code or OCR (SUPER+ALT+S)
 
 `hypr/scripts/screen-read.sh` is the whole of it: `slurp` a region, `grim` it to a
@@ -2756,12 +2803,10 @@ in `vendor_functions.d`; pure is still installed, and its `fish_prompt` *event* 
 is what prints the blank line between prompts. The glyphs are `\uXXXX` escapes for the
 same reason the QML's are.
 
-**swappy's `custom_color` is the annotation pen** for every `SUPER+S`
-screenshot. It takes a GdkRGBA string, so channels are 0-255 and only the alpha
-is 0-1 — `rgba(243,139,168,1)` is `#f38ba8`. Red rather than one of the
-accents because it is drawn *on top of* screenshots of this desktop, which is
-already largely mauve and lavender. (`text_font` is still `sans-serif`, not the
-JetBrainsMono the rest of the session uses.)
+**The screenshot editor's default pen is `red`** — `ScreenshotEditor.qml`'s first
+swatch. Red rather than one of the accents because it is drawn *on top of*
+screenshots of this desktop, which is already largely mauve and lavender. (It was
+swappy's `custom_color` until the editor replaced swappy.)
 
 ## install.sh conventions
 

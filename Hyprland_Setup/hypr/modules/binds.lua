@@ -23,7 +23,8 @@ hl.bind(config.mainMod .. " + E", hl.dsp.exec_cmd("~/.config/hypr/scripts/launch
 -- Always thunar, whatever SUPER + E resolves to. $HOME for the same reason launch-file-manager.sh passes it.
 hl.bind(config.mainMod .. " + SHIFT + E", hl.dsp.exec_cmd('thunar "$HOME"'), { bypass = true })
 hl.bind(config.mainMod .. " + B", hl.dsp.exec_cmd("~/.config/hypr/scripts/launch-browser.sh"), { bypass = true })
-hl.bind(config.mainMod .. " + S", hl.dsp.exec_cmd('grim -g "$(slurp)" - | swappy -f -'), { bypass = true })
+-- Region capture into the bar's screenshot editor (quickshell/ScreenshotEditor.qml).
+hl.bind(config.mainMod .. " + S", hl.dsp.exec_cmd("~/.config/hypr/scripts/screenshot.sh"), { bypass = true })
 -- Copies a QR code's contents if the region holds one, and OCRs it otherwise.
 hl.bind(config.mainMod .. " + ALT + S", hl.dsp.exec_cmd("~/.config/hypr/scripts/screen-read.sh"), { bypass = true })
 -- One key starts and stops a region recording; the bar grows a red pill with

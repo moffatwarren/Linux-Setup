@@ -77,6 +77,15 @@ ShellRoot {
         DefaultsMenu {}
     }
 
+    // SUPER+S. Not toggled: hypr/scripts/screenshot.sh captures the region
+    // and then opens it here, so there is always an image to open with.
+    LazyLoader {
+        id: screenshotEditor
+        loading: true
+
+        ScreenshotEditor {}
+    }
+
     // `qs ipc call <target> toggle`, which is what the keybinds in
     // hypr/modules/binds.lua run. The bar is the only quickshell instance and
     // it uses the default config path, so `qs ipc call` finds it with no -c.
@@ -122,6 +131,13 @@ ShellRoot {
         function toggle(): void { closeOverlays("defaults"); defaultsMenu.item?.toggle(); }
         function open(): void { closeOverlays("defaults"); defaultsMenu.item?.show(); }
         function close(): void { defaultsMenu.item?.close(); }
+    }
+
+    IpcHandler {
+        target: "screenshot"
+
+        function open(path: string): void { closeOverlays("screenshot"); screenshotEditor.item?.openImage(path); }
+        function close(): void { screenshotEditor.item?.close(); }
     }
 
     // SUPER+N, in place of `swaync-client -t`. The menu belongs to a bar module
@@ -205,6 +221,7 @@ ShellRoot {
         if (except !== "clipboard") clipboardMenu.item?.close();
         if (except !== "keybinds") keybindsHelp.item?.close();
         if (except !== "defaults") defaultsMenu.item?.close();
+        if (except !== "screenshot") screenshotEditor.item?.close();
         // The notification menu grabs the keyboard too, so it has to go the same
         // way -- an overlay opened over it would be typing into a dead surface.
         NotificationService.closeMenu();

@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Config directories: Hyprland_Setup/<name> -> ~/.config/<name>
-CONFIGS=(btop fastfetch fish gtk-3.0 gtk-4.0 hypr kitty nvim quickshell superfile swappy weathr wireplumber)
+CONFIGS=(btop fastfetch fish gtk-3.0 gtk-4.0 hypr kitty nvim quickshell superfile weathr wireplumber)
 
 # Retired config paths to purge from ~/.config
 ORPHANS=(
@@ -22,6 +22,7 @@ ORPHANS=(
     quickshell/TrayMenuItems.qml
     hypr/scripts/monitor-toggle.sh
     hypr/scripts/weather.sh
+    swappy
 )
 
 # CachyOS only: paru, brave-origin-bin and localsend live in the `cachyos` repo
@@ -30,7 +31,7 @@ ORPHANS=(
 # so this list is not portable to vanilla Arch and is not meant to be.
 PACMAN_PKGS=(
     kitty hyprland quickshell hyprlock hypridle awww ttf-font-awesome
-    ttf-jetbrains-mono-nerd swappy btop fastfetch thunar tumbler slurp cliphist grim nwg-look
+    ttf-jetbrains-mono-nerd btop fastfetch thunar tumbler slurp cliphist grim nwg-look
     wf-recorder gvfs gvfs-smb samba nvim mpv imv brightnessctl playerctl blueman gnome-text-editor
     swayimg imagemagick thunar-archive-plugin xarchiver unzip net-tools localsend spotify-launcher
     speedtest-cli brave-origin-bin paru tesseract tesseract-data-eng zbar adw-gtk-theme cantarell-fonts
