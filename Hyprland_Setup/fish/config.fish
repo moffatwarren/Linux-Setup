@@ -20,8 +20,12 @@ alias r "sudo pacman -R"
 alias p "paru -S"
 alias ff "fastfetch"
 alias pk "pokemon-colorscripts -r"
+
 function lazyg
-    git add --all && git commit -m "Update" && git push
+    git add --all
+    # Commit only when something is staged, so commits waiting to go out are still pushed
+    and begin; git diff --cached --quiet; or git commit -m "Update"; end
+    and git push
 end
 
 # zoxide: `z <part of a path>` jumps to the best match among directories you
