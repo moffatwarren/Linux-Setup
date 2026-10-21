@@ -13,6 +13,9 @@
 #                     put that entry back on the clipboard; the preview is the
 #                     fallback for an id cliphist has since renumbered
 #   --delete <id>     drop that entry from the history
+#   --edit   <id> [preview]
+#                     open an image entry in the SUPER+S screenshot editor
+#                     (the picker's right-click); the preview as for --copy
 #
 # Image entries get a real thumbnail rather than cliphist's
 # "[[ binary data 547 KiB png 998x608 ]]" placeholder. Thumbnails are cached
@@ -127,21 +130,30 @@ do_list() {
     '
 }
 
-do_copy() {
-    # tr -d '\0': only the format matters here, and a command substitution
-    # cannot hold a NUL -- it drops it and warns on stderr for every text entry
-    # that happens to contain one. do_delete pipes instead, so the line it hands
-    # cliphist stays byte-for-byte what cliphist printed.
-    local line preview id=$1
-    line=$(entry_line "$id" | tr -d '\0')
+# The line for id $1, falling back to the newest entry previewing exactly $2
+# when $1 has been renumbered. Says so and fails when neither is there.
+resolve_entry() {
+    # tr -d '\0': only the id and the format matter to the callers, and a
+    # command substitution cannot hold a NUL -- it drops it and warns on stderr
+    # for every text entry that happens to contain one. do_delete pipes
+    # instead, so the line it hands cliphist stays byte-for-byte what cliphist
+    # printed.
+    local line
+    line=$(entry_line "$1" | tr -d '\0')
     if [[ -z $line && -n ${2:-} ]]; then
         line=$(entry_line_by_preview "$2" | tr -d '\0')
-        id=${line%%$'\t'*}
     fi
     if [[ -z $line ]]; then
         notify-send -u low "Clipboard" "That entry is no longer in the history"
         return 1
     fi
+    printf '%s\n' "$line"
+}
+
+do_copy() {
+    local line id preview
+    line=$(resolve_entry "$1" "${2:-}") || return 1
+    id=${line%%$'\t'*}
     preview=${line#*$'\t'}
 
     if [[ $preview =~ $BINARY_RE ]]; then
@@ -158,11 +170,31 @@ do_delete() {
     entry_line "$1" | cliphist delete
 }
 
+# The image goes down a pipe into screenshot.sh, which owns opening anything in
+# the editor -- the unique capture name the Canvas needs, and the fallback when
+# the bar is not running. Nothing is written here. Marking it up does not touch
+# the entry: the editor's Copy puts the result on the clipboard, and
+# `wl-paste --watch` stores that as a new one beside it.
+do_edit() {
+    local line id preview
+    line=$(resolve_entry "$1" "${2:-}") || return 1
+    id=${line%%$'\t'*}
+    preview=${line#*$'\t'}
+
+    if [[ ! $preview =~ $BINARY_RE ]]; then
+        notify-send -u low "Clipboard" "Only an image can be marked up"
+        return 1
+    fi
+    cliphist decode "$id" | "$(dirname "$(readlink -f "$0")")/screenshot.sh" --open -
+}
+
 case "${1:---list}" in
     --list)   do_list ;;
     --copy)   [[ $# -ge 2 ]] || { echo "usage: $0 --copy <id>" >&2; exit 2; }
               do_copy "$2" "${3:-}" ;;
     --delete) [[ $# -ge 2 ]] || { echo "usage: $0 --delete <id>" >&2; exit 2; }
               do_delete "$2" ;;
-    *)        echo "usage: $0 [--list | --copy <id> [preview] | --delete <id>]" >&2; exit 2 ;;
+    --edit)   [[ $# -ge 2 ]] || { echo "usage: $0 --edit <id>" >&2; exit 2; }
+              do_edit "$2" "${3:-}" ;;
+    *)        echo "usage: $0 [--list | --copy <id> [preview] | --delete <id> | --edit <id> [preview]]" >&2; exit 2 ;;
 esac

@@ -11,8 +11,8 @@ import QtQuick
 //
 // hypr/scripts/clipboard-history.sh is the whole backend: `--list` prints the
 // history as JSON (with a cached thumbnail path for each image entry), and
-// `--copy`/`--delete` act on one id. Nothing here parses cliphist's output, so
-// the placeholder-vs-thumbnail logic lives in one place.
+// `--copy`/`--delete`/`--edit` act on one id. Nothing here parses cliphist's
+// output, so the placeholder-vs-thumbnail logic lives in one place.
 OverlayPanel {
     id: root
 
@@ -36,11 +36,16 @@ OverlayPanel {
     placeholder: "type to filter"
     subtitle: root.current && root.current.kind === "image" ? root.current.detail : ""
     countLabel: root.shown.length + " / " + root.entries.length
+    // The right-click hint only shows on an image, because on text a
+    // right-click removes, which the Del hint already covers. Appended rather
+    // than inserted, so the rest of the line stays put as the selection moves.
     footerText: root.entries.length === 0
                 ? "Clipboard history is empty"
                 : (root.shown.length === 0
                    ? "Nothing matches"
-                   : "↑ ↓  move    ↵  copy    Del  remove    Esc  cancel")
+                   : "↑ ↓  move    ↵  copy    Del  remove    Esc  cancel"
+                     + (root.current && root.current.kind === "image"
+                        ? "    right-click  mark up" : ""))
     footerColor: root.shown.length === 0 ? Theme.red : Theme.overlay0
 
     panelWidth: 720
@@ -122,6 +127,16 @@ OverlayPanel {
         // a queue. Each delete is independent, so let them overlap.
         Quickshell.execDetached([root.script, "--delete", id]);
         reconcile.restart();
+    }
+
+    // Opens an image in the SUPER+S screenshot editor. Closed first, as copy()
+    // is, because the editor takes the keyboard next. The preview goes along
+    // for the same dead-id reason. Nothing to reconcile: decoding an entry
+    // does not renumber it, and the marked-up copy is a new entry that the
+    // next opening's refresh() picks up.
+    function markUp(entry: var): void {
+        root.close();
+        Quickshell.execDetached([root.script, "--edit", entry.id, entry.preview || ""]);
     }
 
     Process {
@@ -253,7 +268,8 @@ OverlayPanel {
 
     // One stationary hover surface rather than a MouseArea per row -- see
     // WallpaperPicker for why a per-row one fights the arrow keys.
-    // Right-click removes an entry, matching the Delete key.
+    // Right-click opens an image in the screenshot editor, and removes text,
+    // as the Delete key does.
     MouseArea {
         id: listMouse
 
@@ -288,8 +304,10 @@ OverlayPanel {
         onClicked: mouse => {
             const i = listMouse.indexUnder(mouse.x, mouse.y);
             if (i < 0) return;
-            if (mouse.button === Qt.RightButton) root.remove(root.shown[i].id);
-            else root.copy(root.shown[i]);
+            const entry = root.shown[i];
+            if (mouse.button !== Qt.RightButton) root.copy(entry);
+            else if (entry.kind === "image") root.markUp(entry);
+            else root.remove(entry.id);
         }
 
         // Let the wheel reach the ListView underneath.

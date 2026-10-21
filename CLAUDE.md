@@ -1738,8 +1738,8 @@ keyboard grab is gone by the time the new window maps and asks for focus.
 ### The clipboard history (SUPER+V)
 
 `hypr/scripts/clipboard-history.sh` is the whole backend — `--list` (JSON,
-newest first), `--copy <id>`, `--delete <id>`. No cliphist output is parsed in
-QML. Image entries carry a cached thumbnail path instead of cliphist's
+newest first), `--copy <id>`, `--delete <id>`, `--edit <id>`. No cliphist output
+is parsed in QML. Image entries carry a cached thumbnail path instead of cliphist's
 `[[ binary data 547 KiB png 998x608 ]]` placeholder; thumbnails live in
 `~/.cache/cliphist-thumbs` keyed by the cliphist id (never reused, so a cached
 file cannot go stale) and are pruned against the live history on each `--list`.
@@ -1773,18 +1773,29 @@ new id — verified: `--copy 484` left it as 494, and a second `--copy 484` exit
 with the clipboard untouched. So a list read before the last copy (this menu's,
 or a Ctrl+C of text already in the history) pastes whatever was there before.
 `--copy <id> <preview>` falls back to the newest entry with that exact preview,
-and the menu re-reads the list after every copy.
+and the menu re-reads the list after every copy. `--edit` takes the same
+fallback; both resolve through `resolve_entry`.
 
 The hover surface's movement threshold advances its anchor only on a move that
 counts; updating it on every event meant a slow, one-pixel-per-event drift never
 crossed the threshold and the highlight lagged behind the pointer. The launcher
 and the wallpaper picker had the same bug.
 
-`Delete` (and a right-click) removes an entry and leaves the menu open, so a run
-of junk can be cleared without reopening between each one. The row disappears
-from the model immediately and the reload afterwards reconciles with what
-cliphist actually holds — waiting for the process to return would make the key
-feel dead.
+`Delete` removes an entry and leaves the menu open, so a run of junk can be
+cleared without reopening between each one. The row disappears from the model
+immediately and the reload afterwards reconciles with what cliphist actually
+holds — waiting for the process to return would make the key feel dead.
+
+**A right-click depends on what the row is**, matching WarrenTool's clipboard
+manager. On an image it closes the menu and opens the image in the SUPER+S
+screenshot editor (`--edit`). On text it removes the entry, as `Delete` does. The
+footer adds a `right-click  mark up` hint only while an image is selected, at the
+end of the line so the rest of the hints stay put as the selection moves.
+`--edit` decodes the entry down a pipe into `screenshot.sh --open -` and writes
+nothing itself, so the capture naming and the no-bar fallback stay in
+`screenshot.sh` (see **The screenshot editor**). The entry is left alone: the
+editor's Copy goes through `wl-copy`, and `wl-paste --type image --watch` stores
+the marked-up image as a new entry beside the original.
 
 `install.sh`'s `ORPHANS` list is what deletes the old `clipboard-menu.sh` from a
 machine upgrading from the rofi layout — `cp -rf` never removes files the repo
@@ -2452,6 +2463,20 @@ Things that took measuring, all against quickshell 0.3.2:
 - With no bar running, `qs ipc call` still exits 0 ("Target not found"), so the script
   checks `pgrep -x quickshell` first and otherwise copies the raw capture to the
   clipboard rather than losing it.
+
+**`screenshot.sh --open <image>` opens an existing image as if it had just been
+captured**, and `-` reads it from stdin. The clipboard history's right-click on an
+image is its caller (see **The clipboard history**). It goes through the same
+unique-name and no-bar steps as a capture, and first runs the image through `magick`
+to make it the shape grim gives the editor:
+
+- **Transparency is flattened onto white**, as WarrenTool's `Capturer.Load` does.
+  Pixelate averages rgb and ignores alpha, and a fully transparent pixel reads as
+  black, so a transparent area would mosaic to black blocks.
+- **Every format comes out as PNG.** The clipboard can hold webp, bmp, tiff or ico,
+  and the Canvas loads only what Qt's image plugins can.
+- **`[0]` takes the first frame.** Without it a GIF or ICO is written as one numbered
+  file per frame and the capture path never exists.
 
 ## Reading a region: QR code or OCR (SUPER+ALT+S)
 

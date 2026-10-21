@@ -120,7 +120,9 @@ clicked — as does pressing `SUPER+CTRL+S` again. Recordings land in
 The launcher, the clipboard history and the wallpaper picker are one interface
 in three guises — the same quickshell overlay, living in the bar process. Type
 to filter, arrows to move, Enter to pick, Escape to cancel. In the clipboard,
-`Delete` (or a right-click) drops an entry.
+`Delete` drops an entry. A right-click on an image opens it in the `SUPER+S`
+screenshot editor to mark it up; copying from there adds the marked-up version
+to the history. A right-click on text drops it, as `Delete` does.
 
 ## Layout
 
