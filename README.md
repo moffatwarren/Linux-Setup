@@ -135,6 +135,7 @@ Hyprland_Setup/
   btop/ fastfetch/ fish/ kitty/ nvim/ weathr/
   voidsddm/ sddm.conf.d/   SDDM theme (deployed to /usr, needs sudo)
   applications/       desktop entries for apps that ship none (superfile), to ~/.local/share
+  udev/               udev rules (CPU power for the bar), to /etc/udev/rules.d (sudo)
   superfile/          spf settings: nvim as the editor, zoxide on
 wallpapers/           one starter wallpaper, seeded into ~/Pictures/wallpapers
 *.md                  personal command reference notes (everything but README.md and CLAUDE.md)

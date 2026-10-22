@@ -38,6 +38,7 @@ PACMAN_PKGS=(
     papirus-icon-theme jq libpulse wireplumber pavucontrol power-profiles-daemon networkmanager
     qt6-imageformats libnotify wl-clipboard curl python xdg-utils pacman-contrib fakeroot sddm avahi
     protonup-qt gamescope gnome-calculator mangohud lib32-mangohud github-cli superfile zoxide cifs-utils
+    pciutils
     # Present on this machine only because the CachyOS desktop profile installed
     # them -- nothing above pulls any of them in, so a no-desktop install would
     # deploy the configs that use them and have them silently do nothing:
@@ -229,6 +230,14 @@ deploy_configs() {
     sudo \cp -rf "$SCRIPT_DIR/voidsddm" /usr/share/sddm/themes
     sudo \cp -rf "$SCRIPT_DIR/sddm.conf.d" /etc
     echo "    voidsddm + sddm.conf.d (system)"
+    # udev rules, file by file: rules.d is shared with every package's rules.
+    # Re-triggered so a rule applies now, not at the next boot -- the RAPL one
+    # is what gives the power-profile menu its CPU power row.
+    sudo mkdir -p /etc/udev/rules.d
+    sudo \cp -f "$SCRIPT_DIR"/udev/*.rules /etc/udev/rules.d
+    sudo udevadm control --reload || true
+    sudo udevadm trigger --action=add --subsystem-match=powercap || true
+    echo "    udev rules (system)"
     # Desktop entries for apps whose package ships none (superfile). Copied file
     # by file: the directory is shared with every other app's entries and with
     # mimeinfo.cache, so it is never deployed or pulled as a whole.

@@ -61,6 +61,36 @@ MenuPopup {
 
     function has(key) { return stats[key] !== undefined; }
 
+    // system-stats.sh prints the names the hardware gives; these cut them to
+    // the part that tells one machine from another, since a row is 280px wide.
+    // "Intel(R) Core(TM) i7-14700K" -> "i7-14700K",
+    // "AMD Ryzen 7 7840HS w/ Radeon 780M Graphics" -> "Ryzen 7 7840HS".
+    // (No lookahead or lookbehind: see the QML JS engine note in CLAUDE.md.)
+    function shortCpu(name) {
+        return name.replace(/\((R|TM|tm)\)/g, "")
+                   .replace(/@.*$/, "")
+                   .replace(/\s(w\/|with) Radeon.*$/i, "")
+                   .replace(/\b\d+(st|nd|rd|th) Gen\b/i, "")
+                   .replace(/\b(\d+-Core )?Processor\b/gi, "")
+                   .replace(/\bCPU\b/g, "")
+                   .replace(/^\s*(Intel|AMD)\s+/i, "")
+                   .replace(/\bCore (i\d)/, "$1")
+                   .replace(/\s+/g, " ").trim();
+    }
+
+    // nvidia-smi says "NVIDIA GeForce RTX 5070 Ti"; lspci says
+    // "Navi 48 [Radeon RX 9070 XT]", the chip and then the product in brackets.
+    // Both come out as "RTX 5070 Ti" / "RX 9070 XT". One chip sold as several
+    // cards ("7900 XT/7900 XTX/7900 GRE") is left whole and elided.
+    function shortGpu(name) {
+        const bracket = name.match(/\[(.+)\]/);
+        return (bracket ? bracket[1] : name)
+                   .replace(/^\s*(NVIDIA|AMD|Intel)\s+/i, "")
+                   .replace(/\bGeForce (RTX|GTX)/, "$1")
+                   .replace(/\bRadeon (RX)/, "$1")
+                   .replace(/\s+/g, " ").trim();
+    }
+
     readonly property var statRows: {
         const s = root.stats;
         const out = [];
@@ -68,16 +98,24 @@ MenuPopup {
         // capacity rows.
         if (root.cpuPct >= 0)
             out.push({ text: "CPU", detail: Math.round(root.cpuPct) + "%",
+                       name: has("cpu_name") ? root.shortCpu(s.cpu_name) : "",
                        accent: root.loadColor(root.cpuPct) });
         if (has("cpu_temp"))
             out.push({ text: "CPU temp", detail: root.formatTemp(s.cpu_temp),
                        accent: root.tempColor(s.cpu_temp) });
+        if (has("cpu_power_uw") && root.formatWatts)
+            out.push({ text: "CPU power", detail: root.formatWatts(s.cpu_power_uw),
+                       accent: Theme.peach });
         if (has("gpu_pct"))
             out.push({ text: "GPU", detail: s.gpu_pct + "%",
+                       name: has("gpu_name") ? root.shortGpu(s.gpu_name) : "",
                        accent: root.loadColor(s.gpu_pct) });
         if (has("gpu_temp"))
             out.push({ text: "GPU temp", detail: root.formatTemp(s.gpu_temp),
                        accent: root.tempColor(s.gpu_temp) });
+        if (has("gpu_power_uw") && root.formatWatts)
+            out.push({ text: "GPU power", detail: root.formatWatts(s.gpu_power_uw),
+                       accent: Theme.peach });
         if (has("power_uw") && root.formatWatts)
             out.push({ text: "Power", detail: root.formatWatts(s.power_uw),
                        accent: Theme.peach });
@@ -221,7 +259,17 @@ MenuPopup {
                     font.pixelSize: Theme.fontSize
                 }
 
-                Item { Layout.fillWidth: true }
+                // The model name on the CPU and GPU rows, dimmed so the label
+                // and the number still read first. Empty on every other row,
+                // where it is just the spacer that pushes the number right.
+                Text {
+                    Layout.fillWidth: true
+                    text: modelData.name || ""
+                    color: Theme.subtext0
+                    elide: Text.ElideRight
+                    font.family: Theme.fontFamily
+                    font.pixelSize: Theme.fontSize
+                }
 
                 Text {
                     text: modelData.detail

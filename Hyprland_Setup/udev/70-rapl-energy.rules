@@ -1,0 +1,11 @@
+# Let wheel read the CPU package energy counters, for the CPU power row in the
+# bar's power-profile menu (hypr/scripts/system-stats.sh).
+#
+# The kernel makes energy_uj root-only since CVE-2020-8694 ("Platypus"):
+# fine-grained energy readings are a side channel. This deliberately re-opens
+# them, to wheel rather than to every account on the machine, and only for the
+# package domains (intel-rapl:N, not the core/uncore intel-rapl:N:M below them).
+# AMD Zen packages are exposed under the same intel-rapl name.
+SUBSYSTEM=="powercap", KERNEL=="intel-rapl:[0-9]", ACTION=="add", \
+    RUN+="/usr/bin/chgrp wheel /sys%p/energy_uj", \
+    RUN+="/usr/bin/chmod 0440 /sys%p/energy_uj"

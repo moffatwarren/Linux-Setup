@@ -54,9 +54,12 @@ Currently retired: `rofi`, `swaync`, `hypr/scripts/clipboard-menu.sh`,
 installs.
 
 Non-`~/.config` destinations are still explicit in `deploy_configs()`:
-`voidsddm` → `/usr/share/sddm/themes`, `sddm.conf.d` → `/etc` (both sudo), and
-`applications/*.desktop` → `~/.local/share/applications`, copied file by file because
-that directory is shared with every other app's entries (and so is never pulled back).
+`voidsddm` → `/usr/share/sddm/themes`, `sddm.conf.d` → `/etc` (both sudo),
+`udev/*.rules` → `/etc/udev/rules.d` (sudo, then a `powercap` re-trigger — see the
+power-profile menu's CPU power), and
+`applications/*.desktop` → `~/.local/share/applications`. Both of the last two are copied
+file by file because those directories are shared with every other package's entries (and
+so are never pulled back).
 `applications/superfile.desktop` is the one entry there: the `superfile` package ships
 none, and without `MimeType=inode/directory` plus `Categories=FileManager` `spf` cannot
 be offered in SUPER+D or opened by `SUPER+E`. `Terminal=true` is what puts it in kitty.
@@ -1005,15 +1008,53 @@ object of raw numbers (bytes, percent, millidegrees, microwatts), leaving all fo
 to the QML. It discovers sensors by **name, not index**: hwmon numbering is assigned in
 probe order and changes between boots, and the DRM card index moves the same way. A
 value it cannot read is omitted from the JSON rather than reported as `0`, so the menu
-drops that row instead of showing a confidently wrong reading. **The GPU is the card
-that exposes VRAM or utilisation, not the first card**: on a machine with an Intel iGPU
-beside a discrete card the iGPU enumerates first, and i915/xe expose no load, no VRAM and
-no hwmon — so taking the first card silently dropped the GPU, VRAM, GPU-temp *and* Power
-rows at once (measured on an i915 UHD 770 + amdgpu RX 9070 XT desktop). On machines with
-proprietary NVIDIA drivers where sysfs hwmon exposes no GPU stats, a fallback query to
-`nvidia-smi` supplies GPU load, temperature, VRAM, and power draw. That script runs on a
+drops that row instead of showing a confidently wrong reading. That script runs on a
 2 s timer gated on `menu.open`, with one immediate read on the way open, so an idle bar
 spawns no processes — it was gated on `hovered` for the same reason.
+
+**The GPU is the discrete card, chosen by `gpu_score()`, never the first card.** On a
+machine with an iGPU beside a discrete card the iGPU enumerates first, and i915/xe expose
+no load, no VRAM and no hwmon — so taking the first card silently dropped the GPU, VRAM,
+GPU-temp *and* power rows at once (measured on an i915 UHD 770 + amdgpu RX 9070 XT
+desktop). The rule before this was "the first card exposing VRAM or utilisation", which
+the proprietary NVIDIA driver never does — on the UHD 770 + RTX 5070 Ti desktop it
+picked the iGPU, read nothing, and a blind `nvidia-smi` fallback filled every row in, so
+the numbers were right only because the iGPU had none of its own. Scoring now: NVIDIA,
+AMD with `mem_info_vram_vendor` (amdgpu hides that attribute when it cannot name the VRAM
+chips, which an APU's carve-out of system RAM never has — from the kernel source, not
+verified on AMD hardware here) and an Intel card with its own hwmon (Arc) are discrete;
+an AMD APU ranks below them; an Intel iGPU last. Ties go to the most VRAM. **An NVIDIA
+card is read through `nvidia-smi --id=<pci bus id>`**, so a second NVIDIA card cannot
+answer for it, and the sysfs path is used for everything else (amdgpu, Arc, nouveau).
+**A card whose `power/runtime_status` is `suspended` is skipped**: asking amdgpu or
+`nvidia-smi` for a number wakes a sleeping laptop dGPU, and a 2 s poll would then hold it
+awake for as long as the menu is open. The next-best awake card is reported instead.
+
+**The CPU and GPU rows carry the model name**, dimmed between the label and the number.
+The script prints what the hardware says — `cpu_name` from `/proc/cpuinfo`, `gpu_name`
+from the `nvidia-smi` query it already makes, or from `lspci -vmm` for any other card
+(cached per bus id in `$XDG_RUNTIME_DIR/system-stats-pcinames.$UID`, since lspci parses
+all of `pci.ids` per call; hence `pciutils` in `PACMAN_PKGS`). Trimming is display, so
+it is the menu's `shortCpu()` / `shortGpu()`: `Intel(R) Core(TM) i7-14700K` →
+`i7-14700K`, `GB203 [GeForce RTX 5070 Ti]` → `RTX 5070 Ti` (lspci's product is the part
+in brackets). Both were checked in `qs -p` against Intel, AMD, Xeon and Core Ultra
+names. One chip sold as several cards (`RX 7900 XT/7900 XTX/…`) is left whole and
+elided rather than guessed at.
+
+**CPU power comes from RAPL, and it needs the udev rule.** coretemp and k10temp report
+temperature only; package power on Intel and AMD Zen is the `intel-rapl:N` domains under
+`/sys/class/powercap` (the name is historical — AMD's are called that too). Those are
+microjoule *counters*, so `rapl_power()` differences two samples: the previous one is kept
+in `$XDG_RUNTIME_DIR/system-stats-rapl.$UID`, and with no usable one (first run, or older
+than 10 s because the menu was shut) the script takes a 0.25 s sample of its own — which
+is why the first read on opening takes ~290 ms and the 2 s polls ~40 ms. The counter wraps
+at `max_energy_range_uj` (~262 kJ on this CPU, about an hour under load) and the delta
+adds the range back. **`energy_uj` is root-only by default** (CVE-2020-8694, "Platypus":
+fine-grained energy is a side channel), so `udev/70-rapl-energy.rules` re-opens it **to
+`wheel`**, package domains only, and `deploy_configs` re-triggers `powercap` so it applies
+without a reboot. A user not in `wheel` simply gets no CPU power row. The menu shows
+`CPU power` and `GPU power` beside their temperatures; `Power` is still the battery's
+whole-system draw when discharging, else their sum.
 
 **The pill samples and the menu draws, and the formatters cross that line as
 functions.** `humanBytes`, `usage`, `loadColor`, `tempColor`, `temp` and `watts` are
