@@ -23,9 +23,14 @@ pkgver() {
 
 prepare() {
 	cd "${_pkgname}"
+	# Jobs without an IPP "sides" attribute (Chrome) are never rotated by
+	# pdftopdf, so the filter rotates their long-edge back pages itself.
 	patch -p1 < "${srcdir}/long-edge-duplex.patch"
-	# The printer now flips long-edge sheets itself, so stop asking CUPS to
-	# rotate back pages too (it does not today, but a future filter might).
+	# cupsBackSide describes what the printer does to back pages. brlaser
+	# always sends the short-edge code (ESC&l2S), so on a long-edge job the
+	# back page has to arrive rotated 180°. "Normal" is what makes Ghostscript
+	# do that rotation; the stock "Rotated" tells it the printer already does,
+	# and every long-edge back page came out upside down.
 	sed -i '/ModelName "HL-2270DW series"/,/^}/s/Duplex rotated/Duplex normal/' brlaser.drv.in
 }
 

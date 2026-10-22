@@ -1,16 +1,104 @@
---- a/src/job.cc
-+++ b/src/job.cc
-@@ -93,8 +93,12 @@
-   fprintf(out_, "\033*t%dR",
-           page_params_.ras1200 ? 600 : page_params_.resolution);
+diff --git a/src/main.cc b/src/main.cc
+index aa6d27e..73f09f3 100644
+--- a/src/main.cc
++++ b/src/main.cc
+@@ -19,7 +19,9 @@
+ #include <signal.h>
+ #include <unistd.h>
+ #include <fcntl.h>
++#include <cups/cups.h>
+ #include <cups/raster.h>
++#include <string.h>
+ #include <algorithm>
+ #include <functional>
+ #include <string>
+@@ -53,6 +55,54 @@ bool next_line(std::vector<uint8_t> &buf) {
+ }
  
--  if (page_params_.duplex || page_params_.tumble) {
-+  // Long-edge and short-edge need different PCL binding codes; sending
-+  // &l2S for both made the back of every long-edge sheet upside down.
-+  if (page_params_.duplex && page_params_.tumble) {
-     fputs("\033&l2S", out_);
-+  } else if (page_params_.duplex) {
-+    fputs("\033&l1S", out_);
-   } else {
-     fputs("\033&l0S", out_);
-   }
+ 
++// The printer always flips the sheet on its short edge, so on a long-edge
++// job the back of every sheet has to arrive upside down. pdftopdf does that
++// rotation, but only when the job carries the IPP "sides" attribute; a job
++// that asks for duplex through the PPD's Duplex option alone (Chrome does)
++// reaches this filter unrotated. For those the filter rotates the page
++// itself: it is buffered, then replayed bottom line first, each line mirrored.
++std::vector<std::vector<uint8_t>> rotated_page;
++size_t rotated_pos;
++
++bool next_rotated_line(std::vector<uint8_t> &buf) {
++  if (interrupted || rotated_pos >= rotated_page.size()) {
++    return false;
++  }
++  buf = rotated_page[rotated_pos++];
++  return true;
++}
++
++void read_rotated_page(const cups_page_header2_t &header) {
++  const unsigned width = header.cupsWidth;
++  const size_t linesize = header.cupsBytesPerLine;
++  rotated_page.clear();
++  rotated_pos = 0;
++
++  std::vector<uint8_t> line(linesize);
++  for (unsigned i = 0; i < header.cupsHeight && next_line(line); ++i) {
++    // Mirror the pixels within the page width; padding bits past it stay 0.
++    std::vector<uint8_t> mirrored(linesize, 0);
++    for (unsigned x = 0; x < width; ++x) {
++      unsigned src = width - 1 - x;
++      if (line[src / 8] & (0x80 >> (src % 8))) {
++        mirrored[x / 8] |= 0x80 >> (x % 8);
++      }
++    }
++    rotated_page.push_back(std::move(mirrored));
++  }
++  std::reverse(rotated_page.begin(), rotated_page.end());
++}
++
++bool pdftopdf_rotated(const char *job_options) {
++  cups_option_t *options = nullptr;
++  int num_options = cupsParseOptions(job_options, 0, &options);
++  const char *sides = cupsGetOption("sides", num_options, options);
++  bool result = sides && strcmp(sides, "two-sided-long-edge") == 0;
++  cupsFreeOptions(num_options, options);
++  return result;
++}
++
++
+ bool plain_ascii_string(const char *str) {
+   bool result = true;
+   for (; result && *str; str++) {
+@@ -145,7 +195,7 @@ int main(int argc, char *argv[]) {
+   const char *job_user = argv[2];
+   const char *job_name = argv[3];
+   // const int job_copies = atoi(argv[4]);
+-  // const char *job_options = argv[5];
++  const char *job_options = argv[5];
+   const char *job_filename = argv[6];
+   // const char *job_charset = getenv("CHARSET");
+ 
+@@ -176,6 +226,7 @@ int main(int argc, char *argv[]) {
+ 
+   {
+     job job(stdout, ascii_job_name(job_id, job_user, job_name));
++    const bool upstream_rotated = pdftopdf_rotated(job_options);
+     cups_page_header2_t header;
+     while (!interrupted && cupsRasterReadHeader2(ras, &header)) {
+       if (header.cupsBitsPerPixel != 1
+@@ -190,10 +241,16 @@ int main(int argc, char *argv[]) {
+         fprintf(stderr, "DEBUG: " PACKAGE ": Page header of first page\n");
+         dump_page_header(header);
+       }
++      // Pages alternate front/back, so every second page is a back side.
++      bool back_side = header.Duplex && !header.Tumble
++          && job.pages() % 2 == 1 && !upstream_rotated;
++      if (back_side) {
++        read_rotated_page(header);
++      }
+       job.encode_page(build_page_params(header),
+                       header.cupsHeight,
+                       header.cupsBytesPerLine,
+-                      next_line);
++                      back_side ? next_rotated_line : next_line);
+       fprintf(stderr, "PAGE: %d %d\n", job.pages(), header.NumCopies);
+     }
+ 
