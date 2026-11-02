@@ -977,7 +977,7 @@ right-aligned column so the lock and "saved" markers land at the same x on every
 `PowerMenu.qml` (Lock, Sleep, Log out, Restart, Shutdown). Left-click rather than
 right-click because opening the menu is the button's only purpose. The commands mirror
 the equivalent keybinds in `binds.lua` — in particular Sleep locks before suspending
-(`hyprlock & sleep 0.5 && systemctl suspend`), matching `SUPER+SHIFT+L`, rather than
+(`lock.sh --suspend`), matching `SUPER+SHIFT+L`, rather than
 suspending an unlocked session. The action list is a plain array at the top of
 `PowerMenu.qml`, so adding or removing an entry is one line.
 
@@ -2642,11 +2642,142 @@ the other — the `public-ip.sh` / `pia.sh --service` rule. A module that disapp
 is happy cannot be told from one that has quietly died, which is exactly the distinction
 this module exists to make, so zero is a dimmed closed box rather than nothing at all.
 
+## The lock screen (aquarium)
+
+The lock is a neon pixel-art fish tank on pure black, with one tank per monitor and a
+clock and password box on every one of them. **hyprlock is no longer what locks this
+machine, but it must stay installed**: it is the fallback, and its PAM service and its
+`hyprlock.conf` are both still in use (below).
+
+`hypr/scripts/lock.sh` is the **only** way anything locks: `hypridle.conf`'s `lock_cmd`,
+`SUPER+L`, `SUPER+SHIFT+L` (`--suspend`) and `PowerMenu.qml` all call it. Everything else
+is `Hyprland_Setup/aquarium/`, which `CONFIGS` deploys to `~/.config/aquarium`:
+
+| | |
+|---|---|
+| `lock.qml` | the real root; what `lock.sh` runs |
+| `Lock.qml` | the `WlSessionLock`, and quitting once unlocked |
+| `LockContext.qml` | what the monitors share: password, PAM, idle state |
+| `LockSurface.qml` | one monitor: a tank, the clock, the password box |
+| `Aquarium.qml` / `PixelSprite.qml` | the tank, which knows nothing about locking |
+| `make_sprites.py` | generates `sprites/`, stdlib only; the PNGs are committed |
+| `preview.qml`, `preview-all.qml` | the tank with no lock: a window, or every monitor for 30 s |
+| `lock-test.qml`, `lock-test.sh` | the lock with a timer that unlocks it; see **Testing a lock** |
+
+It runs as its own `qs -p` instance, never inside the bar, so restarting the bar cannot
+take the lock down. **`install.sh`'s `killall quickshell` does not reach it** — it matches
+the process name, which is `qs` here and `quickshell` for the bar.
+
+**`hyprlock.conf` is still load-bearing, for two reasons.** It is what the fallback draws,
+and it is where `SUPER+W`'s pick is recorded: `WallpaperPicker.qml` reads its current
+wallpaper from that `path =` line, and `save_lock_wallpaper` carries it across a deploy.
+The aquarium itself ignores wallpapers. Leave all of that alone.
+
+**The password check is hyprlock's PAM service** (`/etc/pam.d/hyprlock`), so the lock is
+exactly as strict as before — including `pam_faillock`, where three wrong passwords lock
+the account for ten minutes by default. Anything PAM says goes on screen, which is the
+only way that lockout would be explained. A private `pam_unix`-only service would quietly
+drop faillock.
+
+### `lock.sh`: a lock command that fails must not fail open
+
+A lock that quietly does not lock leaves the desktop open, so every path through that
+script either has a lock up or has handed over to hyprlock. It starts the aquarium and
+waits for `Lock.qml` to touch a marker, which happens when the compositor reports the
+session secure. The aquarium gets 3 s; a real two-monitor lock takes about 250 ms. Missing
+files, broken QML, a hang, a crash or a kill while locked all end at hyprlock, and a
+critical notification says so after the unlock, since nothing can be drawn over a lock.
+
+- **`allow_session_lock_restore` is what makes the fallback possible** (`modules/look.lua`).
+  Without it Hyprland refuses every new locker while a dead one still holds the session,
+  which is a locked screen with nothing to type into.
+- **That same option means Hyprland no longer enforces one lock at a time, so `lock.sh`
+  does, with `flock`.** With restore on a second locker can take over from a live one, and
+  worse, the *older* one can still release the session while the newer one is on screen —
+  measured: the older lock's unlock turned the screen back to the desktop with the newer
+  lock process still running. Getting there still takes a correct password, but two locks
+  must never run.
+- **Only `lock.sh` itself may hold the guard**, hence `9>&-` on everything it starts. If a
+  long-lived child inherited the fd, the guard could outlast the lock and every later call
+  would exit without locking — the one failure this file exists to rule out.
+- **`--suspend` waits for the marker**, instead of the `hyprlock & sleep 0.5` it replaced.
+  The fallback path alone still sleeps 0.5 s, because hyprlock writes no marker.
+
+### Three traps
+
+- **`inhibit_sleep = 3` in `hypridle.conf` must stay explicit.** The default, `2`, picks
+  "wait until locked" only if `lock_cmd` contains the literal word `hyprlock`, and otherwise
+  only waits for `before_sleep_cmd` to return, which `loginctl lock-session` does at once.
+  Measured from hypridle's own startup line with each config. So pointing `lock_cmd` at any
+  other script silently makes a lid close suspend before the lock is up and wake on the
+  desktop. logind only holds a suspend for 5 s (`InhibitDelayMaxUSec`), which is why
+  `lock.sh`'s limit is 3 s: hyprlock has to fit in what is left.
+- **Releasing a `WlSessionLock` does not emit `lockStateChanged`** (Quickshell 0.3.2:
+  `secure` goes false and the surfaces go, and the handler never runs). Quitting from that
+  handler left a `qs` behind after every unlock, so `Lock.unlock()` starts the quit itself.
+  The 300 ms before it are not politeness: a client that exits still holding the lock
+  leaves the session locked.
+- **`Lock.qml` turns `Quickshell.watchFiles` off.** Quickshell hot-reloads a config whose
+  files change, so without this a deploy over a locked session would rebuild the lock
+  screen under it. Verified against a control with it left on, which did reload.
+
+### The tank
+
+Laid out in "tank pixels" and scaled by a **whole number** (`floor(height / 270)`: 1080p
+by 4, 1440p by 5), so every pixel is the same size and nothing is resampled. Each sprite
+is a texture the scene graph moves about, and one 15 Hz timer writes positions, which is
+why it is cheap: two fullscreen 1440p tanks measured 2% of a core and under 1 W of GPU on
+top of idle. Each frame of a sprite is its own always-loaded `Image` with only `visible`
+changing, so a tail flick re-reads nothing.
+
+- **The component is `PixelSprite`, not `Sprite`, because QtQuick already has a `Sprite`**,
+  and an explicit module import beats a same-directory file. The error it produces is
+  "Cannot assign to non-existent property", which does not point at the name.
+- **The water is not drawn at all** — it is the black `Rectangle` — and the light rays were
+  removed rather than dimmed, since anything over it stops it being black. Keep the
+  scenery dark or transparent: the distant hills are a one-pixel outline filled with black.
+- **The glow is stepped alpha** (`glow()` in `make_sprites.py`), so it is still made of
+  whole tank pixels. It grows every sprite's canvas by 2 on each side; an outline is a
+  coloured rim rather than a dark line, because a dark one vanishes on black.
+- **A jellyfish beat has to change strength with direction.** With one fixed thrust it only
+  ever drifts one way and pins itself to the top of the tank.
+- Clock digits are `glyph_*.png`, a 5x7 font at 3 tank pixels per dot. Text from PAM is real
+  text instead, outside the scaled item, because PAM can say anything and scaling a `Text`
+  up blurs it.
+
+Idle: 10 s after the last key or mouse movement the clock and box fade and the cursor hides,
+and a half-typed password is cleared. `SystemClock` ticks every second though the display
+reads to the minute, because a timer stops during suspend and a minute-long tick could show
+the wrong time for up to a minute after waking.
+
+### Testing a lock
+
+A bug here is a locked-out session, so nothing gets tried on the real one first.
+
+- **A nested Hyprland is the safe place, and it can do what the real session should not**:
+  kill the lock mid-way, freeze it, add and remove outputs under it (`hyprctl -i <sig>
+  output create headless`). Start it with `HYPRLAND_NO_SD_VARS=1 HYPRLAND_NO_SD_NOTIFY=1
+  Hyprland -c <scratch.lua>` so it leaves the session's systemd environment alone, and give
+  it a bright `misc.background_color`: `grim` still works under a lock, and one pixel then
+  says whether it is locked.
+- **`lock-test.qml` takes the PAM service from the environment.** A scratch directory holding
+  `auth required pam_permit.so` or `pam_deny.so` exercises both outcomes with no password and
+  without counting towards faillock. `lock.qml` has no such override, and no IPC.
+- **Shadow `systemctl` and `notify-send` in `PATH` when testing `lock.sh --suspend`.** A real
+  `systemctl suspend` from a nested test suspends this machine, not the nested one.
+- **`lock-test.sh [seconds]` is the one for the real session.** It unlocks itself when the time
+  is up, kills a hung lock 15 s after that, and falls to hyprlock if the lock ends badly.
+- A test that has to kill a lock leaves the nested session locked; start another lock to take
+  over, as the fallback would. Use `pgrep -x`, not `pgrep -f`, which matches its own shell.
+
+**Verified on the desktop:** a real suspend and resume through this lock (NVIDIA, two
+monitors). **Not yet verified on a laptop:** closing the lid, and the tank's power draw.
+
 ## Idle and lock (hypridle)
 
 `hypr/hypridle.conf` is two rules — a `lock_cmd`, a `before_sleep_cmd`, and a single
-300 s listener that locks. Every path funnels through `lock_cmd`, whose
-`pidof hyprlock ||` guard is what stops a second hyprlock stacking on the first.
+300 s listener that locks. Every path funnels through `lock_cmd`, which is `lock.sh` (see
+**The lock screen (aquarium)**), and that is what stops a second lock stacking on the first.
 
 `before_sleep_cmd` **was `logindtl lock-session`** — `loginctl` misspelled, so it
 silently did nothing and a lid-close or `systemctl suspend` resumed straight to an
@@ -2699,7 +2830,7 @@ can be the bug). The comment block in `hypridle.conf` says so at the point of te
 If DPMS is ever wanted back, it has to be proven recoverable **first**, and only ever
 tested behind a detached timer that re-enables it unconditionally a few seconds later —
 otherwise the test is the outage. The cost of doing without it is that the panel stays
-powered behind hyprlock all night. That is the cheaper of the two failures.
+powered behind the lock all night. That is the cheaper of the two failures.
 
 ## btop (Catppuccin Mocha)
 

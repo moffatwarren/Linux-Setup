@@ -2,10 +2,10 @@
 
 Personal Hyprland desktop configuration for CachyOS/Arch — Hyprland (Lua config),
 a quickshell bar with matching app launcher / clipboard / wallpaper overlays
-and notifications, hyprlock/hypridle, kitty, fish, a Catppuccin Mocha GTK
-theme (thunar and the file chooser) and an SDDM theme. Everything that
-draws is Catppuccin Mocha — the bar, the terminal, GTK apps, btop, neovim,
-the lock screen and the login screen.
+and notifications, a neon pixel-art aquarium lock screen with hypridle, kitty,
+fish, a Catppuccin Mocha GTK theme (thunar and the file chooser) and an SDDM
+theme. Everything else that draws is Catppuccin Mocha — the bar, the terminal,
+GTK apps, btop, neovim and the login screen.
 
 This repo is the source of truth. The live system is a deployed copy of it, so
 **edit the configs here, in `Hyprland_Setup/<app>/`, not in `~/.config/<app>/`** —
@@ -31,8 +31,8 @@ Nothing in it is specific to the machine it runs on. There is no first-install
 mode and no set-up to answer: audio outputs are configured in the bar's audio
 menu and stored under `~/.cache`, and the laptop screen is identified from its
 display connector at runtime rather than being named in a config file. The one
-value a deploy still carries across is the lock screen wallpaper, which
-`SUPER+W` writes into `hyprlock.conf`. Updating a machine that predates the
+value a deploy still carries across is the chosen wallpaper, which `SUPER+W`
+records in `hyprlock.conf`. Updating a machine that predates the
 audio menu carries its old headphone and bluetooth sinks into it as icons, once.
 
 Tailscale and PIA are not installed from here — see `tailscale_commands.md` and
@@ -129,8 +129,9 @@ to the history. A right-click on text drops it, as `Delete` does.
 ```
 Hyprland_Setup/
   install.sh          the only entry point (deploy + --pull)
-  hypr/               hyprland, hyprlock, hypridle + the shell scripts
+  hypr/               hyprland, hypridle, hyprlock (the lock's fallback) + the shell scripts
   quickshell/         the bar, the overlays and notifications, one file per module
+  aquarium/           the lock screen: a neon fish tank on every monitor
   gtk-3.0/ gtk-4.0/   Catppuccin Mocha over adw-gtk3-dark (thunar, dialogs)
   btop/ fastfetch/ fish/ kitty/ nvim/ weathr/
   voidsddm/ sddm.conf.d/   SDDM theme (deployed to /usr, needs sudo)

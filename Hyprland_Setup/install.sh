@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Config directories: Hyprland_Setup/<name> -> ~/.config/<name>
-CONFIGS=(btop fastfetch fish gtk-3.0 gtk-4.0 hypr kitty nvim quickshell superfile weathr wireplumber)
+CONFIGS=(aquarium btop fastfetch fish gtk-3.0 gtk-4.0 hypr kitty nvim quickshell superfile weathr wireplumber)
 
 # Retired config paths to purge from ~/.config
 ORPHANS=(

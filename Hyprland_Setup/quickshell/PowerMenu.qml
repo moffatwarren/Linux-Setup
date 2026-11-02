@@ -16,8 +16,8 @@ MenuPopup {
     id: root
 
     readonly property var actions: [
-        { label: "Lock",     glyph: "\uf023", accent: Theme.sapphire, command: "hyprlock" },
-        { label: "Sleep",    glyph: "\uf186", accent: Theme.blue,     command: "hyprlock & sleep 0.5 && systemctl suspend" },
+        { label: "Lock",     glyph: "\uf023", accent: Theme.sapphire, command: "~/.config/hypr/scripts/lock.sh" },
+        { label: "Sleep",    glyph: "\uf186", accent: Theme.blue,     command: "~/.config/hypr/scripts/lock.sh --suspend" },
         { label: "Log out",  glyph: "\uf08b", accent: Theme.mauve,    command: "hyprctl dispatch 'hl.dsp.exit()'" },
         { label: "Restart",  glyph: "\uf021", accent: Theme.peach,    command: "systemctl reboot" },
         { label: "Shutdown", glyph: "\uf011", accent: Theme.red,      command: "systemctl poweroff" }

@@ -109,3 +109,13 @@ hl.config({
 	},
 })
 
+hl.config({
+	misc = {
+		-- What lets hyprlock take the session if the aquarium lock dies. Without it
+		-- Hyprland refuses any new locker while a dead one still holds the session,
+		-- which leaves a locked screen with nothing to type a password into. See
+		-- hypr/scripts/lock.sh.
+		allow_session_lock_restore = true,
+	},
+})
+
