@@ -2,10 +2,10 @@
 
 Personal Hyprland desktop configuration for CachyOS/Arch — Hyprland (Lua config),
 a quickshell bar with matching app launcher / clipboard / wallpaper overlays
-and notifications, a neon pixel-art aquarium lock screen with hypridle, kitty,
-fish, a Catppuccin Mocha GTK theme (thunar and the file chooser) and an SDDM
-theme. Everything else that draws is Catppuccin Mocha — the bar, the terminal,
-GTK apps, btop, neovim and the login screen.
+and notifications, a pixel-art aquarium lock screen with hypridle, kitty, fish,
+a Catppuccin Mocha GTK theme (thunar and the file chooser) and an SDDM theme.
+Everything that draws is Catppuccin Mocha — the bar, the terminal, GTK apps,
+btop, neovim, the login screen and the lock screen, whose water is pure black.
 
 This repo is the source of truth. The live system is a deployed copy of it, so
 **edit the configs here, in `Hyprland_Setup/<app>/`, not in `~/.config/<app>/`** —
@@ -131,13 +131,14 @@ Hyprland_Setup/
   install.sh          the only entry point (deploy + --pull)
   hypr/               hyprland, hypridle, hyprlock (the lock's fallback) + the shell scripts
   quickshell/         the bar, the overlays and notifications, one file per module
-  aquarium/           the lock screen: a neon fish tank on every monitor
+  aquarium/           the lock screen: a pastel fish tank on every monitor
   gtk-3.0/ gtk-4.0/   Catppuccin Mocha over adw-gtk3-dark (thunar, dialogs)
   btop/ fastfetch/ fish/ kitty/ nvim/ weathr/
   voidsddm/ sddm.conf.d/   SDDM theme (deployed to /usr, needs sudo)
   applications/       desktop entries for apps that ship none (superfile), to ~/.local/share
   udev/               udev rules (CPU power for the bar), to /etc/udev/rules.d (sudo)
   superfile/          spf settings: nvim as the editor, zoxide on
+  brave/              Brave flags (GPU video decoding), to ~/.config
 wallpapers/           one starter wallpaper, seeded into ~/Pictures/wallpapers
 *.md                  personal command reference notes (everything but README.md and CLAUDE.md)
 ```

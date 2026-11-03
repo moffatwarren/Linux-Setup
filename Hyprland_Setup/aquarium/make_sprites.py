@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Generate the aquarium's pixel art into sprites/. Standard library only.
 
+Catppuccin Mocha in flat colour, drawn for pure black water.
+
 The PNGs are committed, so this only needs running after editing the art here.
 Everything is drawn facing right; Aquarium.qml mirrors a sprite to swim left.
 The output is deterministic: re-running it changes nothing unless the art does.
@@ -78,36 +80,26 @@ def outline(img, c):
     return out
 
 
-def glow(img, colour, near=80, far=28):
-    """Surround a sprite with a two-step halo. Grows the canvas by 2 on every side.
+def distant(img):
+    """Recolour a sprite for the back of the tank: a cool shape keeping a hint of its colour.
 
-    Stepped alpha rather than a blur, so the glow is still made of whole tank pixels.
+    It is not simply dimmed, because a darkened warm pastel is brown. On black that turned
+    every far clownfish and goldfish the colour of mud.
     """
-    h, w = len(img), len(img[0])
-    out = blank(w + 4, h + 4)
-    for y in range(h + 4):
-        for x in range(w + 4):
-            sx, sy = x - 2, y - 2
-            if 0 <= sx < w and 0 <= sy < h and img[sy][sx][3]:
-                out[y][x] = img[sy][sx]
-                continue
-            nearest = 3
-            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1), (2, 0), (-2, 0), (0, 2), (0, -2),
-                           (1, 1), (1, -1), (-1, 1), (-1, -1)):
-                nx, ny = sx + dx, sy + dy
-                if 0 <= nx < w and 0 <= ny < h and img[ny][nx][3]:
-                    nearest = min(nearest, abs(dx) + abs(dy))
-            if nearest == 1:
-                out[y][x] = (*colour, near)
-            elif nearest == 2 and far:
-                out[y][x] = (*colour, far)
+    low, high = rgb("#313244"), rgb("#7f849c")
+    out = blank(len(img[0]), len(img))
+    for y, row in enumerate(img):
+        for x, (r, g, b, a) in enumerate(row):
+            if a:
+                light = (0.3 * r + 0.59 * g + 0.11 * b) / 255
+                out[y][x] = (*mix(mix(low, high, light), (r, g, b), 0.25), a)
     return out
 
 
 # --- Palette-mapped ASCII art -----------------------------------------------
 
-WHITE = rgb("#ffffff")
-INK = rgb("#0a0a12")
+WHITE = rgb("#cdd6f4")
+INK = rgb("#11111b")
 
 
 def palette(body, stripe, fin, belly=None):
@@ -120,9 +112,8 @@ def palette(body, stripe, fin, belly=None):
         "T": shade(stripe, 0.7),
         "F": fin,
         "G": shade(fin, 0.7),
-        # A coloured rim, not a dark line: on black water a dark outline disappears
-        # and takes a pixel off every edge of the fish.
-        "O": shade(body, 0.55),
+        # A dim rim in the fish's own colour, which still shows against black.
+        "O": shade(body, 0.36),
         "W": WHITE,
         "K": INK,
     }
@@ -267,32 +258,32 @@ FISH = {
 
 VARIANTS = {
     "clown": {
-        "orange": palette("#ff6a00", "#ffffff", "#ffb000", "#ff9d3d"),
-        "red": palette("#ff1744", "#00f0ff", "#ff6d00", "#ff6680"),
+        "orange": palette("#fab387", "#f5e0dc", "#f9e2af", "#fbc9a8"),
+        "red": palette("#f38ba8", "#f5e0dc", "#fab387", "#f5b5c8"),
     },
     "tang": {
-        "blue": palette("#1f7bff", "#fff200", "#0048ff", "#66b0ff"),
-        "teal": palette("#00ffc8", "#ff2bd6", "#00b894", "#8cffe8"),
+        "blue": palette("#89b4fa", "#f9e2af", "#74c7ec", "#b4befe"),
+        "teal": palette("#94e2d5", "#f5c2e7", "#74c7ec", "#b8efe6"),
     },
     "angel": {
-        "yellow": palette("#fff200", "#5a00c8", "#ff9100", "#fff98a"),
-        "violet": palette("#b026ff", "#ffffff", "#7a00ff", "#dd99ff"),
+        "yellow": palette("#f9e2af", "#585b70", "#fab387", "#f5e0dc"),
+        "violet": palette("#cba6f7", "#f5e0dc", "#b4befe", "#f5c2e7"),
     },
     "tetra": {
-        "neon": palette("#00b8ff", "#00ffff", "#ff1744", "#ffffff"),
-        "lime": palette("#76ff03", "#eaff00", "#ff6d00", "#f4ffcc"),
+        "neon": palette("#74c7ec", "#89dceb", "#f38ba8", "#cdd6f4"),
+        "lime": palette("#a6e3a1", "#f9e2af", "#fab387", "#d3f0d0"),
     },
     "gold": {
-        "gold": palette("#ffab00", "#ffd600", "#ffd600", "#ffe57f"),
-        "pearl": palette("#ff2d7a", "#ffffff", "#ffb3d1", "#ff99c2"),
+        "gold": palette("#fab387", "#f9e2af", "#f9e2af", "#f5e0dc"),
+        "pearl": palette("#eba0ac", "#f5e0dc", "#f2cdcd", "#f5e0dc"),
     },
     "puffer": {
-        "yellow": palette("#ffea00", "#fff9c4", "#ff9100", "#fffde7"),
-        "green": palette("#00ff66", "#ccff90", "#00c853", "#e8ffe8"),
+        "yellow": palette("#f9e2af", "#f5e0dc", "#fab387", "#f5e0dc"),
+        "green": palette("#a6e3a1", "#94e2d5", "#94e2d5", "#d3f0d0"),
     },
     "betta": {
-        "magenta": palette("#ff00c8", "#ffb3f0", "#a100ff", "#ff80e0"),
-        "royal": palette("#2979ff", "#c7d2ff", "#ff1744", "#82b1ff"),
+        "magenta": palette("#f5c2e7", "#f2cdcd", "#cba6f7", "#f5e0dc"),
+        "royal": palette("#b4befe", "#cdd6f4", "#f38ba8", "#cdd6f4"),
     },
 }
 
@@ -303,12 +294,13 @@ def make_fish():
             base = from_ascii(spec["art"], pal)
             for frame, shift in enumerate((0, 1, -1)):
                 img = wiggle(base, spec["tail"], shift, spec["amp"])
-                write_png(OUT / f"fish_{species}_{variant}_{frame}.png", glow(img, pal["B"]))
+                write_png(OUT / f"fish_{species}_{variant}_{frame}.png", img)
+                write_png(OUT / f"fish_{species}_{variant}_far_{frame}.png", distant(img))
 
 
 JELLY_PAL = {
-    "pink": {"B": rgb("#ff2bd6"), "L": rgb("#ffb3f0"), "D": rgb("#c4009c"), "O": rgb("#a80a8c")},
-    "aqua": {"B": rgb("#00e5ff"), "L": rgb("#b3f7ff"), "D": rgb("#0091c9"), "O": rgb("#0079a8")},
+    "pink": {"B": rgb("#f5c2e7"), "L": rgb("#f5e0dc"), "D": rgb("#cba6f7"), "O": rgb("#8a6d82")},
+    "aqua": {"B": rgb("#89dceb"), "L": rgb("#cdd6f4"), "D": rgb("#74c7ec"), "O": rgb("#4d7c85")},
 }
 
 JELLY = [
@@ -363,8 +355,8 @@ JELLY = [
 ]
 
 CRAB_PAL = {
-    "O": rgb("#8f0020"), "B": rgb("#ff1744"), "L": rgb("#ff6e7f"),
-    "D": rgb("#d4002f"), "W": WHITE, "K": INK,
+    "O": rgb("#6f4050"), "B": rgb("#f38ba8"), "L": rgb("#f5c2d0"),
+    "D": rgb("#b86880"), "W": WHITE, "K": INK,
 }
 CRAB = [
     [
@@ -392,8 +384,8 @@ CRAB = [
 ]
 
 CHEST_PAL = {
-    "O": rgb("#7a2a00"), "B": rgb("#c2410c"), "D": rgb("#8f2f08"), "L": rgb("#ff6a1a"),
-    "S": rgb("#fff200"), "T": rgb("#ffb300"), "K": INK,
+    "O": rgb("#45332b"), "B": rgb("#8a6450"), "D": rgb("#6b4e3f"), "L": rgb("#b58a70"),
+    "S": rgb("#f9e2af"), "T": rgb("#c4b08a"), "K": INK,
 }
 CHEST = [
     "...OOOOOOOOOOOOOOOO...",
@@ -419,47 +411,43 @@ BUBBLES = {
 def make_creatures():
     for colour, pal in JELLY_PAL.items():
         for frame, art in enumerate(JELLY):
-            write_png(OUT / f"jelly_{colour}_{frame}.png", glow(from_ascii(art, pal), pal["B"]))
+            write_png(OUT / f"jelly_{colour}_{frame}.png", from_ascii(art, pal))
     for frame, art in enumerate(CRAB):
-        write_png(OUT / f"crab_{frame}.png", glow(from_ascii(art, CRAB_PAL), CRAB_PAL["B"]))
-    write_png(OUT / "chest.png", glow(from_ascii(CHEST, CHEST_PAL), CHEST_PAL["S"], 50, 18))
-    cyan = rgb("#00e5ff")
-    bubble_pal = {"O": cyan, "L": WHITE}
+        write_png(OUT / f"crab_{frame}.png", from_ascii(art, CRAB_PAL))
+    write_png(OUT / "chest.png", from_ascii(CHEST, CHEST_PAL))
+    bubble_pal = {"O": rgb("#89dceb"), "L": WHITE}
     for name, art in BUBBLES.items():
-        write_png(OUT / f"{name}.png", glow(from_ascii(art, bubble_pal), cyan, 50, 14))
+        write_png(OUT / f"{name}.png", from_ascii(art, bubble_pal))
 
 
 # --- Procedural scenery -----------------------------------------------------
 #
 # The water itself is not drawn at all: it is black, and Aquarium.qml's background
-# already is. Everything here is dark or transparent except for what is meant to glow.
+# already is. The scenery is kept dark, so that the creatures are what stands out.
 
 def make_surface():
-    light = rgb("#00e5ff")
+    light = rgb("#89b4fa")
     w, h = 64, 8
     for frame in range(3):
         img = blank(w, h)
         for x in range(w):
             phase = 2 * math.pi * (x / w + frame / 3)
             y = round(3 + 1.4 * math.sin(phase) + 0.6 * math.sin(phase * 2 + 1))
-            put(img, x, y - 1, light, 60)
-            put(img, x, y, light)
-            put(img, x, y + 1, light, 60)
-            put(img, x, y + 2, light, 20)
+            put(img, x, y - 1, light, 24)
+            put(img, x, y, light, 150)
+            put(img, x, y + 1, light, 24)
         write_png(OUT / f"surface_{frame}.png", img)
 
 
 def make_sand():
     rng = random.Random(7)
     w, h = 128, 40
-    line, upper, lower = rgb("#ff2bd6"), rgb("#1c0a33"), rgb("#0b0416")
-    specks = [rgb("#00e5ff"), rgb("#ff2bd6"), rgb("#b026ff"), rgb("#76ff03")]
+    line, upper, lower = rgb("#6c7086"), rgb("#181825"), rgb("#0c0c13")
+    specks = [rgb("#9399b2"), rgb("#7f849c"), rgb("#6c7086"), rgb("#a6adc8")]
     img = blank(w, h)
     for x in range(w):
         t = 2 * math.pi * x / w
         top = round(7 + 3 * math.sin(t) + 1.6 * math.sin(t * 3 + 0.8))
-        put(img, x, top - 2, line, 22)
-        put(img, x, top - 1, line, 70)
         for y in range(top, h):
             depth = y - top
             put(img, x, y, line if depth == 0 else upper if depth < 12 else lower)
@@ -472,9 +460,9 @@ def make_sand():
 
 
 def make_far_rocks():
-    # An outline only, filled with black: a dim neon skyline that leaves the water
+    # An outline only, filled with black: a dim skyline that leaves the water
     # black, and in which the nearer range still hides the one behind it.
-    for name, col, peak, freq in (("far_0", "#3a1a8c", 58, 2), ("far_1", "#0f4a8c", 40, 3)):
+    for name, col, peak, freq in (("far_0", "#313244", 58, 2), ("far_1", "#45475a", 40, 3)):
         w, h = 256, 66
         colour = rgb(col)
         tops = []
@@ -495,9 +483,9 @@ def make_far_rocks():
 
 def make_weed():
     specs = {
-        "weed_green": ("#39ff14", "#1fb30a", "#0c5204", 72, 2.2),
-        "weed_teal": ("#00ffd5", "#00b396", "#005244", 52, 1.8),
-        "weed_lime": ("#d4ff00", "#93b300", "#465200", 96, 2.6),
+        "weed_green": ("#a6e3a1", "#7bb078", "#3c5a3e", 72, 2.2),
+        "weed_teal": ("#94e2d5", "#6aa89d", "#355a56", 52, 1.8),
+        "weed_lime": ("#a6e3a1", "#74c7ec", "#2f5560", 96, 2.6),
     }
     for name, (hi, lo, edge, h, amp) in specs.items():
         hi, lo, edge = rgb(hi), rgb(lo), rgb(edge)
@@ -521,7 +509,7 @@ def make_weed():
                         put(img, lx, y - rise, hi if i < 4 else lo)
                         if i < 4:
                             put(img, lx, y - rise + 1, lo)
-            write_png(OUT / f"{name}_{frame}.png", glow(outline(img, edge), hi, 45, 14))
+            write_png(OUT / f"{name}_{frame}.png", outline(img, edge))
 
 
 def branch(img, rng, x, y, angle, length, width, hi, lo):
@@ -544,19 +532,19 @@ def branch(img, rng, x, y, angle, length, width, hi, lo):
 
 def make_coral():
     for name, hi, lo, edge, seed in (
-        ("coral_pink", "#ff1fa8", "#c4107c", "#5c0a3b", 3),
-        ("coral_orange", "#ff7a00", "#c45c00", "#5c2b00", 11),
-        ("coral_violet", "#bf40ff", "#8a1fcc", "#40105c", 21),
+        ("coral_pink", "#f5c2e7", "#c293b6", "#5e4a5a", 3),
+        ("coral_orange", "#fab387", "#c58763", "#5f4333", 11),
+        ("coral_violet", "#cba6f7", "#9b7cc4", "#4c3e60", 21),
     ):
         hi, lo, edge = rgb(hi), rgb(lo), rgb(edge)
         rng = random.Random(seed)
         img = blank(60, 44)
         branch(img, rng, 29, 43, math.pi / 2, 13, 4, hi, lo)
-        write_png(OUT / f"{name}.png", glow(outline(img, edge), hi, 60, 20))
+        write_png(OUT / f"{name}.png", outline(img, edge))
 
     # Brain coral: a dome with a squiggle through it.
     w, h = 30, 17
-    hi, lo, edge = rgb("#fff200"), rgb("#c98a00"), rgb("#5c4d00")
+    hi, lo, edge = rgb("#f9e2af"), rgb("#c4ae80"), rgb("#5f5540")
     img = blank(w, h)
     for y in range(h):
         for x in range(w):
@@ -564,11 +552,11 @@ def make_coral():
             if dx * dx + dy * dy <= 1:
                 wave = math.sin(x * 0.9 + 2.2 * math.sin(y * 0.8))
                 put(img, x, y, lo if wave > 0.35 else hi)
-    write_png(OUT / "coral_brain.png", glow(outline(img, edge), hi, 60, 20))
+    write_png(OUT / "coral_brain.png", outline(img, edge))
 
     # Tube sponges: a cluster of open-topped columns.
     w, h = 26, 30
-    hi, lo, edge, inner = rgb("#00e5ff"), rgb("#0099cc"), rgb("#004459"), rgb("#00222c")
+    hi, lo, edge, inner = rgb("#74c7ec"), rgb("#5499b8"), rgb("#2f4f60"), rgb("#1e1e2e")
     img = blank(w, h)
     for cx, top in ((5, 12), (12, 2), (19, 8)):
         for y in range(top, h):
@@ -576,15 +564,15 @@ def make_coral():
                 put(img, x, y, hi if x <= cx - 1 else lo)
         for x in range(cx - 1, cx + 2):
             put(img, x, top, inner)
-    write_png(OUT / "coral_tube.png", glow(outline(img, edge), hi, 60, 20))
+    write_png(OUT / "coral_tube.png", outline(img, edge))
 
 
 def make_rocks():
     # Dark, with a lit rim: the one thing in the tank that should not compete.
-    rim = rgb("#7c4dff")
+    rim = rgb("#6c7086")
     for name, w, h, base, seed in (
-        ("rock_0", 46, 24, "#1e1a45", 5),
-        ("rock_1", 30, 17, "#261d4d", 9),
+        ("rock_0", 46, 24, "#262636", 5),
+        ("rock_1", 30, 17, "#313244", 9),
     ):
         rng = random.Random(seed)
         c = rgb(base)
@@ -600,7 +588,7 @@ def make_rocks():
                     if rng.random() < 0.05:
                         col = shade(col, 0.85)
                     put(img, x, y, col)
-        write_png(OUT / f"{name}.png", glow(outline(img, rim), rim, 40, 14))
+        write_png(OUT / f"{name}.png", outline(img, rim))
 
 
 # --- The lock screen's clock --------------------------------------------------
@@ -624,9 +612,9 @@ GLYPHS = {
 
 
 def make_clock_glyphs():
-    # A 5x7 arcade font at 3 tank pixels per dot, cyan fading down to magenta.
+    # A 5x7 arcade font at 3 tank pixels per dot, lavender fading down to mauve.
     scale = 3
-    top, bottom, halo = rgb("#00f0ff"), rgb("#ff2bd6"), rgb("#b026ff")
+    top, bottom = rgb("#b4befe"), rgb("#cba6f7")
     for name, rows in GLYPHS.items():
         img = blank(len(rows[0]) * scale, len(rows) * scale)
         for row, bits in enumerate(rows):
@@ -636,7 +624,7 @@ def make_clock_glyphs():
                     for dy in range(scale):
                         for dx in range(scale):
                             put(img, col * scale + dx, row * scale + dy, colour)
-        write_png(OUT / f"glyph_{name}.png", glow(img, halo, 70, 24))
+        write_png(OUT / f"glyph_{name}.png", img)
 
 
 def main():

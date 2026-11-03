@@ -62,10 +62,10 @@ Item {
         { colour: "lime", size: 7 },
     ]
 
-    function newFish(name, speed, band, opacity) {
+    function newFish(name, speed, band, far) {
         return {
-            name: name, opacity: opacity, leader: null,
-            base: rand(speed[0], speed[1]) * (opacity < 1 ? 0.7 : 1),
+            name: far ? name + "_far" : name, far: far, leader: null,
+            base: rand(speed[0], speed[1]) * (far ? 0.7 : 1),
             band: band, x: 0, y: 0, v: 0, tv: 0, ty: 0, dir: Math.random() < 0.5 ? 1 : -1,
             turning: false, timer: rand(1, 6), phase: rand(0, 4), bob: rand(0, 6.28),
             offX: 0, offY: 0, w: 0, h: 0,
@@ -80,16 +80,16 @@ Item {
             const total = Math.max(1, Math.round(s.count * density));
             for (let i = 0; i < total; i++)
                 roster.push(newFish("fish_" + s.id + "_" + s.colours[i % s.colours.length],
-                                    s.speed, s.band, 1));
+                                    s.speed, s.band, false));
             for (let i = 0; i < Math.round(s.back * density); i++)
-                roster.push(newFish("fish_" + s.id + "_" + pick(s.colours), s.speed, s.band, 0.6));
+                roster.push(newFish("fish_" + s.id + "_" + pick(s.colours), s.speed, s.band, true));
         }
 
         for (const school of schools) {
-            const lead = newFish("fish_tetra_" + school.colour, [16, 24], [0.1, 0.7], 1);
+            const lead = newFish("fish_tetra_" + school.colour, [16, 24], [0.1, 0.7], false);
             roster.push(lead);
             for (let i = 1; i < school.size; i++) {
-                const f = newFish(lead.name, [16, 24], lead.band, 1);
+                const f = newFish(lead.name, [16, 24], lead.band, false);
                 f.leader = lead;
                 f.offX = rand(-34, 8);
                 f.offY = rand(-13, 13);
@@ -97,8 +97,8 @@ Item {
             }
         }
 
-        const back = roster.filter(f => f.opacity < 1);
-        const front = roster.filter(f => f.opacity === 1);
+        const back = roster.filter(f => f.far);
+        const front = roster.filter(f => !f.far);
         fish = back.concat(front);
         backFishModel = back;
         frontFishModel = front;
@@ -373,7 +373,6 @@ Item {
                 required property var modelData
                 name: modelData.name
                 frames: 3
-                opacity: modelData.opacity
             }
         }
 
@@ -384,7 +383,7 @@ Item {
                 name: modelData.name
                 frames: 4
                 frame: Math.floor(root.clock * modelData.rate * 4 + modelData.offset) % 4
-                x: Math.round(modelData.x * root.tankWidth) - 15
+                x: Math.round(modelData.x * root.tankWidth) - 13
                 y: root.tankHeight - height - modelData.sink - 22
             }
         }
@@ -445,7 +444,7 @@ Item {
                 name: modelData.name
                 frames: 4
                 frame: Math.floor(root.clock * modelData.rate * 4 + modelData.offset) % 4
-                x: Math.round(modelData.x * root.tankWidth) - 15
+                x: Math.round(modelData.x * root.tankWidth) - 13
                 y: root.tankHeight - height - modelData.sink - 4
             }
         }

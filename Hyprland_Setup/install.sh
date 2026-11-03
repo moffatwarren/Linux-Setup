@@ -53,8 +53,11 @@ PACMAN_PKGS=(
     #                                does not arrive on its own: no screencast
     #   xdg-desktop-portal-gtk       the portal file chooser gtk-3.0/mocha.css themes
     #   bluez-utils                  bluetoothctl; blueman pulls only bluez itself
+    #   libva-nvidia-driver          what brave/brave-origin-flags.conf switches on;
+    #                                it depends on no NVIDIA package, so it is inert
+    #                                on a machine without that hardware
     upower pipewire-pulse fish git base-devel xdg-desktop-portal-hyprland
-    xdg-desktop-portal-gtk bluez-utils
+    xdg-desktop-portal-gtk bluez-utils libva-nvidia-driver
 )
 
 PARU_PKGS=(
@@ -244,6 +247,9 @@ deploy_configs() {
     mkdir -p "$HOME/.local/share/applications"
     \cp -f "$SCRIPT_DIR"/applications/*.desktop "$HOME/.local/share/applications"
     echo "    applications (~/.local/share)"
+    # A bare file in ~/.config, which CONFIGS cannot express: it copies directories.
+    \cp -f "$SCRIPT_DIR/brave/brave-origin-flags.conf" "$HOME/.config"
+    echo "    brave-origin-flags.conf"
 }
 
 # Delete what an older release of this repo deployed and this one has dropped
@@ -572,6 +578,22 @@ check_notification_owner() {
     esac
 }
 
+# Brave writes its web app launchers with Exec=/opt/brave-origin-bin/brave-origin,
+# which skips /usr/bin/brave-origin and so skips brave-origin-flags.conf. Whichever
+# process starts first owns the browser's flags, so opening one of these before the
+# browser would silently lose them for the whole session. Brave can rewrite a launcher
+# later, and a new web app starts out with the old line: the next run repairs both.
+fix_brave_webapp_launchers() {
+    local f
+    for f in "$HOME"/.local/share/applications/brave-*.desktop; do
+        [ -e "$f" ] || continue
+        if grep -q '^Exec=/opt/brave-origin-bin/brave-origin ' "$f"; then
+            sed -i 's|^Exec=/opt/brave-origin-bin/brave-origin |Exec=/usr/bin/brave-origin |' "$f"
+            echo "    ${f##*/}"
+        fi
+    done
+}
+
 # Reverse direction: live system -> repo, for review and commit
 pull_configs() {
     info "Pulling live configs into $SCRIPT_DIR"
@@ -591,6 +613,10 @@ pull_configs() {
     if [ -d /etc/sddm.conf.d ]; then
         \cp -rf /etc/sddm.conf.d "$SCRIPT_DIR"
         echo "    sddm.conf.d"
+    fi
+    if [ -f "$HOME/.config/brave-origin-flags.conf" ]; then
+        \cp -f "$HOME/.config/brave-origin-flags.conf" "$SCRIPT_DIR/brave"
+        echo "    brave-origin-flags.conf"
     fi
 
     cat <<EOF
@@ -628,6 +654,7 @@ main() {
     fix_permissions
     prune_mime_sweep
     ensure_file_manager_default
+    fix_brave_webapp_launchers
     check_lid_handling
     enable_services
     apply_system_tweaks

@@ -119,3 +119,13 @@ hl.config({
 	},
 })
 
+hl.config({
+	render = {
+		-- Hyprland's default of 1 switches the monitor to HDR whenever a fullscreen
+		-- window reads as HDR. Brave on YouTube did, so every fullscreen toggle
+		-- changed the HDR signal and blanked the panel. See "Auto-HDR is off" in
+		-- CLAUDE.md.
+		cm_auto_hdr = 0,
+	},
+})
+

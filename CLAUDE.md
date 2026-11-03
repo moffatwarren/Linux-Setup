@@ -385,6 +385,27 @@ whole range rather than assumed:
   own across), so nothing triggers it in normal use, and it is deliberately not
   defended against with a speculative re-apply on every keypress.
 
+### Auto-HDR is off (`render.cm_auto_hdr = 0`)
+
+`look.lua` overrides Hyprland's default of `1`, which switches a monitor to HDR when a
+fullscreen window reads as HDR. Fullscreening YouTube in Brave did that on every toggle, so
+the panel went fully black each way. Measured on 0.57.0 with an RTX 5070 Ti, 4 toggles each:
+
+| `cm_auto_hdr` | kernel `Infoframe changed` lines | Hyprland stall per toggle | panel |
+|---|---|---|---|
+| `1` | 4, each in the same second as its toggle | up to ~280 ms | black |
+| `0` | 0 | none measured | no black |
+
+**A screenshot or recording cannot show this.** `grim` frames never went black and the
+transition settled in about 330 ms, because the blanking happens after the compositor's
+output. `journalctl -k -g 'Infoframe changed'` is what shows it, in real time.
+`hyprland.log` is no help for timing: it reached the file well after the toggles.
+
+**Why Brave's surface reads as HDR is not established.** The video did not look like HDR
+content, and no other fullscreen app was tested.
+
+The cost is that a fullscreen HDR game no longer switches the monitor to HDR by itself.
+
 ### `SUPER+CTRL+Z` swaps the two monitors left-to-right
 
 `swap_monitors()` puts the right-hand screen on the left and the left-hand one on the
@@ -2644,8 +2665,8 @@ this module exists to make, so zero is a dimmed closed box rather than nothing a
 
 ## The lock screen (aquarium)
 
-The lock is a neon pixel-art fish tank on pure black, with one tank per monitor and a
-clock and password box on every one of them. **hyprlock is no longer what locks this
+The lock is a pixel-art fish tank in Catppuccin Mocha pastels on pure black, with one tank
+per monitor and a clock and password box on every one of them. **hyprlock is no longer what locks this
 machine, but it must stay installed**: it is the fallback, and its PAM service and its
 `hyprlock.conf` are both still in use (below).
 
@@ -2736,14 +2757,23 @@ changing, so a tail flick re-reads nothing.
 - **The water is not drawn at all** — it is the black `Rectangle` — and the light rays were
   removed rather than dimmed, since anything over it stops it being black. Keep the
   scenery dark or transparent: the distant hills are a one-pixel outline filled with black.
-- **The glow is stepped alpha** (`glow()` in `make_sprites.py`), so it is still made of
-  whole tank pixels. It grows every sprite's canvas by 2 on each side; an outline is a
-  coloured rim rather than a dark line, because a dark one vanishes on black.
+- **The black is pure; the Mocha is everywhere else.** It was neon with a glow first, then
+  tried in full Mocha with `base` to `crust` water, which matched the desktop but lost the
+  contrast. Pastels on black kept both. An outline is a dim rim in the fish's own colour, since
+  a dark one vanishes on black.
+- **The fish at the back of the tank are recoloured, not dimmed** (`distant()`, the `_far`
+  sprites). A darkened warm pastel is brown, so at 60% opacity on black every far clownfish
+  and goldfish turned the colour of mud. They are cool grey shapes that keep a quarter of
+  their own colour, and they swim at 70% speed.
 - **A jellyfish beat has to change strength with direction.** With one fixed thrust it only
   ever drifts one way and pins itself to the top of the tank.
 - Clock digits are `glyph_*.png`, a 5x7 font at 3 tank pixels per dot. Text from PAM is real
   text instead, outside the scaled item, because PAM can say anything and scaling a `Text`
   up blurs it.
+- **A black plate sits behind the clock and the password box**, because pastel fish are as
+  bright as the digits and read as part of them when they cross. It is invisible on black
+  water and fades out with the rest. The cost is that a fish passing it is cut off in a
+  straight line.
 
 Idle: 10 s after the last key or mouse movement the clock and box fade and the cursor hides,
 and a half-typed password is cleared. `SystemClock` ticks every second though the display
@@ -2831,6 +2861,43 @@ If DPMS is ever wanted back, it has to be proven recoverable **first**, and only
 tested behind a detached timer that re-enables it unconditionally a few seconds later —
 otherwise the test is the outage. The cost of doing without it is that the panel stays
 powered behind the lock all night. That is the cheaper of the two failures.
+
+## Brave: GPU video decoding
+
+`brave/brave-origin-flags.conf` holds one flag, `--enable-features=VaapiOnNvidiaGPUs`, and
+`deploy_configs` copies it to `~/.config`. Without it Brave decodes on the CPU even though
+`libva-nvidia-driver` works: `ffmpeg` opens the driver fine, and Brave simply never loads
+it. Measured in a throwaway profile on Brave Origin 1.98.63 and driver 615.78.08 (RTX 5070 Ti):
+
+| YouTube, 1440p60 | no flag | flag |
+|---|---|---|
+| decoder | `VpxVideoDecoder` (VP9) | `VaapiVideoDecoder` (AV1) |
+| CPU | 65% | 16% |
+| NVDEC | 0% | 5–7% |
+| dropped frames | 0 | 0 |
+
+Local 1440p60 VP9, AV1 and H.264 clips went from 47–65% CPU to 7–11%, and screenshots of all
+three showed correct colours. `LIBVA_DRIVER_NAME` is not needed: libva found the driver with
+it unset.
+
+**Web app launchers skip the flags file.** Only `/usr/bin/brave-origin` reads it, and Brave
+writes its `~/.local/share/applications/brave-*.desktop` entries with
+`Exec=/opt/brave-origin-bin/brave-origin`, the inner script. `fix_brave_webapp_launchers()`
+rewrites that line on every deploy. A web app installed since the last deploy still has the
+old line, and so does any launcher Brave has rewritten.
+
+**The first process owns the flags.** With a flagless process running, a second launch through
+the flags file exited 0 and left the flag on 0 of 13 processes. So one unrepaired launcher
+opened first silently means CPU decoding for that session, and a new flag does nothing until
+every Brave window, web apps included, has been closed.
+
+**To check a running Brave**, look for the driver in its GPU process:
+`grep nvidia_drv_video /proc/<pid of --type=gpu-process>/maps`. Do not read a Brave process's
+`/proc/<pid>/environ`: it held none of the session's variables, while its parent bash
+wrapper's did.
+
+**Not yet verified:** a video playing across suspend and resume, and any machine without
+NVIDIA. The feature's name says it only concerns NVIDIA, but that has not been tested.
 
 ## btop (Catppuccin Mocha)
 

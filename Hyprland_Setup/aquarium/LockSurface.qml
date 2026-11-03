@@ -8,8 +8,8 @@ Item {
     required property var context
 
     readonly property int px: tank.pixelSize
-    readonly property color accent: context.checking ? "#fff200"
-                                  : context.failure !== "" ? "#ff1744" : "#ff2bd6"
+    readonly property color accent: context.checking ? "#f9e2af"
+                                  : context.failure !== "" ? "#f38ba8" : "#585b70"
 
     // Ticks every second though it reads to the minute. A timer's clock stops during
     // suspend, so a minute-long tick could show the wrong time for up to a minute
@@ -97,11 +97,24 @@ Item {
             scale: root.px
             transformOrigin: Item.TopLeft
 
+            // Fish swim behind this rather than through the digits: pastel fish are as
+            // bright as the clock, and read as part of it. It is invisible on black water,
+            // and it fades with the rest, so an idle screen has nothing in the way.
+            Rectangle {
+                readonly property int contentWidth: Math.max(clockRow.width, box.width)
+
+                width: contentWidth + 14
+                height: box.y + box.height + 12 - y
+                x: Math.round((parent.width - width) / 2)
+                y: clockRow.y - 4
+                color: "black"
+            }
+
             Row {
                 id: clockRow
                 x: Math.round((parent.width - width) / 2)
                 y: Math.round(parent.height * 0.3)
-                spacing: -1
+                spacing: 3
 
                 Repeater {
                     model: root.timeText.split("")
@@ -113,7 +126,7 @@ Item {
                 }
             }
 
-            // A faint outer border and a solid inner one: the same glow as the sprites.
+            // A faint outer border and a solid inner one.
             Rectangle {
                 x: box.x - 1
                 y: box.y - 1
@@ -130,7 +143,7 @@ Item {
                 width: 100
                 height: 15
                 x: Math.round((parent.width - width) / 2)
-                y: clockRow.y + clockRow.height + 8
+                y: clockRow.y + clockRow.height + 10
                 color: "black"
                 border.width: 1
                 border.color: root.accent
@@ -145,7 +158,7 @@ Item {
                         Rectangle {
                             width: 3
                             height: 3
-                            color: root.context.checking ? "#fff200" : "#00e5ff"
+                            color: root.context.checking ? "#f9e2af" : "#b4befe"
                         }
                     }
                 }
@@ -159,7 +172,7 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             y: (box.y + box.height / 2) * root.px - height / 2
             text: "Password"
-            color: "#7f8fa8"
+            color: "#a6adc8"
             font.family: "JetBrainsMono Nerd Font"
             font.pixelSize: 4 * root.px
         }
