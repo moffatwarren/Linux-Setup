@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Config directories: Hyprland_Setup/<name> -> ~/.config/<name>
-CONFIGS=(aquarium btop fastfetch fish gtk-3.0 gtk-4.0 hypr kitty nvim quickshell superfile weathr wireplumber)
+CONFIGS=(aquarium btop fastfetch fish gtk-3.0 gtk-4.0 haakonlife hypr kitty nvim quickshell superfile weathr wireplumber)
 
 # Retired config paths to purge from ~/.config
 ORPHANS=(
@@ -44,6 +44,9 @@ PACMAN_PKGS=(
     # in, but after that check has been skipped -- so without this line every
     # first install is checked by SHA-256 over HTTPS alone (setup_superwhisper).
     minisign
+    # The Herdr app is a GPU (Vulkan) program that dlopen()s the loader rather than
+    # linking it, so no package depends on it for Herdr's sake (setup_herdr).
+    vulkan-icd-loader
     # Present on this machine only because the CachyOS desktop profile installed
     # them -- nothing above pulls any of them in, so a no-desktop install would
     # deploy the configs that use them and have them silently do nothing:
@@ -263,6 +266,13 @@ deploy_configs() {
     # A bare file in ~/.config, which CONFIGS cannot express: it copies directories.
     \cp -f "$SCRIPT_DIR/brave/brave-origin-flags.conf" "$HOME/.config"
     echo "    brave-origin-flags.conf"
+    # Herdr's settings and the two Catppuccin themes they name, file by file:
+    # ~/.config/herdr-app is mostly Herdr's own (docs, icons, mods, state, a
+    # socket), rewritten on every start, so it is never deployed or pulled whole.
+    mkdir -p "$HOME/.config/herdr-app/themes"
+    \cp -f "$SCRIPT_DIR/herdr-app/settings.json" "$HOME/.config/herdr-app"
+    \cp -f "$SCRIPT_DIR"/herdr-app/themes/*.json "$HOME/.config/herdr-app/themes"
+    echo "    herdr-app (settings.json + themes)"
 }
 
 # Delete what an older release of this repo deployed and this one has dropped
@@ -590,6 +600,35 @@ setup_superwhisper() {
     fi
 }
 
+# Herdr (terminals and coding agents) is not a package either: its installer puts
+# the app in ~/.local/share/herdr-app with `herdr-app` in ~/.local/bin and a
+# launcher entry, and installs herdr-core (`hc`, which runs the terminals) beside
+# it when there is none. From then on the app updates itself and the core, so the
+# installer runs only where the app is missing. Its look -- the Catppuccin themes
+# and the settings.json that picks them -- is deployed by deploy_configs whether
+# or not the app is here yet: Herdr reads it on its first start. No sudo, and
+# never fatal: a failed download is a warning, not a stopped deploy.
+setup_herdr() {
+    local installer_url="https://releases.herdr.dev/app/install.sh"
+    local app="${XDG_DATA_HOME:-$HOME/.local/share}/herdr-app/herdr-app"
+    local installer
+
+    info "Herdr (terminals and agents)"
+    if [ -x "$app" ] && [ -e "$HOME/.local/bin/herdr-app" ]; then
+        echo "    installed; it updates itself"
+        return 0
+    fi
+    installer="$(mktemp)"
+    if curl --proto '=https' --tlsv1.2 -fsSL "$installer_url" -o "$installer" \
+        && sh "$installer"; then
+        echo "    installed"
+    else
+        echo "    WARNING: Herdr did not install. Rerun install.sh, or by hand:"
+        echo "               curl -fsSL $installer_url | sh"
+    fi
+    rm -f "$installer"
+}
+
 # Reload Hyprland session and restart background UI daemons
 reload_session() {
     if ! command -v hyprctl >/dev/null 2>&1 || ! hyprctl version >/dev/null 2>&1; then
@@ -711,6 +750,16 @@ pull_configs() {
         \cp -f "$HOME/.config/brave-origin-flags.conf" "$SCRIPT_DIR/brave"
         echo "    brave-origin-flags.conf"
     fi
+    # Only the files the repo ships: the rest of herdr-app is Herdr's (deploy_configs).
+    # A theme added in the live themes/ is copied in by hand, once, to start shipping it.
+    local herdr="$HOME/.config/herdr-app" f
+    if [ -f "$herdr/settings.json" ]; then
+        \cp -f "$herdr/settings.json" "$SCRIPT_DIR/herdr-app"
+        for f in "$SCRIPT_DIR"/herdr-app/themes/*.json; do
+            if [ -f "$herdr/themes/${f##*/}" ]; then \cp -f "$herdr/themes/${f##*/}" "$f"; fi
+        done
+        echo "    herdr-app (settings.json + themes)"
+    fi
 
     cat <<EOF
 
@@ -755,6 +804,7 @@ main() {
     get_wallpapers
     normalize_hyprlock_wallpaper
     setup_superwhisper
+    setup_herdr
     reload_session
     info "Done."
 }

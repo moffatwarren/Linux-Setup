@@ -59,7 +59,9 @@ Non-`~/.config` destinations are still explicit in `deploy_configs()`:
 power-profile menu's CPU power), and
 `applications/*.desktop` → `~/.local/share/applications`. Both of the last two are copied
 file by file because those directories are shared with every other package's entries (and
-so are never pulled back).
+so are never pulled back). `herdr-app/` is copied file by file too, into
+`~/.config/herdr-app`, because Herdr owns the rest of that directory. Unlike those two it
+*is* pulled back, file by file (see **Herdr**).
 `applications/superfile.desktop` is the one entry there: the `superfile` package ships
 none, and without `MimeType=inode/directory` plus `Categories=FileManager` `spf` cannot
 be offered in SUPER+D or opened by `SUPER+E`. `Terminal=true` is what puts it in kitty.
@@ -2959,6 +2961,51 @@ exists for two reasons, both measured:
 `KeybindsHelp.qml` and the README name Right Ctrl, which is a copy of a value that lives
 in Superwhisper's settings and in `SUPERWHISPER_SHORTCUTS`; change all of them together.
 
+## Herdr (terminals and coding agents)
+
+The Herdr app (`herdr-app`) is a GPU desktop app for terminals and coding agents.
+herdr-core (`hc`) runs the terminals, and they keep running when the window closes. Like
+Superwhisper, it is not a package. `setup_herdr()` runs the vendor installer
+(`https://releases.herdr.dev/app/install.sh`) **only where the app is missing**. The
+installer puts the app in `~/.local/share/herdr-app`, puts `herdr-app` in `~/.local/bin`,
+writes a launcher entry, and installs herdr-core from its own installer if there is none.
+After that the app updates itself and the core. No sudo, and a failure is a warning.
+
+**The look is three files, and they are deployed one by one, not through `CONFIGS`:**
+`herdr-app/settings.json` (the `catppuccin-latte`/`catppuccin-mocha` light/dark pair, plus
+JetBrainsMono Nerd Font and Cantarell, both already in `PACMAN_PKGS`) and the two theme
+files in `herdr-app/themes/`. Herdr ships no Catppuccin theme. `~/.config/herdr-app` is
+mostly Herdr's own, rewritten on every start: about a megabyte of docs and type files, its
+icons, mods and layouts, `view.json`/`window.json`, agent state under `data/`, telemetry
+and a live socket. A whole-directory `--pull` would bring all of that into git. So
+`deploy_configs` copies the three files out, and `pull_configs` copies back only
+`settings.json` and the themes the repo already ships. To ship a new theme, copy it into
+`herdr-app/themes/` by hand once.
+
+Things to know, from the `AGENTS.md` Herdr writes into that directory:
+
+- **Herdr applies `settings.json` and themes live**, so a deploy takes effect in a running
+  window with nothing to restart. An invalid file is ignored, Herdr keeps the last good one,
+  and it writes the reason to `settings.error`.
+- **The app writes `settings.json` itself**, for example when the zoom keys are used, so
+  that file behaves like `btop.conf`: a deploy resets what was changed in the app, and
+  `--pull` is how such a change gets into the repo.
+- **The theme picker's choice lives in `layouts/.state/`, which is not shipped.** Herdr's
+  `main` layout sets no theme of its own, so on a fresh machine `settings.json` decides it.
+  On this machine the picker and `settings.json` name the same pair.
+- **The themes are deployed whether or not the app is installed yet**, so the first start
+  after `setup_herdr` already has them. The deploy runs before the installer, and the
+  installer does not touch `~/.config/herdr-app`.
+
+`vulkan-icd-loader` is in `PACMAN_PKGS` because the app `dlopen()`s `libvulkan.so.1`
+rather than linking it, so nothing depends on the loader for Herdr's sake (`ldd` lists
+only libxcb/libxkbcommon, which kitty brings in). The GPU's Vulkan driver itself is
+hardware-specific and is left to the distro's driver setup.
+
+**Not yet verified:** a fresh install through `setup_herdr`. The installer's download was
+read, not run. The installed path (the app present, and the step printing "installed; it
+updates itself"), the deploy and the pull were tested in a scratch `$HOME`.
+
 ## btop (Catppuccin Mocha)
 
 `btop/` is `btop.conf` plus `themes/catppuccin_mocha.theme`. btop is bound to
@@ -3127,10 +3174,20 @@ in `vendor_functions.d`; pure is still installed, and its `fish_prompt` *event* 
 is what prints the blank line between prompts. The glyphs are `\uXXXX` escapes for the
 same reason the QML's are.
 
-**`fish/functions/haakonlife.fish`** prints the Haakon Life play-time table from the
-game's Firebase `playtime/live.json`, formatted by an inline `node -e`. Fish autoloads
-anything in `functions/`, so the deploy's `cp -rf` is all it needs. `nodejs` is in
-`PACMAN_PKGS` for it alone: nothing else in either list pulls node in.
+**`haakonlife`** is a fish command that prints Haakon Life's play time and leaderboard
+stats from the game's live Firebase database. It only reads. It is two files:
+`fish/functions/haakonlife.fish` is one line, `node ~/.config/haakonlife/stats.mjs`, and
+`haakonlife/stats.mjs` (in `CONFIGS`) does the work. Fish autoloads anything in
+`functions/`, so the deploy's `cp -rf` is all either needs. `nodejs` is in `PACMAN_PKGS`
+for it alone: nothing else in either list pulls node in.
+
+**The leaderboards need the game's own repo checked out at `~/haakonlife`.** The script
+reads the list of boards from its `js/game.js` and the card count from `js/cardlist.js`,
+so a new game's board shows up without editing anything here. `HAAKONLIFE_REPO` points it
+elsewhere. Without the repo it still prints the play time and says it could not read the
+boards. The default is `homedir() + '/haakonlife'`, not the `/home/warren/haakonlife` the
+live copy was written with, for the same reason as **Nothing is machine-specific any
+more**.
 
 **The screenshot editor's default pen is `red`** — `ScreenshotEditor.qml`'s first
 swatch. Red rather than one of the accents because it is drawn *on top of*

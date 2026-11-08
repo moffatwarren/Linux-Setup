@@ -35,6 +35,10 @@ value a deploy still carries across is the chosen wallpaper, which `SUPER+W`
 records in `hyprlock.conf`. Updating a machine that predates the
 audio menu carries its old headphone and bluetooth sinks into it as icons, once.
 
+Two apps that are not packages are installed by their own installers, only where
+they are missing, and then update themselves: Superwhisper (dictation) and Herdr
+(terminals and coding agents, themed Catppuccin Mocha like everything else).
+
 Tailscale and PIA are not installed from here — see `tailscale_commands.md` and
 `pia_install.md`. Their bar modules hide themselves when the tool is absent.
 
@@ -140,6 +144,8 @@ Hyprland_Setup/
   udev/               udev rules (CPU power for the bar), to /etc/udev/rules.d (sudo)
   superfile/          spf settings: nvim as the editor, zoxide on
   brave/              Brave flags (GPU video decoding), to ~/.config
+  herdr-app/          the Herdr app's settings + Catppuccin themes (the app itself is installed too)
+  haakonlife/         the script behind the `haakonlife` fish command
 wallpapers/           one starter wallpaper, seeded into ~/Pictures/wallpapers
 *.md                  personal command reference notes (everything but README.md and CLAUDE.md)
 ```
