@@ -3067,6 +3067,11 @@ in `vendor_functions.d`; pure is still installed, and its `fish_prompt` *event* 
 is what prints the blank line between prompts. The glyphs are `\uXXXX` escapes for the
 same reason the QML's are.
 
+**`fish/functions/haakonlife.fish`** prints the Haakon Life play-time table from the
+game's Firebase `playtime/live.json`, formatted by an inline `node -e`. Fish autoloads
+anything in `functions/`, so the deploy's `cp -rf` is all it needs. `nodejs` is in
+`PACMAN_PKGS` for it alone: nothing else in either list pulls node in.
+
 **The screenshot editor's default pen is `red`** — `ScreenshotEditor.qml`'s first
 swatch. Red rather than one of the accents because it is drawn *on top of*
 screenshots of this desktop, which is already largely mauve and lavender. (It was

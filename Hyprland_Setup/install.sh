@@ -38,7 +38,7 @@ PACMAN_PKGS=(
     papirus-icon-theme jq libpulse wireplumber pavucontrol power-profiles-daemon networkmanager
     qt6-imageformats libnotify wl-clipboard curl python xdg-utils pacman-contrib fakeroot sddm avahi
     protonup-qt gamescope gnome-calculator mangohud lib32-mangohud github-cli superfile zoxide cifs-utils
-    pciutils
+    pciutils nodejs
     # Present on this machine only because the CachyOS desktop profile installed
     # them -- nothing above pulls any of them in, so a no-desktop install would
     # deploy the configs that use them and have them silently do nothing:
