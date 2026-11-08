@@ -39,6 +39,11 @@ PACMAN_PKGS=(
     qt6-imageformats libnotify wl-clipboard curl python xdg-utils pacman-contrib fakeroot sddm avahi
     protonup-qt gamescope gnome-calculator mangohud lib32-mangohud github-cli superfile zoxide cifs-utils
     pciutils nodejs
+    # Superwhisper's web installer verifies its download's signature only if
+    # minisign is ALREADY installed. Its own dependency list does bring minisign
+    # in, but after that check has been skipped -- so without this line every
+    # first install is checked by SHA-256 over HTTPS alone (setup_superwhisper).
+    minisign
     # Present on this machine only because the CachyOS desktop profile installed
     # them -- nothing above pulls any of them in, so a no-desktop install would
     # deploy the configs that use them and have them silently do nothing:
@@ -64,6 +69,14 @@ PARU_PKGS=(
     pokemon-colorscripts-git rustdesk-bin teams-for-linux vscodium-bin
     papirus-folders-catppuccin-git
 )
+
+# Superwhisper's dictation keys, as `superwhisper shortcuts set <name> <key>`
+# takes them ("none" disables one). Only SEEDED, on a machine whose Superwhisper
+# has never had working shortcuts -- after that its own settings window owns
+# them and a deploy leaves them alone (setup_superwhisper). hold goes first:
+# Superwhisper refuses a change that would leave no recording shortcut at all.
+# KeybindsHelp.qml and README.md name the hold key; change them together.
+SUPERWHISPER_SHORTCUTS=(hold=RightControl toggle=none mouse=none cancel=Escape)
 
 
 # ---------------------------------------------------------------------------
@@ -497,6 +510,86 @@ normalize_hyprlock_wallpaper() {
     echo "    hyprlock background -> $candidate"
 }
 
+# Superwhisper (dictation). Not a package: its own installer puts it under
+# ~/.local/share/superwhisper, runs it as superwhisper.service and installs a
+# timer that updates it every 6 h -- so this installs it only where it is
+# missing, and never re-runs the installer to update it.
+#
+# Runs after deploy_configs on purpose. The installer ends with `superwhisper
+# shortcuts apply`, which refuses unless ~/.config/hypr/bindings.lua exists
+# (see that file), and leaves the machine with no binds at all if it does.
+#
+# The keys are seeded from SUPERWHISPER_SHORTCUTS only while
+# ~/.config/superwhisper/shortcuts.lua -- the binds Superwhisper generates --
+# does not exist, checked BEFORE the installer runs, since a successful install
+# writes one with Superwhisper's own defaults. Once it exists the settings
+# window owns the keys: re-setting them every deploy would silently undo a key
+# changed there. Setting a key makes Superwhisper reload Hyprland, so it needs a
+# running session; from a TTY this step installs and the next run seeds.
+#
+# Every step is guarded: a dictation app that fails to install is worth a
+# warning, not a deploy stopped before reload_session.
+setup_superwhisper() {
+    local installer_url="https://tux.superwhisper.com/install.sh"
+    local app="${XDG_DATA_HOME:-$HOME/.local/share}/superwhisper/app/current"
+    local generated="${XDG_CONFIG_HOME:-$HOME/.config}/superwhisper/shortcuts.lua"
+    local sw="$HOME/.local/bin/superwhisper"
+    local seed=0 installer current pair name key want have
+
+    info "Superwhisper (dictation)"
+    [ -f "$generated" ] || seed=1
+
+    if [ -x "$app/run.sh" ] && [ -x "$sw" ]; then
+        echo "    installed ($(cat "$app/VERSION" 2>/dev/null || echo "unknown version")); it updates itself"
+    else
+        # Downloaded first rather than piped: `sh` then runs a complete file,
+        # and the installer finds the terminal itself for its sudo prompt.
+        installer="$(mktemp)"
+        if curl --proto '=https' --tlsv1.2 -fsSL "$installer_url" -o "$installer" \
+            && sh "$installer"; then
+            echo "    installed"
+        else
+            echo "    WARNING: Superwhisper did not install. Rerun install.sh, or by hand:"
+            echo "               curl -fsSL $installer_url | sh"
+        fi
+        rm -f "$installer"
+        [ -x "$sw" ] || return 0
+    fi
+
+    if [ "$seed" -eq 0 ]; then
+        echo "    shortcuts: left as Superwhisper's settings have them"
+        return 0
+    fi
+    if ! hyprctl version >/dev/null 2>&1; then
+        echo "    shortcuts not set: Hyprland is not running. Rerun install.sh from"
+        echo "    the session to set them (${SUPERWHISPER_SHORTCUTS[*]})."
+        return 0
+    fi
+
+    current="$("$sw" shortcuts show 2>/dev/null)" || current='{}'
+    for pair in "${SUPERWHISPER_SHORTCUTS[@]}"; do
+        name="${pair%%=*}" key="${pair#*=}"
+        if [ "$key" = none ]; then want=""; else want="$key"; fi
+        have="$(jq -r --arg n "$name" '.shortcuts[$n] // ""' <<<"$current" 2>/dev/null)" || have="?"
+        [ "$have" = "$want" ] && continue
+        if "$sw" shortcuts set "$name" "$key" >/dev/null 2>&1; then
+            echo "    $name -> $key"
+        else
+            echo "    WARNING: Superwhisper refused $name = $key -- another bind may"
+            echo "             hold it. Pick one in Superwhisper's settings."
+        fi
+    done
+    # Every key already matched, so nothing above has written the binds yet.
+    if [ ! -f "$generated" ]; then
+        if "$sw" shortcuts apply >/dev/null 2>&1; then
+            echo "    shortcuts: binds written (${SUPERWHISPER_SHORTCUTS[*]})"
+        else
+            echo "    WARNING: Superwhisper could not write its binds. Run"
+            echo "             'superwhisper shortcuts apply' to see why."
+        fi
+    fi
+}
+
 # Reload Hyprland session and restart background UI daemons
 reload_session() {
     if ! command -v hyprctl >/dev/null 2>&1 || ! hyprctl version >/dev/null 2>&1; then
@@ -661,6 +754,7 @@ main() {
     apply_gtk_theme
     get_wallpapers
     normalize_hyprlock_wallpaper
+    setup_superwhisper
     reload_session
     info "Done."
 }

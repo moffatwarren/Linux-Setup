@@ -92,6 +92,7 @@ OverlayPanel {
                 { keys: "SUPER + L",         desc: "Lock the screen" },
                 { keys: "SUPER + SHIFT + L", desc: "Lock, then suspend" },
                 { keys: "SUPER + O",         desc: "Next audio output, of the ones switched on" },
+                { keys: "RIGHT CTRL (hold)", desc: "Dictate with Superwhisper (key set in its settings)" },
             ]
         },
         {

@@ -3,6 +3,13 @@
 # are per-machine state, not configuration -- they should stay out of commits.
 Hyprland_Setup/gtk-3.0/bookmarks
 Hyprland_Setup/gtk-4.0/thumbnail.png
+# Superwhisper writes into three directories this repo deploys. Each file is its
+# own, per machine: a backup of hypr/bindings.lua on every shortcut save, the
+# WirePlumber drop-in its "keep microphone ready" setting adds and removes, and
+# a PATH line its installer adds when ~/.local/bin was not on PATH.
+Hyprland_Setup/hypr/bindings.superwhisper-*.bak
+Hyprland_Setup/wireplumber/wireplumber.conf.d/superwhisper-keep-inputs-ready.conf
+Hyprland_Setup/fish/conf.d/superwhisper.fish
 
 # Leftovers from the noctalia shell that GTK theming replaced. Deploying
 # gtk.css drops the `@import url("noctalia.css")` that referenced them, but the

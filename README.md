@@ -69,6 +69,7 @@ values into the repo — review with `git diff` before committing.
 | `SUPER+CTRL+S` | record a region — press again to stop |
 | `SUPER+L` / `SUPER+SHIFT+L` | lock / lock and suspend |
 | `SUPER+O` | next audio output |
+| `RIGHT CTRL` (hold) | dictate with Superwhisper — the key is set in Superwhisper's own settings |
 | `SUPER+SHIFT+Z` | laptop screen off / on (needs an external monitor) |
 | `SUPER+CTRL+Z` | swap the two monitors left / right (needs exactly two) |
 | `SUPER+M` | send this workspace's windows to an empty workspace on the other monitor |
