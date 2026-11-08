@@ -3189,6 +3189,14 @@ boards. The default is `homedir() + '/haakonlife'`, not the `/home/warren/haakon
 live copy was written with, for the same reason as **Nothing is machine-specific any
 more**.
 
+**Its local times come from `date`, not from Node.** Node gets its timezone rules from
+ICU's built-in tz database, not from `/usr/share/zoneinfo`, and that copy can be behind.
+ICU 78.3 ships tz 2026a, which predates BC's move to permanent UTC-7 on 1 Nov 2026, so
+after that date `toLocaleString()` printed every "last" time an hour behind the system
+clock (tzdata 2026f), and "Today" began at 1 a.m. `localClock()` sends every timestamp,
+plus `00:00 today`, through one `date -f -` and formats with the offsets that come back.
+If `date` fails it falls back to Node's own answer.
+
 **The screenshot editor's default pen is `red`** — `ScreenshotEditor.qml`'s first
 swatch. Red rather than one of the accents because it is drawn *on top of*
 screenshots of this desktop, which is already largely mauve and lavender. (It was

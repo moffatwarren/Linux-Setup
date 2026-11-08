@@ -1,6 +1,7 @@
 // The `haakonlife` fish command: play time and leaderboard stats from Haakon Life's live database.
 // It only reads, and sends nothing. The list of boards comes from js/game.js in the repo, so a new
 // game's board turns up here on its own. Set HAAKONLIFE_REPO if the repo moves.
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import vm from 'node:vm';
@@ -23,6 +24,24 @@ const ago = (t) => {
   const s = (Date.now() - t) / 1000;
   return s < 60 ? 'just now' : s < 3600 ? Math.floor(s / 60) + 'm ago' : s < 86400 ? Math.floor(s / 3600) + 'h ago' : Math.floor(s / 86400) + 'd ago';
 };
+// Local times come from `date`, not from Node. Node takes its timezone rules from ICU's own copy
+// of the tz database, which lags the system's: ICU's still had BC on Pacific time after it moved
+// to permanent UTC-7 in November 2026, so every time read an hour behind the clock. `date` reads
+// /etc/localtime (or $TZ), so these agree with the rest of the desktop. One process answers for
+// all of them, and the last line asked is today's midnight, for "Today" below.
+function localClock(times) {
+  const asked = [...times.map((t) => '@' + Math.floor(t / 1000)), '00:00 today'];
+  const r = spawnSync('date', ['-f', '-', '+%s %z'], { input: asked.join('\n') + '\n', encoding: 'utf8' });
+  const got = (r.stdout || '').trim().split('\n').map((l) => l.match(/^(-?\d+) ([+-])(\d\d)(\d\d)$/));
+  if (r.status !== 0 || got.length !== asked.length || got.some((m) => !m)) {
+    return { show: (t) => new Date(t).toLocaleString(), midnight: new Date().setHours(0, 0, 0, 0) };
+  }
+  const offset = new Map(times.map((t, i) => [t, (got[i][2] === '-' ? -1 : 1) * (got[i][3] * 60 + +got[i][4]) * 60e3]));
+  return {
+    show: (t) => new Date(t + offset.get(t)).toLocaleString(undefined, { timeZone: 'UTC' }),
+    midnight: got.at(-1)[1] * 1000,
+  };
+}
 // A list of words wrapped to the terminal, with the lines after the first indented.
 function wrap(words, indent) {
   const lines = [];
@@ -114,8 +133,9 @@ const people = pt.status === 'fulfilled'
 if (pt.status === 'rejected') console.log('  Couldn\'t read it: ' + pt.reason.message);
 else {
   const total = people.reduce((a, p) => a + p.s, 0) || 1;
+  const clock = localClock(people.map((p) => p.t));
   for (const p of people) {
-    console.log(' ', clean(p.name).padEnd(14), hours(p.s).padStart(8), (Math.round((100 * p.s) / total) + '%').padStart(4), ' last', new Date(p.t).toLocaleString());
+    console.log(' ', clean(p.name).padEnd(14), hours(p.s).padStart(8), (Math.round((100 * p.s) / total) + '%').padStart(4), ' last', clock.show(p.t));
   }
   console.log(' ', 'TOTAL'.padEnd(14), hours(people.reduce((a, p) => a + p.s, 0)).padStart(8), '    ', ' (' + people.length + ' names)');
 
@@ -123,7 +143,7 @@ else {
   // A browser sends its play time every minute while somebody's playing, so a send in the
   // last 3 minutes means they're on now.
   heading('WHO\'S BEEN ON');
-  const now = Date.now(), midnight = new Date().setHours(0, 0, 0, 0);
+  const now = Date.now(), midnight = clock.midnight;
   const since = (t0) => people.filter((p) => p.t >= t0).sort((a, b) => b.t - a.t);
   const names = (list) => (list.length ? wrap(list.map((p) => clean(p.name)), 20) : dim('nobody'));
   const onNow = since(now - 3 * 60e3), today = since(midnight), week = since(now - 7 * 864e5);
