@@ -3209,6 +3209,16 @@ swappy's `custom_color` until the editor replaced swappy.)
   package name fails the whole transaction. `nvim` and `ttf-font-awesome` are not
   package names but resolve through `provides` (`neovim`, `woff2-font-awesome`) — they
   are fine, so don't "fix" them into a second entry for a package already listed.
+- **A name an installed package of *another* name provides is dropped before `-S`**
+  (`to_install()`), and `--needed` cannot do that job. `--needed` skips a name only when
+  the package *of that name* is installed, so `nodejs` beside `nodejs-lts-iron` — which
+  provides `nodejs` and conflicts with it, pulled in as a dependency of npm/yarn — made
+  pacman offer to swap them, and `--noconfirm` answers that `[y/N]` with N: "unresolvable
+  package conflicts detected", whole transaction failed, deploy aborted. The test is
+  `pacman -T` (satisfied by anything) against the bare `pacman -Qq` list (installed by
+  name). `pacman -Q <name>` cannot stand in for the second half, because it resolves
+  provides too — `pacman -Q nodejs` answers `nodejs-lts-iron`. A name installed under
+  its own name is kept, so `--needed` behaves as before for everything else.
 - **A package install.sh itself depends on still has to be in `PACMAN_PKGS`.** `sddm`
   (which owns the theme directory `deploy_configs` copies into) and `avahi` (whose unit
   `apply_system_tweaks` enables) are there for that reason alone, not because anything

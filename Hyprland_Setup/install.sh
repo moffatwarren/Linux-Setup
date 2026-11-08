@@ -180,10 +180,39 @@ save_file_manager() {
 # ---------------------------------------------------------------------------
 install_packages() {
     info "Installing packages"
-    sudo pacman -S --noconfirm --needed "${PACMAN_PKGS[@]}"
-    paru -S --noconfirm --skipreview --needed "${PARU_PKGS[@]}"
+    local pkgs
+    mapfile -t pkgs < <(to_install "${PACMAN_PKGS[@]}")
+    if [ "${#pkgs[@]}" -gt 0 ]; then
+        sudo pacman -S --noconfirm --needed "${pkgs[@]}"
+    fi
+    mapfile -t pkgs < <(to_install "${PARU_PKGS[@]}")
+    if [ "${#pkgs[@]}" -gt 0 ]; then
+        paru -S --noconfirm --skipreview --needed "${pkgs[@]}"
+    fi
 
     check_nerd_font
+}
+
+# Print the names in "$@" that should go to `-S`, dropping any that an installed
+# package of a DIFFERENT name already provides. `--needed` only skips a name whose
+# own package is installed, so `nodejs` beside nodejs-lts-iron (which provides
+# nodejs and conflicts with it) is not skipped: pacman offers to swap them, and
+# --noconfirm answers that [y/N] with N, failing the whole transaction. A name
+# installed under its own name is kept, so --needed behaves exactly as before.
+# Note `pacman -Q <name>` cannot make this test: it resolves provides too.
+to_install() {
+    local -A installed=() unsatisfied=()
+    local p
+    while read -r p; do installed[$p]=1; done < <(pacman -Qq)
+    while read -r p; do unsatisfied[$p]=1; done < <(pacman -T "$@" || true)
+    for p in "$@"; do
+        if [ -n "${installed[$p]:-}" ] || [ -n "${unsatisfied[$p]:-}" ]; then
+            printf '%s\n' "$p"
+        else
+            printf '%s is provided by %s -- skipping\n' "$p" \
+                "$(pacman -Qq "$p" 2>/dev/null)" >&2
+        fi
+    done
 }
 
 # Verify required Nerd Font v3 glyphs exist
