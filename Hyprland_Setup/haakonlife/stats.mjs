@@ -80,12 +80,14 @@ function readBoards() {
   }));
 }
 
-// how many cards there are to collect (everything but the ones only other cards bring in)
+// how many cards there are to win: WINNABLE in js/game.js, which is what the board counts. That leaves
+// out the starters (S), the ones only other cards bring in (T) and the versions of your own legendary
+// (own), so it is smaller than the whole list.
 function cardTotal() {
   try {
     const w = {};
     vm.runInNewContext(readFileSync(REPO + '/js/cardlist.js', 'utf8'), { window: w });
-    return w.CARD_LIST.filter((c) => c.rarity !== 'T').length;
+    return w.CARD_LIST.filter((c) => c.rarity !== 'T' && c.rarity !== 'S' && !c.own).length;
   } catch { return 0; }
 }
 
