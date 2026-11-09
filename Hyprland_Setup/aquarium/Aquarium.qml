@@ -1,43 +1,47 @@
 import QtQuick
 
-// A pixel-art fish tank. Self-contained: give it a size and it fills it.
+// One screen's window into the tank. Give it a size and an Ocean and it fills itself:
+// its own sand, scenery and bubbles, and whichever of the Ocean's fish, jellyfish, crabs
+// and visitors are in its stretch of the water at the moment.
 //
 // The scene is laid out in "tank pixels" and scaled up by a whole number, so every
 // tank pixel is the same size on screen and nothing is ever resampled. Each sprite
 // is a texture the scene graph moves around; the only per-frame work on the CPU is
-// tick() writing positions, one 15 Hz timer's worth.
+// the Ocean's tick and render() here copying positions onto sprites.
 Item {
     id: root
 
-    // Stops the whole simulation; nothing else in here runs on its own.
-    property bool running: true
+    required property Ocean ocean
+
+    // The ShellScreen this is on, if any. Only its position is read, to put this
+    // screen's stretch of water in the right place among the others.
+    property var screen: null
+    readonly property int screenX: screen ? screen.x : 0
+    readonly property int screenY: screen ? screen.y : 0
 
     // 270 tank pixels tall, near enough: 1080p scales by 4, 1440p by 5, 4K by 8.
     readonly property int pixelSize: Math.max(1, Math.floor(height / 270))
     readonly property int tankWidth: Math.ceil(width / pixelSize)
     readonly property int tankHeight: Math.ceil(height / pixelSize)
     readonly property int floorTop: tankHeight - 30
+    readonly property bool ready: tankWidth > 0 && tankHeight > 30
 
-    readonly property real dt: 1 / 15
-    readonly property int surfaceFrame: Math.floor(clock / 0.4) % 3
-    property real clock: 0
+    // Where this screen's water starts in the Ocean, and how much its depth is stretched,
+    // if this screen is taller than the shortest. Both set by Ocean.layout().
+    property int worldX: 0
+    property real yScale: 1
+
+    readonly property int surfaceFrame: Math.floor(ocean.clock / 0.4) % 3
     property bool built: false
+    property bool attached: false
 
-    // What the Repeaters draw. Assigned once, in build().
-    property var backFishModel: []
-    property var frontFishModel: []
-    property var jellyModel: []
-    property var crabModel: []
+    // What the scenery Repeaters draw. Assigned once, in build().
     property var backWeedModel: []
     property var frontWeedModel: []
     property var decorModel: []
     property int bubbleCount: 0
 
-    // Simulation state, parallel to the Repeaters above. Plain JS rather than
-    // properties, so a tick only notifies for what actually moved on screen.
-    property var fish: []
-    property var jellies: []
-    property var crabs: []
+    // Bubbles rise straight up, so they are this screen's own.
     property var bubbles: []
     property var vents: []
 
@@ -48,73 +52,20 @@ Item {
     function pick(list) { return list[randInt(0, list.length - 1)]; }
     function sprite(name) { return Qt.resolvedUrl("sprites/" + name + ".png"); }
 
-    // Roster per 480 tank pixels of width, so a wider tank is not an emptier one.
-    readonly property var species: [
-        { id: "clown", colours: ["orange", "red"], count: 3, speed: [12, 20], band: [0.5, 1], back: 1 },
-        { id: "tang", colours: ["blue", "teal"], count: 3, speed: [14, 24], band: [0.15, 0.8], back: 1 },
-        { id: "angel", colours: ["yellow", "violet"], count: 2, speed: [7, 12], band: [0.2, 0.75], back: 1 },
-        { id: "gold", colours: ["gold", "pearl"], count: 3, speed: [10, 18], band: [0.1, 0.8], back: 1 },
-        { id: "puffer", colours: ["yellow", "green"], count: 2, speed: [5, 9], band: [0.55, 1], back: 0 },
-        { id: "betta", colours: ["magenta", "royal"], count: 2, speed: [8, 14], band: [0.1, 0.7], back: 0 },
-    ]
-    readonly property var schools: [
-        { colour: "neon", size: 9 },
-        { colour: "lime", size: 7 },
-    ]
-
-    function newFish(name, speed, band, far) {
-        return {
-            name: far ? name + "_far" : name, far: far, leader: null,
-            base: rand(speed[0], speed[1]) * (far ? 0.7 : 1),
-            band: band, x: 0, y: 0, v: 0, tv: 0, ty: 0, dir: Math.random() < 0.5 ? 1 : -1,
-            turning: false, timer: rand(1, 6), phase: rand(0, 4), bob: rand(0, 6.28),
-            offX: 0, offY: 0, w: 0, h: 0,
-        };
+    // For Ocean.place(), which measures the sprites here.
+    function fishItems() {
+        const out = [];
+        for (let i = 0; i < backFish.count; i++) out.push(backFish.itemAt(i));
+        for (let i = 0; i < frontFish.count; i++) out.push(frontFish.itemAt(i));
+        return out;
     }
+    function jellyItem(i) { return jellyView.itemAt(i); }
+    function crabItem(i) { return crabView.itemAt(i); }
+    function sharkItem() { return sharkSprite; }
+    function diverItem(pose) { return pose === "swim" ? diverSwim : diverRise; }
 
     function build() {
         const density = Math.max(0.6, tankWidth / 480);
-        const roster = [];
-
-        for (const s of species) {
-            const total = Math.max(1, Math.round(s.count * density));
-            for (let i = 0; i < total; i++)
-                roster.push(newFish("fish_" + s.id + "_" + s.colours[i % s.colours.length],
-                                    s.speed, s.band, false));
-            for (let i = 0; i < Math.round(s.back * density); i++)
-                roster.push(newFish("fish_" + s.id + "_" + pick(s.colours), s.speed, s.band, true));
-        }
-
-        for (const school of schools) {
-            const lead = newFish("fish_tetra_" + school.colour, [16, 24], [0.1, 0.7], false);
-            roster.push(lead);
-            for (let i = 1; i < school.size; i++) {
-                const f = newFish(lead.name, [16, 24], lead.band, false);
-                f.leader = lead;
-                f.offX = rand(-34, 8);
-                f.offY = rand(-13, 13);
-                roster.push(f);
-            }
-        }
-
-        const back = roster.filter(f => f.far);
-        const front = roster.filter(f => !f.far);
-        fish = back.concat(front);
-        backFishModel = back;
-        frontFishModel = front;
-
-        jellies = [];
-        for (let i = 0; i < Math.max(1, Math.round(2 * density)); i++)
-            jellies.push({ name: "jelly_" + (i % 2 ? "aqua" : "pink"), x: 0, y: 0, vx: rand(-2, 2),
-                           phase: rand(0, 3), rising: Math.random() < 0.5 });
-        jellyModel = jellies;
-
-        crabs = [];
-        for (let i = 0; i < Math.max(1, Math.round(density)); i++)
-            crabs.push({ x: rand(20, tankWidth - 40), dir: 1, timer: rand(1, 5), walking: false,
-                         phase: 0 });
-        crabModel = crabs;
-
         layoutScenery(density);
 
         bubbles = [];
@@ -123,7 +74,6 @@ Item {
             bubbles.push({ alive: false, x: 0, y: 0, vy: 0, seed: rand(0, 6.28), timer: rand(0, 8) });
 
         built = true;
-        Qt.callLater(place);
     }
 
     function layoutScenery(density) {
@@ -170,125 +120,8 @@ Item {
             vents.push(rand(0.05, 0.95) * tankWidth);
     }
 
-    // Scatter everything once sizes are known. Delegates exist by now, since a
-    // Repeater instantiates synchronously when its model is assigned.
-    function place() {
-        const items = allFishItems();
-        for (let i = 0; i < fish.length; i++) {
-            const f = fish[i], item = items[i];
-            f.w = item.width;
-            f.h = item.height;
-            // A leader is always earlier in the list than its followers, so a school
-            // starts out together instead of spending a minute assembling itself.
-            f.x = f.leader ? f.leader.x + f.offX : rand(0, Math.max(1, tankWidth - f.w));
-            f.y = f.leader ? f.leader.y + f.offY : rand(bandTop(f), bandBottom(f));
-            f.ty = f.y;
-            f.tv = f.base;
-            f.v = f.base;
-        }
-        for (const j of jellies) {
-            j.x = rand(10, tankWidth - 30);
-            j.y = rand(20, floorTop - 60);
-        }
-    }
-
-    function allFishItems() {
-        const out = [];
-        for (let i = 0; i < backFish.count; i++) out.push(backFish.itemAt(i));
-        for (let i = 0; i < frontFish.count; i++) out.push(frontFish.itemAt(i));
-        return out;
-    }
-
-    function bandTop(f) { return 10 + f.band[0] * Math.max(1, floorTop - f.h - 10); }
-    function bandBottom(f) { return 10 + f.band[1] * Math.max(1, floorTop - f.h - 10); }
-
-    function stepLeader(f) {
-        f.timer -= dt;
-        if (f.timer <= 0) {
-            f.timer = rand(2, 7);
-            const mood = Math.random();
-            f.tv = f.base * (mood < 0.15 ? 2.4 : mood < 0.35 ? 0.35 : 1);
-            f.ty = rand(bandTop(f), bandBottom(f));
-            if (Math.random() < 0.18) f.turning = true;
-        }
-
-        // Turn at the glass, letting part of the fish go past it first.
-        if ((f.dir > 0 && f.x > tankWidth - f.w * 0.7) || (f.dir < 0 && f.x < -f.w * 0.3))
-            f.turning = true;
-
-        // A turn is a slow-down, a flip, and then speeding up again.
-        if (f.turning && f.v < 1.5) {
-            f.dir = -f.dir;
-            f.turning = false;
-        }
-
-        f.v += ((f.turning ? 0 : f.tv) - f.v) * 0.1;
-        f.x += f.dir * f.v * dt;
-        f.y += (f.ty - f.y) * 0.012;
-    }
-
-    function stepFollower(f) {
-        const l = f.leader;
-        const tx = l.x - l.dir * (f.offX + 6) + (l.dir < 0 ? l.w - f.w : 0);
-        const ty = l.y + f.offY;
-        const gap = tx - f.x;
-
-        f.dir = Math.abs(gap) > 7 ? Math.sign(gap) : l.dir;
-        const move = Math.max(-40, Math.min(40, gap * 0.9)) * dt;
-        f.x += move;
-        f.y += (ty - f.y) * 0.05;
-        f.v = Math.abs(move) / dt;
-    }
-
-    function stepFish(f, item) {
-        if (f.leader) stepFollower(f); else stepLeader(f);
-
-        // Tail speed follows swimming speed; the sequence is rest, up, rest, down.
-        f.phase += dt * (1.6 + f.v * 0.42);
-        item.frame = [0, 1, 0, 2][Math.floor(f.phase) % 4];
-        item.flip = f.dir < 0;
-        item.x = Math.round(f.x);
-        item.y = Math.round(f.y + Math.sin(clock * 1.3 + f.bob) * 1.2);
-    }
-
-    function stepJelly(j, item) {
-        // Contract and thrust upward, relax and sink. A beat lifts more than the rest
-        // of the cycle sinks while rising, and less while falling; with one fixed
-        // strength a jellyfish only ever goes one way and ends up pinned to an edge.
-        if (j.y < 40) j.rising = false;
-        if (j.y > floorTop - item.height - 30) j.rising = true;
-
-        j.phase += dt * 0.9;
-        const beat = j.phase % 3;
-        item.frame = beat < 1.5 ? 0 : beat < 2 ? 1 : beat < 2.6 ? 2 : 1;
-        if (beat >= 2 && beat < 2.6) j.y -= (j.rising ? 24 : 6) * dt; else j.y += 3 * dt;
-
-        j.x += j.vx * dt;
-        if (j.x < -4) j.vx = Math.abs(j.vx);
-        if (j.x > tankWidth - item.width + 4) j.vx = -Math.abs(j.vx);
-        item.x = Math.round(j.x);
-        item.y = Math.round(j.y);
-    }
-
-    function stepCrab(c, item) {
-        c.timer -= dt;
-        if (c.timer <= 0) {
-            c.walking = !c.walking;
-            c.timer = c.walking ? rand(1.5, 5) : rand(2, 9);
-            if (Math.random() < 0.5) c.dir = -c.dir;
-        }
-        if (c.walking) {
-            c.x += c.dir * 9 * dt;
-            c.phase += dt * 7;
-            if (c.x < 2) { c.x = 2; c.dir = 1; }
-            if (c.x > tankWidth - item.width - 2) { c.x = tankWidth - item.width - 2; c.dir = -1; }
-        }
-        item.frame = Math.floor(c.phase) % 2;
-        item.x = Math.round(c.x);
-        item.y = tankHeight - 17 - item.height;
-    }
-
     function stepBubble(b, item) {
+        const dt = ocean.dt;
         if (!b.alive) {
             b.timer -= dt;
             if (b.timer > 0) return;
@@ -299,7 +132,7 @@ Item {
             item.visible = true;
         }
         b.y -= b.vy * dt;
-        item.x = Math.round(b.x + Math.sin(clock * 2.2 + b.seed) * 2.4);
+        item.x = Math.round(b.x + Math.sin(ocean.clock * 2.2 + b.seed) * 2.4);
         item.y = Math.round(b.y);
         if (b.y < 5) {
             b.alive = false;
@@ -309,25 +142,98 @@ Item {
         }
     }
 
-    function tick() {
-        clock += dt;
-        const items = allFishItems();
-        for (let i = 0; i < fish.length; i++) stepFish(fish[i], items[i]);
-        for (let i = 0; i < jellies.length; i++) stepJelly(jellies[i], jellyView.itemAt(i));
-        for (let i = 0; i < crabs.length; i++) stepCrab(crabs[i], crabView.itemAt(i));
+    // Puts a creature from the Ocean on this screen, or hides it if it is elsewhere.
+    // Rounded in world pixels before the offset, so a fish straddling two screens is
+    // drawn on the same column by both.
+    function show(c, item, y) {
+        const x = Math.round(c.x) - worldX;
+        const here = x + c.w > 0 && x < tankWidth;
+        item.visible = here;
+        if (!here)
+            return;
+        item.x = x;
+        item.y = y;
+        item.frame = c.frame;
+    }
+
+    function render() {
+        if (!built || !ocean.built)
+            return;
+        const fish = ocean.fish;
+        const back = backFish.count;
+        for (let i = 0; i < fish.length; i++) {
+            const f = fish[i];
+            const item = i < back ? backFish.itemAt(i) : frontFish.itemAt(i - back);
+            if (!item) continue;
+            show(f, item, Math.round(f.drawY * yScale));
+            item.flip = f.dir < 0;
+        }
+        for (let i = 0; i < ocean.jellies.length; i++) {
+            const j = ocean.jellies[i], item = jellyView.itemAt(i);
+            if (item) show(j, item, Math.round(j.y * yScale));
+        }
+        // The crabs walk on this screen's own sand, wherever the Ocean's floor is.
+        for (let i = 0; i < ocean.crabs.length; i++) {
+            const item = crabView.itemAt(i);
+            if (item) show(ocean.crabs[i], item, tankHeight - 17 - item.height);
+        }
+
+        const s = ocean.shark;
+        if (s.active) {
+            show(s, sharkSprite, Math.round(s.drawY * yScale));
+            sharkSprite.flip = s.dir < 0;
+        } else {
+            sharkSprite.visible = false;
+        }
+
+        // One sprite per pose; only the one it is in is shown.
+        const d = ocean.diver;
+        const pose = diverItem(d.pose), other = diverItem(d.pose === "swim" ? "rise" : "swim");
+        other.visible = false;
+        if (d.active) {
+            show(d, pose, Math.round(d.drawY * yScale));
+            pose.flip = d.dir < 0;
+        } else {
+            pose.visible = false;
+        }
+        for (let i = 0; i < ocean.breath.length; i++) {
+            const b = ocean.breath[i], item = breathView.itemAt(i);
+            if (!item) continue;
+            const x = Math.round(b.x + Math.sin(ocean.clock * 2.4 + b.seed) * 1.5) - worldX;
+            item.visible = b.alive && x + item.width > 0 && x < tankWidth;
+            if (!item.visible) continue;
+            item.x = x;
+            item.y = Math.round(b.y * yScale);
+        }
+
         for (let i = 0; i < bubbles.length; i++) stepBubble(bubbles[i], bubbleView.itemAt(i));
     }
 
-    // Built on the first real size rather than at construction, when a surface can
-    // still be 0x0. A later resize re-reads the bounds in tick() and needs no rebuild.
-    onTankWidthChanged: if (!built && tankWidth > 0 && tankHeight > 30) build()
-    Component.onCompleted: if (!built && tankWidth > 0 && tankHeight > 30) build()
+    // Built and attached on the first real size rather than at construction, when a
+    // surface can still be 0x0. A later resize just lays the Ocean out again.
+    function settle() {
+        if (!ready)
+            return;
+        if (!built)
+            build();
+        if (!attached) {
+            attached = true;
+            ocean.attach(root);
+        } else {
+            ocean.layout();
+        }
+    }
 
-    Timer {
-        interval: 66
-        repeat: true
-        running: root.running && root.built
-        onTriggered: root.tick()
+    onTankWidthChanged: settle()
+    onTankHeightChanged: settle()
+    onScreenXChanged: if (attached) ocean.layout()
+    onScreenYChanged: if (attached) ocean.layout()
+    Component.onCompleted: settle()
+    Component.onDestruction: if (attached && ocean) ocean.detach(root)
+
+    Connections {
+        target: root.ocean
+        function onStepped() { root.render(); }
     }
 
     Item {
@@ -368,11 +274,12 @@ Item {
 
         Repeater {
             id: backFish
-            model: root.backFishModel
+            model: root.ocean.backFishModel
             PixelSprite {
                 required property var modelData
                 name: modelData.name
                 frames: 3
+                visible: false
             }
         }
 
@@ -382,7 +289,7 @@ Item {
                 required property var modelData
                 name: modelData.name
                 frames: 4
-                frame: Math.floor(root.clock * modelData.rate * 4 + modelData.offset) % 4
+                frame: Math.floor(root.ocean.clock * modelData.rate * 4 + modelData.offset) % 4
                 x: Math.round(modelData.x * root.tankWidth) - 13
                 y: root.tankHeight - height - modelData.sink - 22
             }
@@ -410,31 +317,55 @@ Item {
 
         Repeater {
             id: crabView
-            model: root.crabModel
+            model: root.ocean.crabModel
             PixelSprite {
                 name: "crab"
                 frames: 2
+                visible: false
             }
         }
 
         Repeater {
             id: jellyView
-            model: root.jellyModel
+            model: root.ocean.jellyModel
             PixelSprite {
                 required property var modelData
                 name: modelData.name
                 frames: 3
+                visible: false
             }
         }
 
         Repeater {
             id: frontFish
-            model: root.frontFishModel
+            model: root.ocean.frontFishModel
             PixelSprite {
                 required property var modelData
                 name: modelData.name
                 frames: 3
+                visible: false
             }
+        }
+
+        // The visitors: in front of every fish, behind the near weeds and the bubbles.
+        PixelSprite {
+            id: diverSwim
+            name: "diver_swim"
+            frames: 3
+            visible: false
+        }
+        PixelSprite {
+            id: diverRise
+            name: "diver_rise"
+            frames: 3
+            visible: false
+        }
+
+        PixelSprite {
+            id: sharkSprite
+            name: "shark"
+            frames: 3
+            visible: false
         }
 
         Repeater {
@@ -443,9 +374,20 @@ Item {
                 required property var modelData
                 name: modelData.name
                 frames: 4
-                frame: Math.floor(root.clock * modelData.rate * 4 + modelData.offset) % 4
+                frame: Math.floor(root.ocean.clock * modelData.rate * 4 + modelData.offset) % 4
                 x: Math.round(modelData.x * root.tankWidth) - 13
                 y: root.tankHeight - height - modelData.sink - 4
+            }
+        }
+
+        Repeater {
+            id: breathView
+            model: root.ocean.breathModel
+            Image {
+                required property var modelData
+                source: root.sprite("bubble_" + modelData.size)
+                visible: false
+                smooth: false
             }
         }
 

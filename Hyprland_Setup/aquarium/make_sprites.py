@@ -129,6 +129,13 @@ def from_ascii(art, pal):
     return img
 
 
+def framed(art, pal, rim):
+    """Draw art that has no outline of its own, with a rim one pixel outside it all round."""
+    width = max(len(row) for row in art) + 2
+    art = ["." * width] + ["." + row.ljust(width - 2, ".") + "." for row in art] + ["." * width]
+    return outline(from_ascii(art, pal), rim)
+
+
 def wiggle(img, tail, shift, amp):
     """Shear the tail columns vertically. Padding of `amp` rows keeps them on canvas."""
     h, w = len(img), len(img[0])
@@ -401,6 +408,131 @@ CHEST = [
     "OOOOOOOOOOOOOOOOOOOOOO",
 ]
 
+# The shark: the one visitor, so it is drawn bigger than anything else and in cool
+# greys rather than a pastel, with a white belly so it still reads on black. Drawn
+# without an outline; make_shark() adds the rim, as the scenery's outline() does.
+SHARK_PAL = {
+    "B": rgb("#9399b2"), "D": rgb("#7f849c"), "L": rgb("#cdd6f4"),
+    "F": rgb("#7f849c"), "G": rgb("#6c7086"), "S": rgb("#585b70"),
+    "K": INK, "W": WHITE,
+}
+SHARK = [
+    "................................F..........................",
+    "..FF...........................FF..........................",
+    "..FFF.........................FFF..........................",
+    "...FFF.......................FFFF..........................",
+    "...FFFF.....................FFFFF..........................",
+    "....FFFF...................FFFFFF..........................",
+    ".....FFFF.................GFFFFFFF.........................",
+    "......FFFF...............GGFFFFFFFF........................",
+    ".......FFFF.......F.....DDDDDDDDDDDDDDDDDDD................",
+    "........FFFF......FF..DDDDDDDDDDDDDDDDDDDDDDDDDDD..........",
+    ".........FFFF....DDDDDDDDBBBBBBBBBBBBBBBBBBBBBBBDDDDDD.....",
+    "..........FFFFDDDDDBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBKDDDDD..",
+    "...........FFFBBBBBBBBBBBBBBBBBBBBBBBBBBBBSBSBSBBBBBBBBBBBD.",
+    "...........FFFLLLLLLLLLLLLLLLLLLLLLLLLLLLLSLSLSLLLLLLLLLLLLL",
+    "..........FFFF..LLLLLLLLLLLLLLLLLLLLLLLLLLSLSLSLLLKKKKKKLL..",
+    ".........FFFF.....LLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLLWLWLL.....",
+    "........FFFF.......FF....LLLLLLLLLLLLLLLLLLLLLLLLLL.........",
+    ".......FFF..........F......GFFFFF..........................",
+    "......FF...................GFFFF...........................",
+    ".....F....................GFFF.............................",
+    "..........................FFF..............................",
+]
+
+
+def make_shark():
+    img = framed(SHARK, SHARK_PAL, shade(SHARK_PAL["B"], 0.36))
+    # A slower, wider sweep than a fish's: the whole tail plus the narrow wrist before it.
+    for frame, shift in enumerate((0, 1, -1)):
+        write_png(OUT / f"shark_{frame}.png", wiggle(img, 16, shift, 2))
+
+
+# The diver: the other visitor. Two poses, both facing right: lying flat to swim, and
+# upright to sink in from the surface and rise back out of it. The wetsuit is blue, not
+# black, because a black one would vanish into the water; the tank and fins are the warm
+# accents. Drawn without an outline, like the shark.
+DIVER_PAL = {
+    "W": rgb("#89b4fa"), "V": shade(rgb("#89b4fa"), 0.68), "S": rgb("#b4befe"),
+    "Y": rgb("#f9e2af"), "T": shade(rgb("#f9e2af"), 0.7),
+    "M": rgb("#45475a"), "G": rgb("#89dceb"), "L": WHITE,
+    "R": rgb("#7f849c"), "C": rgb("#f5e0dc"),
+    "F": rgb("#fab387"), "E": shade(rgb("#fab387"), 0.7),
+}
+DIVER_SWIM = [
+    "...........................TYYYYYYYYYYYT..........",
+    "..........................TYYYYYYYYYYYYYT...VVVV..",
+    "..........................TTTTTTTTTTTTTTT..VVVVVV.",
+    ".......................VVVWWWWWWWWWWWWWWVVVVMMMMM.",
+    "EEEEE.......VVVVVVVVVVVWWWWWWWWWWWWWWWWWWWVVMGGGLM.",
+    "..FFFFEEEFVVWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWVVMGGGGM.",
+    ".....FFFFVWWWWWWWWWWVVVWWWWWWWWWWWWWWWWWWWVVMMMMMMR",
+    "............VVVVVVVVVVVWWWWWWSSSSSSSWWWWWWVVCCCCRRR",
+    "EEEEE.......VVVVVVVVVVVWWWWWWWWWWWWWWWWWWVVVVCCC...",
+    "..FFFFEEEFVVWWWWWWWWWWVVVVVVVVVWWWWWWWWVV..........",
+    ".....FFFFVVVVVVVVVVV..............VVVVCCC..........",
+]
+DIVER_RISE = [
+    ".....VVVV......",
+    "....VVVVVV.....",
+    "....VVVMMMM....",
+    "....VVMGGLM....",
+    "....VVMGGGM....",
+    ".....VMMMMMR...",
+    ".....VVCCCRR...",
+    "..TT.VVVCCV....",
+    ".TYYTVWWWWV....",
+    ".TYYTWWWWWWV...",
+    ".TYYTWWWWWWWV..",
+    ".TYYTWWWWWVWWV.",
+    ".TYYTWWWWWVWWV.",
+    ".TYYTWWWWWVWWV.",
+    ".TYYTWWWWWVVCC.",
+    ".TYYTWWWWWV.CC.",
+    "..TT.WWWWWV....",
+    ".....SSSSSS....",
+    ".....WWWWWW....",
+    ".....WWW.WWW...",
+    ".....WWW.WWW...",
+    ".....WWW.WWW...",
+    ".....VVV.VVV...",
+    ".....VVV.VVV...",
+    "....EFFF.FFF...",
+    "....EFF..FFE...",
+    "...EFF...FFE...",
+    "...EF....FE....",
+    "...EF....FE....",
+    "..EE.....EE....",
+]
+
+
+def kick(img, rows, shift, amp):
+    """wiggle() turned on its side: shear the bottom rows sideways, the lowest the most.
+
+    `amp` columns of padding each side keep them on canvas.
+    """
+    h, w = len(img), len(img[0])
+    out = blank(w + amp * 2, h)
+    for y in range(h):
+        offset = amp
+        if y >= h - rows:
+            offset += round(shift * amp * (y - (h - rows)) / rows)
+        for x in range(w):
+            if img[y][x][3]:
+                out[y][x + offset] = img[y][x]
+    return out
+
+
+def make_diver():
+    rim = shade(DIVER_PAL["W"], 0.36)
+    swim = framed(DIVER_SWIM, DIVER_PAL, rim)
+    rise = framed(DIVER_RISE, DIVER_PAL, rim)
+    # A flutter kick: the fins and shins, up and down when flat, side to side upright.
+    for frame, shift in enumerate((0, 1, -1)):
+        write_png(OUT / f"diver_swim_{frame}.png", wiggle(swim, 12, shift, 2))
+        write_png(OUT / f"diver_rise_{frame}.png", kick(rise, 12, shift, 2))
+
+
 BUBBLES = {
     "bubble_0": ["OO", "OO"],
     "bubble_1": [".OO.", "OL.O", "O..O", ".OO."],
@@ -634,6 +766,8 @@ def main():
         old.unlink()
     make_fish()
     make_creatures()
+    make_shark()
+    make_diver()
     make_surface()
     make_sand()
     make_far_rocks()

@@ -9,6 +9,7 @@ Scope {
     id: root
 
     readonly property alias context: ctx
+    readonly property alias ocean: water
     property alias pamConfig: ctx.pamConfig
     property alias pamConfigDirectory: ctx.pamConfigDirectory
 
@@ -31,6 +32,11 @@ Scope {
     LockContext {
         id: ctx
         onUnlocked: root.unlock()
+    }
+
+    // One tank behind every monitor's surface, so the fish swim from screen to screen.
+    Ocean {
+        id: water
     }
 
     WlSessionLock {
@@ -60,6 +66,8 @@ Scope {
             LockSurface {
                 anchors.fill: parent
                 context: ctx
+                ocean: water
+                screen: surface.screen
             }
 
             onScreenChanged: if (screen) console.info("aquarium-lock: surface on", screen.name)

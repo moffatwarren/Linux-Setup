@@ -34,6 +34,15 @@ Scope {
             lock.context.submit();
         }
 
+        // The visitors' first visits are a minute or two away; these bring one in now.
+        function shark(): void {
+            lock.ocean.summonShark();
+        }
+
+        function diver(): void {
+            lock.ocean.summonDiver();
+        }
+
         function state(): string {
             const c = lock.context;
             return "awake=" + c.awake + " checking=" + c.checking + " typed=" + c.password.length + " failure=" + c.failure;

@@ -136,7 +136,7 @@ Hyprland_Setup/
   install.sh          the only entry point (deploy + --pull)
   hypr/               hyprland, hypridle, hyprlock (the lock's fallback) + the shell scripts
   quickshell/         the bar, the overlays and notifications, one file per module
-  aquarium/           the lock screen: a pastel fish tank on every monitor
+  aquarium/           the lock screen: one pastel fish tank across every monitor, with visitors
   gtk-3.0/ gtk-4.0/   Catppuccin Mocha over adw-gtk3-dark (thunar, dialogs)
   btop/ fastfetch/ fish/ kitty/ nvim/ weathr/
   voidsddm/ sddm.conf.d/   SDDM theme (deployed to /usr, needs sudo)

@@ -2667,8 +2667,9 @@ this module exists to make, so zero is a dimmed closed box rather than nothing a
 
 ## The lock screen (aquarium)
 
-The lock is a pixel-art fish tank in Catppuccin Mocha pastels on pure black, with one tank
-per monitor and a clock and password box on every one of them. **hyprlock is no longer what locks this
+The lock is a pixel-art fish tank in Catppuccin Mocha pastels on pure black, **one tank
+across every monitor** (fish swim from screen to screen), visited now and then by a shark
+or a scuba diver, with a clock and password box on every screen. **hyprlock is no longer what locks this
 machine, but it must stay installed**: it is the fallback, and its PAM service and its
 `hyprlock.conf` are both still in use (below).
 
@@ -2681,10 +2682,11 @@ is `Hyprland_Setup/aquarium/`, which `CONFIGS` deploys to `~/.config/aquarium`:
 | `lock.qml` | the real root; what `lock.sh` runs |
 | `Lock.qml` | the `WlSessionLock`, and quitting once unlocked |
 | `LockContext.qml` | what the monitors share: password, PAM, idle state |
-| `LockSurface.qml` | one monitor: a tank, the clock, the password box |
-| `Aquarium.qml` / `PixelSprite.qml` | the tank, which knows nothing about locking |
+| `LockSurface.qml` | one monitor: its stretch of the tank, the clock, the password box |
+| `Ocean.qml` | the one simulation every monitor shares: fish, jellies, crabs, shark, diver |
+| `Aquarium.qml` / `PixelSprite.qml` | one screen's view of the `Ocean`; neither knows about locking |
 | `make_sprites.py` | generates `sprites/`, stdlib only; the PNGs are committed |
-| `preview.qml`, `preview-all.qml` | the tank with no lock: a window, or every monitor for 30 s |
+| `preview.qml`, `preview-all.qml` | the tank with no lock: a window (S shark, D diver), or every monitor for one visit |
 | `lock-test.qml`, `lock-test.sh` | the lock with a timer that unlocks it; see **Testing a lock** |
 
 It runs as its own `qs -p` instance, never inside the bar, so restarting the bar cannot
@@ -2750,7 +2752,9 @@ Laid out in "tank pixels" and scaled by a **whole number** (`floor(height / 270)
 by 4, 1440p by 5), so every pixel is the same size and nothing is resampled. Each sprite
 is a texture the scene graph moves about, and one 15 Hz timer writes positions, which is
 why it is cheap: two fullscreen 1440p tanks measured 2% of a core and under 1 W of GPU on
-top of idle. Each frame of a sprite is its own always-loaded `Image` with only `visible`
+top of idle. (That was before the screens shared one tank. The simulation plus both
+screens' redraws now measures 0.22 ms a tick offscreen, 0.3% of a core; the GPU side has
+not been re-measured.) Each frame of a sprite is its own always-loaded `Image` with only `visible`
 changing, so a tail flick re-reads nothing.
 
 - **The component is `PixelSprite`, not `Sprite`, because QtQuick already has a `Sprite`**,
@@ -2776,6 +2780,97 @@ changing, so a tail flick re-reads nothing.
   bright as the digits and read as part of them when they cross. It is invisible on black
   water and fades out with the rest. The cost is that a fish passing it is cut off in a
   straight line.
+
+### One tank across the monitors, and its visitors
+
+`Ocean.qml` is the simulation and `Aquarium.qml` is only a view of it. Each lock surface
+gets the same `Ocean` from `Lock.qml` and draws its own stretch of the water. The screens
+are laid side by side **ordered by their position** (`ShellScreen.x`, then `y`), and only
+the outer edges of the leftmost and rightmost screens are glass. A fish swimming off one
+screen comes in on the next.
+
+- **Only what travels is shared**: the fish, jellyfish, crabs and shark. Scenery and bubbles
+  stay in place, so each screen keeps its own, as it always did.
+- **Each screen keeps its own whole-number scale**, so a fish changes size as it crosses
+  from a 1080p panel (x4) to a 1440p monitor (x5). Matching them would mean resampling,
+  which is the one thing the tank never does. Positions are rounded in world pixels before
+  each screen subtracts its offset, so a fish on the seam is drawn on the same column by both.
+- **Screens of different heights each show the whole water column.** The world is as tall
+  as the shortest one, and a taller one stretches the depth over its own water (`yScale`,
+  1 on equal screens), so a fish keeps roughly the same height on screen as it crosses.
+  This is common: `floor(height / 270)` makes a 1280x800 laptop's tank 400 pixels tall
+  against a 1080p monitor's 270. The first version aligned them by the sand instead, which
+  left the top third of that laptop with no fish.
+- **Stress-tested offscreen** for 22 simulated minutes each (shark every 4–8 s), on: one
+  1080p screen; two 1440p; 1280x800 + 1080p; four mixed screens given out of order, with a
+  negative x, a portrait 1440x2560, a 2560x1080 ultrawide and a 4K; a vertical stack; and
+  800x600. Nothing left the water and the shark always left the tank. A vertical stack is
+  treated as if its screens stood side by side, so the fish cross from the right edge of
+  one to the left edge of the next.
+- **The roster is dealt for the whole width.** The fish count is per 480 tank pixels of
+  *all* the screens, and there are two tetra schools per screen's worth, so two screens
+  carry as many fish between them as they did as two tanks.
+- **A screen arriving or leaving deals the fish again**, after a 150 ms settle, because the
+  surfaces of one lock come up a few milliseconds apart and building on the first one alone
+  would put every fish on one screen. A resize with the same screens only moves the glass.
+  Verified in a nested Hyprland: removing an output under the lock and adding one back
+  re-dealt across two screens and then three, with no errors. The re-deal sends the shark
+  away until its next visit.
+- **The `Ocean` is measured through the first view.** Every screen draws the same sprites,
+  so `place()` reads sizes from `views[0]`'s Repeaters. This happens after the models are
+  assigned, when every view has instantiated them.
+
+**The shark** (`shark_*.png`, 62x27, the largest sprite) is a visitor. Its first visit
+comes 20–60 s in, and later ones every 60–150 s (`sharkFirst`/`sharkGap`). It comes in
+through the glass on one side and crosses every screen at 22 tank px/s, about 45 s across
+two 1440p monitors. It may double back once, and only while it is in the middle half, so
+it never turns back out the way it came in. It never catches anything. It drifts towards
+the nearest near fish ahead of it and sometimes lunges to 50.
+
+**The fish flee it.** The fear zone is an ellipse around the shark that reaches 70 px in
+front of it and 24 px behind, so fish scatter ahead of it and close in behind it. A
+frightened fish darts: it flips on the spot instead of slowing down to turn, swims at
+`28 + 1.3 x base`, and heads up or down out of the shark's line. It also leaves its
+school, and the school re-forms once the panic (1.2–2.2 s after the last scare) wears off.
+Fish at the back of the tank flee too, but the shark does not hunt them. A fish cornered
+against the glass stays inside and escapes by depth. Jellyfish and crabs ignore the shark.
+
+**The diver** is the other visitor. Its first visit comes 45–120 s in, and later ones
+every 150–300 s (`diverFirst`/`diverGap`). It has two poses: `diver_rise_*` (21x32,
+upright) to sink in feet first through the surface and rise back out, and `diver_swim_*`
+(53x17, flat) for the visit. It sinks in at a random point along the whole width, swims
+two or three legs of 60–180 px at 10 px/s, pausing 2–5 s after each, then rises straight
+up. A visit is about 90 s. Its flutter kick is `wiggle()` for the flat pose and `kick()`
+for the upright one, which shears rows instead of columns. The wetsuit is blue, not black,
+because a black one would vanish on black water.
+
+- **It is tracked by its centre**, not its corner, because the two poses are different
+  shapes. `x`/`y`/`w`/`h` are the current pose's box, recomputed every tick, so `show()`
+  in `Aquarium.qml` draws it like anything else. Each view has one sprite per pose and
+  hides the one not in use.
+- **Its breath is shared, not per screen**: a pool of 20 bubbles in `Ocean.breath`. A
+  breath every 3–5 s lets out 3–5 bubbles from the regulator, and they rise to the surface
+  wherever the diver is, across the seam if need be. The pool peaked at 17 in use over two
+  simulated hours. A breath that finds the pool empty is skipped rather than grown,
+  because a Repeater's model is fixed between builds.
+- **The fish keep their distance; they do not flee** (`shy()`). A fish inside an ellipse
+  22 px beyond the diver's box turns away at its normal pace and moves up or down out of
+  the diver's level. Its vertical move is a nudge on top of its own drift, because a
+  puffer drifting at its own rate was still on the diver's head when the diver arrived.
+  School followers and fish at the back are left alone, as with the shark's prey: a school
+  goes where its leader goes.
+
+**The two visitors take turns** (`leave()`). Neither comes in while the other is in the
+water, and the one leaving gives the other a 10–25 s quiet spell. If the other has been
+kept waiting past its time, it goes next. Without that, whichever visitor had the shorter
+gap came back every time before the other got in: the first version gave one 17 visits
+and the other none in a 22-minute run. Over two simulated hours with the real timings:
+47 shark visits, 23 diver visits, never both at once.
+
+To see them: `qs -p …/preview.qml` and press **S** or **D**. `preview-all.qml` brings the
+shark in after 3–5 s and quits after a minute; with `AQUARIUM_VISITOR=diver` it brings
+the diver instead and quits after 100 s. `lock-test.qml` has
+`qs ipc -p …/lock-test.qml call locktest shark` (or `diver`).
 
 Idle: 10 s after the last key or mouse movement the clock and box fade and the cursor hides,
 and a half-typed password is cleared. `SystemClock` ticks every second though the display

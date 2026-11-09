@@ -1,11 +1,15 @@
 import QtQuick
 import Quickshell
 
-// One monitor's lock screen: its own tank, with the clock and password box on top.
+// One monitor's lock screen: its stretch of the shared tank, with the clock and password
+// box on top.
 Item {
     id: root
 
     required property var context
+    required property Ocean ocean
+    // The ShellScreen this surface is on, which says where its water sits in the tank.
+    property var screen: null
 
     readonly property int px: tank.pixelSize
     readonly property color accent: context.checking ? "#f9e2af"
@@ -30,6 +34,8 @@ Item {
     Aquarium {
         id: tank
         anchors.fill: parent
+        ocean: root.ocean
+        screen: root.screen
     }
 
     MouseArea {
