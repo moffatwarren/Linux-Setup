@@ -19,6 +19,10 @@ const heading = (title, note) => {
 };
 // Names come from the database, which anybody can write to, so keep them to plain text.
 const clean = (s) => String(s ?? '?').replace(/[\x00-\x1f\x7f-\x9f]/g, '').slice(0, 16);
+const ordinal = (n) => {
+  const s = ['th', 'st', 'nd', 'rd'], v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+};
 const hours = (s) => `${Math.floor(s / 3600)}h ${String(Math.floor(s / 60) % 60).padStart(2, '0')}m`;
 const ago = (t) => {
   const s = (Date.now() - t) / 1000;
@@ -181,10 +185,13 @@ if (boards.length) {
 
   // ---------- latest ----------
   // A row's time is when it last went up, so this is new bests (and every win, on the boards that count them).
+  // The place is where that row stands on its board now, ranked as the Hall of Fame ranks it.
   heading('LATEST SCORES', 'new bests, and every win on the boards that count them');
-  const all = boardsRead.flatMap(({ b, rows }) => rows.map((r) => ({ ...r, b })));
-  for (const r of all.sort((a, b) => b.t - a.t).slice(0, 10)) {
-    console.log('  ' + ago(r.t).padEnd(10) + r.name.padEnd(13) + r.b.title.padEnd(24) + show(r.b, r.score));
+  const all = boardsRead.flatMap(({ b, rows }) => [...rows].sort(byScore).map((r, i) => ({ ...r, b, place: i + 1, of: rows.length })));
+  const latest = all.sort((a, b) => b.t - a.t).slice(0, 10).map((r) => ({ ...r, shown: show(r.b, r.score) }));
+  const scoreW = Math.max(0, ...latest.map((r) => r.shown.length)) + 3;
+  for (const r of latest) {
+    console.log('  ' + ago(r.t).padEnd(10) + r.name.padEnd(13) + r.b.title.padEnd(24) + r.shown.padEnd(scoreW) + ordinal(r.place).padStart(4) + ' ' + dim('of ' + r.of));
   }
 
   // ---------- Morale Madness ----------
