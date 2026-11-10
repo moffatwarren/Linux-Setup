@@ -129,6 +129,15 @@ to filter, arrows to move, Enter to pick, Escape to cancel. In the clipboard,
 screenshot editor to mark it up; copying from there adds the marked-up version
 to the history. A right-click on text drops it, as `Delete` does.
 
+Herdr's sidebar has a little pixel critter, Pip, under the Agents list. It
+keeps an eye on your agents: when one needs you (a permission prompt, a
+question) it comes up to the glass and knocks, with a sign saying who; when one
+is done it dances under confetti until you look at that agent; while they work
+it potters about. Click it to jump to the agent that wants you, or just to pet
+it. It naps while you are away (screen locked, or no keyboard or mouse for 5
+minutes) and says hello when you are back. `herdr-app do pip.demo-knock` (or
+`demo-party`, `demo-sleep`, `demo-off`) shows a mood without waiting for an agent.
+
 ## Layout
 
 ```
@@ -144,7 +153,7 @@ Hyprland_Setup/
   udev/               udev rules (CPU power for the bar), to /etc/udev/rules.d (sudo)
   superfile/          spf settings: nvim as the editor, zoxide on
   brave/              Brave flags (GPU video decoding), to ~/.config
-  herdr-app/          the Herdr app's settings + Catppuccin themes (the app itself is installed too)
+  herdr-app/          the Herdr app's settings + Catppuccin themes, and Pip (a mod) with its layout
   haakonlife/         the script behind the `haakonlife` fish command
 wallpapers/           one starter wallpaper, seeded into ~/Pictures/wallpapers
 *.md                  personal command reference notes (everything but README.md and CLAUDE.md)

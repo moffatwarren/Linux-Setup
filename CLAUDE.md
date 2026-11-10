@@ -2903,7 +2903,9 @@ monitors). **Not yet verified on a laptop:** closing the lid, and the tank's pow
 ## Idle and lock (hypridle)
 
 `hypr/hypridle.conf` is two rules — a `lock_cmd`, a `before_sleep_cmd`, and a single
-300 s listener that locks. Every path funnels through `lock_cmd`, which is `lock.sh` (see
+300 s listener that locks. A second 300 s listener only creates and removes
+`$XDG_RUNTIME_DIR/pip.idle`, Pip's "you have gone quiet" marker (see **Pip, under the
+agents list** in the Herdr section); it touches nothing about the display or the session. Every path funnels through `lock_cmd`, which is `lock.sh` (see
 **The lock screen (aquarium)**), and that is what stops a second lock stacking on the first.
 
 `before_sleep_cmd` **was `logindtl lock-session`** — `loginctl` misspelled, so it
@@ -3066,16 +3068,18 @@ installer puts the app in `~/.local/share/herdr-app`, puts `herdr-app` in `~/.lo
 writes a launcher entry, and installs herdr-core from its own installer if there is none.
 After that the app updates itself and the core. No sudo, and a failure is a warning.
 
-**The look is three files, and they are deployed one by one, not through `CONFIGS`:**
-`herdr-app/settings.json` (the `catppuccin-latte`/`catppuccin-mocha` light/dark pair, plus
-JetBrainsMono Nerd Font and Cantarell, both already in `PACMAN_PKGS`) and the two theme
-files in `herdr-app/themes/`. Herdr ships no Catppuccin theme. `~/.config/herdr-app` is
-mostly Herdr's own, rewritten on every start: about a megabyte of docs and type files, its
-icons, mods and layouts, `view.json`/`window.json`, agent state under `data/`, telemetry
-and a live socket. A whole-directory `--pull` would bring all of that into git. So
-`deploy_configs` copies the three files out, and `pull_configs` copies back only
-`settings.json` and the themes the repo already ships. To ship a new theme, copy it into
-`herdr-app/themes/` by hand once.
+**The repo ships seven files, deployed one by one, not through `CONFIGS`:** the look,
+which is `herdr-app/settings.json` (the `catppuccin-latte`/`catppuccin-mocha` light/dark
+pair, plus JetBrainsMono Nerd Font and Cantarell, both already in `PACMAN_PKGS`) and the
+two theme files in `herdr-app/themes/`; and Pip, which is `mods/pip/main.js`,
+`mods/pip/mod.json` and the layout that gives it a spot, `layouts/main-pip.json` (see
+below). Herdr ships no Catppuccin theme. `~/.config/herdr-app` is mostly Herdr's own,
+rewritten on every start: about a megabyte of docs and type files, its icons, mods and
+layouts, `view.json`/`window.json`, agent state under `data/`, telemetry and a live
+socket. Herdr also writes `gpui-kit.d.ts` (812 KB) and `jsconfig.json` into *every* mod
+folder, Pip's included. A whole-directory `--pull` would bring all of that into git. So
+`deploy_configs` copies the named files out, and `pull_configs` copies back only those.
+To ship a new theme, copy it into `herdr-app/themes/` by hand once.
 
 Things to know, from the `AGENTS.md` Herdr writes into that directory:
 
@@ -3091,6 +3095,94 @@ Things to know, from the `AGENTS.md` Herdr writes into that directory:
 - **The themes are deployed whether or not the app is installed yet**, so the first start
   after `setup_herdr` already has them. The deploy runs before the installer, and the
   installer does not touch `~/.config/herdr-app`.
+
+### Pip, under the agents list (`herdr-app/mods/pip`)
+
+Pip is a pixel critter in its own block between the Agents list and the sidebar footer,
+driven entirely by Herdr's own agent status (`agents()`, which re-renders the mod on every
+change). Nothing has to tell it anything:
+
+| Herdr says | Pip |
+|---|---|
+| an agent is `blocked` | comes to the middle and knocks: paws on the glass, a rattle, a "Claude needs you!" sign in the theme's `blocked` colour, naming the space |
+| an agent is `done` | dances under bursts of confetti, with a "Claude's done!" sign in `done`'s colour |
+| any agent `working` | potters about |
+| nothing going on | wanders, blinks, faces you |
+| you are away | naps, and says hello when you are back |
+
+A click goes to the agent it is pointing at (`agent.focus`); otherwise it pets it. Herdr
+turns `done` into `idle` once you look at that agent, so looking is what ends the dance.
+
+- **It lives in `main-pip`, a copy of Herdr's `main` layout, and copies never get Herdr's
+  updates.** Shipped layouts are read-only and replaced on every start, so adding a block
+  takes a copy (`herdr-app do layout.clone '{"name":"main","as":"main-pip"}'`). To pick up a
+  newer `main`: clone it again, insert
+  `{"id": "pip", "type": "block", "size": {"px": 112}, "content": {"mod": "pip"}}` before
+  `sidebar-footer` in the sidebar column, and copy the result into the repo. The 112 is
+  mirrored as `BLOCK_H` in `main.js`.
+- **Herdr keeps which layout is shown in its own `shared.json`, and that gives two
+  cases.**
+  - **Herdr has never run.** There is no `shared.json` yet, so `deploy_configs` writes
+    `{"layout":"main-pip"}` and the first start shows Pip. Verified on a fresh
+    `HERDR_APP_HOME` built exactly as the deploy builds it: seeded, it started on
+    `main-pip` with Pip's greeting and no errors; unseeded, on `main`. Herdr keeps the
+    key, adds its own, and still shows its welcome.
+  - **Herdr has run.** The file is Herdr's and is never written.
+    `use_herdr_pip_layout()` switches a running Herdr still on stock `main` over to
+    `main-pip`, leaves any other choice alone, and does nothing while Herdr is closed.
+- **It is drawn from rectangles in the theme's ANSI colours** (`ansi5` body, `ansi1`
+  cheeks, `ansi2` grass), so it follows the theme and needs no image files. Each sprite row
+  is drawn as runs of one colour, not one element per pixel. The face is carved in as
+  holes, so the eyes show the sidebar behind it.
+- **All motion is native; the timers only decide.** `.loop()` does the hops, the knock
+  rattle and the pulsing paws, `.frames()` the "z Z", and `.transition()` the walking and
+  every one-shot effect. A confetti burst is drawn at its start and given its landing spot
+  40 ms later, and Herdr animates the fall and the fade. It cannot be a `.loop()`, which
+  swings there *and back*, so confetti would float back up. The 500 ms tick (where to walk,
+  when to blink, the next burst) redraws only when something changed. Herdr redraws the
+  whole window on any mod redraw, so a timer that only animates costs real battery.
+- **Away is the screen locked, or no input for 5 minutes.**
+  - Idle is hypridle's second 300 s listener, which keeps `$XDG_RUNTIME_DIR/pip.idle`.
+    It needs a deploy, which restarts hypridle. On Wayland nothing else can see global
+    input, and hypridle's view includes inhibitors: a video that holds off the lock also
+    holds off the nap.
+  - Locked is `lock.sh`'s guard: it holds an `flock` on
+    `$XDG_RUNTIME_DIR/aquarium-lock-$WAYLAND_DISPLAY.guard` for the whole lock, its
+    hyprlock fallback included, and the kernel drops it if the script dies. Pip `stat`s
+    the guard once a minute for `major:minor:inode` and reads `/proc/locks` every 2 s
+    (`readTextFile`, or `cat` if that comes back empty). A held lock shows there as
+    `FLOCK ADVISORY WRITE <pid> 00:3e:<inode>` and is gone on release. **It must never
+    test the lock by taking it**: a probe holding the flock at the instant `lock.sh`
+    starts makes `lock.sh` think a lock is already up, and it exits without locking.
+  - Typing your password clears the idle marker but the guard is still held, so the hello
+    waits for the unlock. Nothing needs replaying: Herdr keeps `blocked` and `done` until
+    you act, so whatever an agent did while you were gone is still on show.
+- **`herdr-app do pip.demo-knock`** (`demo-party`, `demo-sleep`, `demo-off`) previews a
+  mood. Mod commands arrive through `nextCommand()`. The demo agents have no address, so a
+  click pets.
+- **Testing:**
+  - `herdr-app check ~/.config/herdr-app/mods/pip` loads the mod and renders it once,
+    with no timers and no async.
+  - `herdr-app status` lists `errors`.
+  - `herdr-app shot <png>` saves the app's own frame even when the window is covered;
+    crop it to the sidebar.
+  - **A whole fresh Herdr can be tried without touching yours.**
+    `HERDR_APP_HOME=<dir> herdr-app` opens a second window on its own config folder.
+    It talks to the same herdr-core, so it sees the same terminals: use only `status` and
+    `shot` on it, never `space.close`/`tab.close`/`pane.close`, and close it by its PID.
+    `window.close` quits on Linux, and sent without the variable it would quit yours.
+  - **Keep that folder's path short.** The control socket is `<dir>/herdr-app.sock`, and a
+    Unix socket path over 108 bytes fails with "path must be shorter than SUN_LEN". The
+    session scratchpad was too deep; `$XDG_RUNTIME_DIR/<name>` works.
+  - Verified that way: every demo mood, the real idle marker, and lock detection. Lock
+    detection used a temporary copy of the mod pointed at a scratch guard flocked exactly
+    as `lock.sh` does, never the real guard, because holding that would stop a real lock.
+  - Not verified: a real agent going `blocked` or `done` (the demos run the same code
+    with stand-in agents), hypridle writing the marker after a real 5 minutes (needs the
+    deploy), and a real lock.
+- **It replaced a kitty-window version (`littlebuddy`)**, which needed its own Claude Code
+  hooks to learn what Herdr already knows. That version was never committed or deployed,
+  so nothing is in `ORPHANS` for it, and its hooks are gone from `~/.claude/settings.json`.
 
 `vulkan-icd-loader` is in `PACMAN_PKGS` because the app `dlopen()`s `libvulkan.so.1`
 rather than linking it, so nothing depends on the loader for Herdr's sake (`ldd` lists

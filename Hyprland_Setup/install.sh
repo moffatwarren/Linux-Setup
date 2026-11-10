@@ -295,13 +295,28 @@ deploy_configs() {
     # A bare file in ~/.config, which CONFIGS cannot express: it copies directories.
     \cp -f "$SCRIPT_DIR/brave/brave-origin-flags.conf" "$HOME/.config"
     echo "    brave-origin-flags.conf"
-    # Herdr's settings and the two Catppuccin themes they name, file by file:
-    # ~/.config/herdr-app is mostly Herdr's own (docs, icons, mods, state, a
-    # socket), rewritten on every start, so it is never deployed or pulled whole.
-    mkdir -p "$HOME/.config/herdr-app/themes"
-    \cp -f "$SCRIPT_DIR/herdr-app/settings.json" "$HOME/.config/herdr-app"
-    \cp -f "$SCRIPT_DIR"/herdr-app/themes/*.json "$HOME/.config/herdr-app/themes"
-    echo "    herdr-app (settings.json + themes)"
+    # Herdr's settings and the two Catppuccin themes they name, plus Pip (a mod)
+    # and main-pip (the copy of Herdr's main layout that gives Pip its spot), file
+    # by file: ~/.config/herdr-app is mostly Herdr's own (docs, icons, mods, state,
+    # a socket), rewritten on every start, so it is never deployed or pulled whole.
+    # Herdr also writes gpui-kit.d.ts and jsconfig.json into every mod folder,
+    # which is why Pip's two files are named rather than globbed.
+    local herdr="$HOME/.config/herdr-app"
+    mkdir -p "$herdr/themes" "$herdr/mods/pip" "$herdr/layouts"
+    \cp -f "$SCRIPT_DIR/herdr-app/settings.json" "$herdr"
+    \cp -f "$SCRIPT_DIR"/herdr-app/themes/*.json "$herdr/themes"
+    \cp -f "$SCRIPT_DIR/herdr-app/mods/pip/main.js" "$SCRIPT_DIR/herdr-app/mods/pip/mod.json" "$herdr/mods/pip"
+    \cp -f "$SCRIPT_DIR/herdr-app/layouts/main-pip.json" "$herdr/layouts"
+    # Where Herdr has never run there is no shared.json yet, and its first start
+    # would show the stock `main`, without Pip. Seeding the one key makes it start
+    # on main-pip; Herdr keeps the key and adds its own (verified on a fresh
+    # HERDR_APP_HOME: seeded -> main-pip with Pip; unseeded -> main). Once Herdr
+    # has written the file it is Herdr's and is never touched here --
+    # use_herdr_pip_layout handles a machine that already has one.
+    if [ ! -e "$herdr/shared.json" ]; then
+        printf '{"layout":"main-pip"}\n' > "$herdr/shared.json"
+    fi
+    echo "    herdr-app (settings.json + themes + Pip and its layout)"
 }
 
 # Delete what an older release of this repo deployed and this one has dropped
@@ -658,6 +673,21 @@ setup_herdr() {
     rm -f "$installer"
 }
 
+# Pip's spot is a block in main-pip, a copy of Herdr's own main layout: shipped
+# layouts are read-only and replaced on every start, so the copy is the only way
+# to add a block. Herdr remembers which layout is shown, so this moves a window
+# still showing the stock `main` over to the copy and leaves one switched to
+# anything else alone. `herdr-app do` talks to the running window; with Herdr
+# closed it is skipped, and the next deploy (or ctrl-shift-l) does it.
+use_herdr_pip_layout() {
+    command -v herdr-app >/dev/null 2>&1 || return 0
+    local shown
+    shown="$(herdr-app status 2>/dev/null | jq -r '.layout // empty' 2>/dev/null)" || true
+    if [ "$shown" = "main" ] && herdr-app do layout.switch '{"name":"main-pip"}' >/dev/null 2>&1; then
+        echo "    switched Herdr to main-pip (the layout with Pip in it)"
+    fi
+}
+
 # Reload Hyprland session and restart background UI daemons
 reload_session() {
     if ! command -v hyprctl >/dev/null 2>&1 || ! hyprctl version >/dev/null 2>&1; then
@@ -787,7 +817,10 @@ pull_configs() {
         for f in "$SCRIPT_DIR"/herdr-app/themes/*.json; do
             if [ -f "$herdr/themes/${f##*/}" ]; then \cp -f "$herdr/themes/${f##*/}" "$f"; fi
         done
-        echo "    herdr-app (settings.json + themes)"
+        for f in mods/pip/main.js mods/pip/mod.json layouts/main-pip.json; do
+            if [ -f "$herdr/$f" ]; then \cp -f "$herdr/$f" "$SCRIPT_DIR/herdr-app/$f"; fi
+        done
+        echo "    herdr-app (settings.json + themes + Pip and its layout)"
     fi
 
     cat <<EOF
@@ -834,6 +867,7 @@ main() {
     normalize_hyprlock_wallpaper
     setup_superwhisper
     setup_herdr
+    use_herdr_pip_layout
     reload_session
     info "Done."
 }
