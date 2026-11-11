@@ -3368,11 +3368,14 @@ stats from the game's live Firebase database. It only reads. It is two files:
 `functions/`, so the deploy's `cp -rf` is all either needs. `nodejs` is in `PACMAN_PKGS`
 for it alone: nothing else in either list pulls node in.
 
-**The leaderboards need the game's own repo checked out at `~/haakonlife`.** The script
-reads the list of boards from its `js/game.js` and the card count from `js/cardlist.js`,
-so a new game's board shows up without editing anything here. `HAAKONLIFE_REPO` points it
-elsewhere. Without the repo it still prints the play time and says it could not read the
-boards. The default is `homedir() + '/haakonlife'`, not the `/home/warren/haakonlife` the
+**The leaderboards need the game's own repo checked out in `~`, as `haakonlife` with any
+capitals.** The script reads the list of boards from its `js/game.js` and the card count
+from `js/cardlist.js`, so a new game's board shows up without editing anything here.
+`findRepo()` takes the folder in the home directory whose name lowercases to `haakonlife`
+and has a `js/game.js`, because the checkout is `~/haakonlife` on some machines and
+`~/HaakonLife` on others, and a fixed name broke the boards on whichever didn't match.
+`HAAKONLIFE_REPO` points it elsewhere. Without the repo it still prints the play time and
+says it could not read the boards. It starts from `homedir()`, not the `/home/warren` the
 live copy was written with, for the same reason as **Nothing is machine-specific any
 more**.
 

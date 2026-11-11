@@ -1,13 +1,22 @@
 // The `haakonlife` fish command: play time and leaderboard stats from Haakon Life's live database.
 // It only reads, and sends nothing. The list of boards comes from js/game.js in the repo, so a new
-// game's board turns up here on its own. Set HAAKONLIFE_REPO if the repo moves.
+// game's board turns up here on its own. The repo is the folder in your home called haakonlife,
+// with any capitals (haakonlife, HaakonLife...). Set HAAKONLIFE_REPO if it's somewhere else.
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import vm from 'node:vm';
 
 const DB = 'https://haakonlife-d4ef2-default-rtdb.firebaseio.com';
-const REPO = process.env.HAAKONLIFE_REPO || homedir() + '/haakonlife';
+const REPO = process.env.HAAKONLIFE_REPO || findRepo();
+
+function findRepo() {
+  const home = homedir();
+  let names = [];
+  try { names = readdirSync(home).filter((n) => n.toLowerCase() === 'haakonlife'); } catch {}
+  const found = names.find((n) => existsSync(home + '/' + n + '/js/game.js'));
+  return home + '/' + (found || names[0] || 'haakonlife');
+}
 const COLS = Math.max(60, process.stdout.columns || 100);
 const tty = process.stdout.isTTY;
 const bold = (s) => (tty ? '\x1b[1m' + s + '\x1b[0m' : s);
