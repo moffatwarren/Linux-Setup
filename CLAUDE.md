@@ -3376,6 +3376,17 @@ boards. The default is `homedir() + '/haakonlife'`, not the `/home/warren/haakon
 live copy was written with, for the same reason as **Nothing is machine-specific any
 more**.
 
+**`OFFICE CHAMPION` is the game's own standings, and must stay that way.** It is
+`fameStandings` in `js/game.js` redone: every board's top ten earns 10 points for 1st
+down to 1 for 10th, 1st is a crown, and points rank it, then crowns, then the name. Being
+#1 there is what gives the in-game crown, so a number here that differs from the Hall of
+Fame's is wrong. Two things keep them the same. A row reads as the game's `boardRows`
+reads it, so one with no `t` still counts. And a holiday's boards are dropped from
+everything until the date in the game's `SEASON_FROM`, with `FAME_GROUPS` saying which
+boards belong to it. That is how the game keeps out scores from trying the games early.
+Checked against the game's `fameStandings` source run on the same live data: same top
+ten, same points.
+
 **Its local times come from `date`, not from Node.** Node gets its timezone rules from
 ICU's built-in tz database, not from `/usr/share/zoneinfo`, and that copy can be behind.
 ICU 78.3 ships tz 2026a, which predates BC's move to permanent UTC-7 on 1 Nov 2026, so

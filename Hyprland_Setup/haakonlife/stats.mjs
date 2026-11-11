@@ -64,12 +64,13 @@ async function get(path) {
   return (await r.json()) || {};
 }
 
-// BOARDS in js/game.js, one { key, title, unit, low, net, unlisted } each
+// BOARDS in js/game.js, one { key, title, unit, low, net, unlisted, early } each
 function readBoards() {
   const src = readFileSync(REPO + '/js/game.js', 'utf8');
   const start = src.indexOf('const BOARDS = {');
   if (start < 0) throw new Error('no BOARDS in js/game.js');
   const block = src.slice(start, src.indexOf('\n  };', start));
+  const early = earlyBoards(src);
   return [...block.matchAll(/(\w+): \{ title: '((?:[^'\\]|\\.)*)'([^}]*)\}/g)].map(([, key, title, rest]) => ({
     key,
     title: title.replace(/\\'/g, "'"),
@@ -77,7 +78,27 @@ function readBoards() {
     low: /\blow: true/.test(rest),
     net: /\bnet: true/.test(rest),
     unlisted: /\bunlisted: true/.test(rest),
+    early: early.has(key),
   }));
+}
+
+// A holiday's games stay out of the Hall of Fame (their boards, the points and the latest scores)
+// until the day that holiday first came round, so scores put in while trying them out don't count:
+// SEASON_FROM in js/game.js, with FAME_GROUPS saying which boards are whose. Today is `date`'s, for
+// the reason in localClock. If either can't be read, nothing is left out.
+function earlyBoards(src) {
+  try {
+    const from = src.match(/const SEASON_FROM = \{([^}]*)\}/), at = src.indexOf('const FAME_GROUPS = [');
+    if (!from || at < 0) return new Set();
+    const start = src.indexOf('[', at);
+    const groups = vm.runInNewContext(src.slice(start, src.indexOf('\n  ];', start) + 4));
+    const r = spawnSync('date', ['+%F'], { encoding: 'utf8' });
+    const today = r.status === 0 ? r.stdout.trim() : new Date().toLocaleDateString('en-CA');
+    const early = [...from[1].matchAll(/(\w+): new Date\((\d+), (\d+), (\d+)\)/g)]
+      .filter(([, , y, m, d]) => today < y + '-' + String(+m + 1).padStart(2, '0') + '-' + d.padStart(2, '0'))
+      .map(([, g]) => g);
+    return new Set(groups.filter(([g]) => early.includes(g)).flatMap(([, keys]) => keys));
+  } catch { return new Set(); }
 }
 
 // how many cards there are to win: WINNABLE in js/game.js, which is what the board counts. That leaves
@@ -109,9 +130,10 @@ const byScore = (a, b) => b.score - a.score || a.t - b.t;
 // A board's rows. Live Hold'em keeps what each name won and lost as two boards, and the
 // game shows the difference, so this does too.
 async function rowsOf(b) {
+  // (as the game reads a row, boardRows: one with no time still counts, as the oldest)
   const rows = (d) => Object.entries(d)
-    .filter(([, r]) => r && typeof r.score === 'number' && typeof r.t === 'number')
-    .map(([id, r]) => ({ id, name: clean(r.name), score: r.score, t: r.t }));
+    .filter(([, r]) => r && typeof r.score === 'number')
+    .map(([id, r]) => ({ id, name: clean(r.name), score: r.score, t: +r.t || 0 }));
   if (!b.net) return rows(await get('scores/' + b.key));
   const [won, lost] = await Promise.all([get('scores/' + b.key + 'won'), get('scores/' + b.key + 'lost')]);
   const by = new Map();
@@ -127,7 +149,7 @@ async function rowsOf(b) {
 }
 
 let boards = [];
-try { boards = readBoards().filter((b) => !b.unlisted); } // the Christmas Cup isn't in the Hall of Fame
+try { boards = readBoards().filter((b) => !b.unlisted && !b.early); } // the Christmas Cup isn't in the Hall of Fame
 catch (e) { console.error('Couldn\'t read the boards from ' + REPO + '/js/game.js: ' + e.message); }
 const [pt, ...res] = await Promise.allSettled([get('playtime/live'), ...boards.map(rowsOf)]);
 
@@ -163,21 +185,29 @@ const failed = read.filter((x) => !x.rows);
 const boardsRead = read.filter((x) => x.rows);
 
 if (boards.length) {
-  // ---------- crowns ----------
-  const crowns = new Map();
+  // ---------- Office Champion ----------
+  // The Hall of Fame's standings, worked out as the game does (fameStandings in js/game.js): every
+  // board's top ten earn points, 10 for 1st down to 1 for 10th, and 1st is a crown. Points decide
+  // it, then crowns, then the name.
+  const champ = new Map();
   let empty = 0;
-  for (const { b, rows } of boardsRead) {
+  for (const { rows } of boardsRead) {
     if (!rows.length) { empty++; continue; }
-    const top = [...rows].sort(byScore)[0];
-    const c = crowns.get(top.id) || { name: top.name, titles: [] };
-    c.titles.push(b.title);
-    crowns.set(top.id, c);
+    [...rows].sort(byScore).slice(0, 10).forEach((r, i) => {
+      const s = champ.get(r.id) || { name: r.name, points: 0, crowns: 0 };
+      s.points += 10 - i;
+      if (!i) s.crowns++;
+      champ.set(r.id, s);
+    });
   }
-  heading('HALL OF FAME CROWNS', '#1 on each board');
-  for (const c of [...crowns.values()].sort((a, b) => b.titles.length - a.titles.length)) {
-    console.log('  ' + c.name.padEnd(13) + String(c.titles.length).padStart(3));
-  }
-  if (empty) console.log('  ' + dim(empty + ' boards with no scores yet'));
+  const standings = [...champ.values()].sort((a, b) => b.points - a.points || b.crowns - a.crowns || a.name.localeCompare(b.name));
+  heading('OFFICE CHAMPION', 'Hall of Fame points: 10 for 1st on a board, down to 1 for 10th');
+  standings.slice(0, 10).forEach((s, i) => {
+    const crowns = s.crowns ? String(s.crowns).padStart(5) + (s.crowns === 1 ? ' crown' : ' crowns') : '';
+    console.log('  ' + String(i + 1).padStart(2) + ' ' + s.name.padEnd(13) + String(s.points).padStart(4) + ' pts' + crowns);
+  });
+  if (standings.length > 10) console.log('  ' + dim(standings.length - 10 + ' more with points'));
+  if (empty) console.log('  ' + dim(empty + (empty === 1 ? ' board' : ' boards') + ' with no scores yet'));
 
   // ---------- most played ----------
   heading('MOST-PLAYED GAMES', 'names with a score');
