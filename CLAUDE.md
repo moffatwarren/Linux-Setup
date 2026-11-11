@@ -3078,13 +3078,31 @@ the flags file exited 0 and left the flag on 0 of 13 processes. So one unrepaire
 opened first silently means CPU decoding for that session, and a new flag does nothing until
 every Brave window, web apps included, has been closed.
 
-**To check a running Brave**, look for the driver in its GPU process:
-`grep nvidia_drv_video /proc/<pid of --type=gpu-process>/maps`. Do not read a Brave process's
-`/proc/<pid>/environ`: it held none of the session's variables, while its parent bash
-wrapper's did.
+**On AMD the flag is not needed, and it does no harm.** Brave uses VA-API there by default.
+The flag lifts a block that applies only to NVIDIA's driver, as its name says. Measured in a
+throwaway profile on Brave Origin 1.99.56 with an RX 9070 XT and Mesa 26.2.6, playing local
+1440p60 clips. CPU is the total across all of Brave's processes:
 
-**Not yet verified:** a video playing across suspend and resume, and any machine without
-NVIDIA. The feature's name says it only concerns NVIDIA, but that has not been tested.
+| local 1440p60 | no flag | flag |
+|---|---|---|
+| VP9 | `VaapiVideoDecoder`, 7% | `VaapiVideoDecoder`, 7% |
+| AV1 | `VaapiVideoDecoder`, 6% | `VaapiVideoDecoder`, 6% |
+| H.264 | `VaapiVideoDecoder`, 5% | `VaapiVideoDecoder`, 5% |
+
+No run dropped a frame. So the file stays as it is: needed on NVIDIA, inert elsewhere.
+
+**To check a running Brave on NVIDIA**, look for the driver in its GPU process:
+`grep nvidia_drv_video /proc/<pid of --type=gpu-process>/maps`. **That check cannot work on
+AMD.** Mesa's `radeonsi_drv_video.so` is a symlink to the same `libgallium-*.so` that holds
+the OpenGL driver, and the maps list the file the link points to. So the maps look the same
+whether Brave is decoding or only drawing. Ask Brave instead: start it with
+`--remote-debugging-port`, send `Media.enable`, and read `kVideoDecoderName` from the
+`Media.playerPropertiesChanged` events. That is how the AMD table was measured. Do not read a
+Brave process's `/proc/<pid>/environ`: it held none of the session's variables, while its
+parent bash wrapper's did.
+
+**Not yet verified:** a video playing across suspend and resume, and Brave decoding on an
+Intel GPU.
 
 ## Superwhisper (dictation)
 
@@ -3710,8 +3728,8 @@ would pin the broken driver in place rather than keep it out.
 
 **Nothing else in the config assumes NVIDIA.** `env.lua` sets the NVIDIA variables only
 when the boot GPU is NVIDIA, `system-stats.sh` reads amdgpu, and the WirePlumber HDMI rule
-matches any GPU's HDMI audio. Brave's `VaapiOnNvidiaGPUs` flag only concerns NVIDIA, and
-hardware video decoding in Brave on AMD has not been tested.
+matches any GPU's HDMI audio. Brave's `VaapiOnNvidiaGPUs` flag only concerns NVIDIA. On AMD,
+Brave decodes in hardware with or without it (see **Brave: GPU video decoding**).
 
 **Tested with stand-ins** for `chwd`, `sudo` and pacman's `-Qq`, with everything else
 (including `pacman -Rp`) run against this machine's real database:
@@ -3743,9 +3761,19 @@ kept). pacman's log shows the order the tests predicted:
   which printed nothing and exited 0 over 1,550 dependency strings.
 - Hyprland 0.57.2 runs on the AMD card.
 
-**Not yet verified:** a boot from the rebuilt initramfs. The boot that ran the swap still
-logged `NVRM: No NVIDIA GPU found.`, from the old initramfs that forced the nvidia modules
-in.
+**The first boot from the rebuilt initramfs is clean too.** The boot that ran the swap
+still logged `NVRM: No NVIDIA GPU found.`, from the old initramfs that forced the nvidia
+modules in. The reboot after it:
+
+- loaded no nvidia module and logged no `NVRM` line;
+- had amdgpu bring the card up with no errors;
+- brought up both monitors at their full modes, 2560x1440 at 240 Hz and at 170 Hz;
+- set no NVIDIA variable in the session, because `env.lua` reads the AMD card as the boot
+  GPU;
+- had the bar's `system-stats.sh` read the AMD card, not the iGPU: `Navi 48 [Radeon RX
+  9070/9070 XT/9070 GRE]`, with its load, VRAM, temperature and power.
+
+**Not yet verified:** suspend and resume on the AMD card.
 
 ## Services (`enable_services`)
 
