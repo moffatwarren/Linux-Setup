@@ -50,8 +50,9 @@ put there.
 Currently retired: `rofi`, `swaync`, `hypr/scripts/clipboard-menu.sh`,
 `hypr/scripts/wallpaper-selector.sh`, `hypr/modules/utils/wallpaper_utils.lua`,
 `hypr/scripts/monitor-toggle.sh`, the two `noctalia.css`, the three
-`quickshell/Tray*.qml`, and `swappy`. `ORPHANS` never uninstalls a *package* — `install.sh` only ever
-installs.
+`quickshell/Tray*.qml`, and `swappy`. `ORPHANS` never uninstalls a *package*. The only
+packages `install.sh` ever removes are GPU drivers whose hardware is gone (see **GPU
+drivers follow the hardware**).
 
 Non-`~/.config` destinations are still explicit in `deploy_configs()`:
 `voidsddm` → `/usr/share/sddm/themes`, `sddm.conf.d` → `/etc` (both sudo),
@@ -462,11 +463,13 @@ built for one exact kernel, and the module for 7.3.3 is 620:
 IgnorePkg = nvidia-utils lib32-nvidia-utils opencl-nvidia lib32-opencl-nvidia nvidia-settings libxnvctrl linux-cachyos linux-cachyos-headers linux-cachyos-nvidia-open linux-cachyos-lts linux-cachyos-lts-headers linux-cachyos-lts-nvidia-open
 ```
 
-`install.sh` cannot undo the hold. Under `--noconfirm`, pacman would install an ignored
-package if one were named explicitly, or required at a version only the update has.
-Neither happens: `PACMAN_PKGS` names none of the twelve, and `libva-nvidia-driver`, the
-one NVIDIA-adjacent package in it, depends only on `glibc`, `gst-plugins-bad-libs` and
-`libegl`.
+`install.sh` never undoes the hold while NVIDIA is in the machine. Under `--noconfirm`,
+pacman installs an ignored package that is named explicitly, or required at a version
+only the update has. `PACMAN_PKGS` names none of the twelve. The NVIDIA `chwd` profile
+names them all, but `setup_gpu_drivers` installs a profile only for a device that has no
+driver, so on unchanged NVIDIA hardware it never runs `chwd -i`. Once no NVIDIA card or
+driver is left, it takes the twelve names out of `IgnorePkg` itself (see **GPU drivers
+follow the hardware**).
 
 **Retry once a driver newer than 620.70.06 is released.** Remove the line, update, and log
 in. If the screen goes black, switch to a TTY with `Ctrl+Alt+F3` instead of rebooting:
@@ -3629,6 +3632,99 @@ swappy's `custom_color` until the editor replaced swappy.)
   resort: every prompt that used to be here turned out to be a
   value that could be discovered, deferred to the UI that displays it, or simply always
   applied.
+
+## GPU drivers follow the hardware (`setup_gpu_drivers`)
+
+`install.sh` detects the machine's GPUs and keeps their drivers matched to them, straight
+after `install_packages`. `./install.sh --gpu-check` prints what a run would change. It
+changes nothing and needs no sudo.
+
+**`chwd` decides which driver a GPU needs.** `chwd` is CachyOS's hardware detection
+tool, and it installed this machine's drivers in the first place, as profiles
+(`nvidia-open-dkms`, `intel`, `intel-lpmd`). Its profiles in
+`/var/lib/chwd/db/pci/graphic_drivers/profiles.toml` cover every NVIDIA generation (open,
+580xx, 470xx, nouveau), their laptop `.prime` variants, AMD and Intel, along with the
+kernel-module packages and initramfs settings each one needs. So this repo keeps no
+driver list of its own. That is why `libva-nvidia-driver` left `PACMAN_PKGS`: the NVIDIA
+profile brings it, and listed there it would come back on every run after a swap away
+from NVIDIA. `chwd` itself is in `PACMAN_PKGS` because `install.sh` now depends on it.
+
+**It acts only when the hardware has changed.**
+
+- A display device (PCI class 0300, 0302 or 0380) that no installed profile covers gets
+  `chwd`'s highest-priority profile for it.
+- On a desktop, an installed graphics profile that no device asks for is removed.
+- With the same hardware as last time it runs no `chwd` command at all. That matters
+  because `chwd` installs with `pacman -S --needed`, which upgrades an out-of-date
+  package, and under `--noconfirm` even one held in `IgnorePkg`. Running it on every
+  deploy would push the NVIDIA driver past the 620 hold.
+- Any installed profile `chwd` offers for a device counts as covering it, not only the
+  best one. So a working driver is never swapped because CachyOS ships a new favourite.
+  The cost is that a swap between two cards of the same vendor that need different
+  drivers (an RTX card for a GTX 10-series, say) is not noticed, and has to be done by
+  hand with `chwd -r` and `chwd -i`.
+
+**Three traps in removal, all found on this machine:**
+
+- **`chwd -r` removes with `pacman -Rdd`, which skips the dependency check**, and the
+  NVIDIA profile lists packages that are not NVIDIA's. `vulkan-icd-loader` is required
+  by gtk4, ffmpeg, mpv and steam, and `lib32-vulkan-icd-loader` by steam. So
+  `gpu_remove` first asks pacman what it would refuse to remove, with a dry run
+  (`pacman -Rp`, which needs no root), and reinstalls exactly those packages afterwards.
+  It also reinstalls anything `chwd` took that `PACMAN_PKGS` or a still-installed
+  profile lists. The dry run resolves provides, which is what keeps `nvidia-utils` out
+  of that set: `opengl-driver`, which hyprland and aquamarine require, comes from mesa
+  too. Of the 11 packages the NVIDIA profile would remove here, pacman refused only the
+  two loaders.
+- **`pacman -Dk` cannot be the safety check.** `/var/lib/pacman/local/CACHY_UPDATE_NOTICE`
+  is a plain file, not a package entry. pacman reports it and never reaches the
+  dependency check, so `-Dk` exits 1 and checks nothing. Verified in a scratch
+  database: with that file present, a package with every dependency missing raised no
+  error.
+- **An older `chwd` left files the current profile does not know about.** This
+  machine's NVIDIA install also wrote `/etc/mkinitcpio.conf.d/10-chwd.conf`, which
+  forces the nvidia modules into every initramfs. The installed copy of a profile
+  (`/var/lib/chwd/local/...`) still carries the hook that removes it, and that copy is
+  what `chwd` removes by. As a backstop, `gpu_stale_files` deletes any file under
+  `mkinitcpio.conf.d` or `modprobe.d` that carries `chwd`'s "automatically generated"
+  line and that no installed profile mentions, then rebuilds the initramfs with
+  `limine-mkinitcpio`. Removing the NVIDIA profile also puts back the `kms` initramfs
+  hook it had taken out, which AMD's early KMS needs.
+
+**A laptop never has a profile removed.** A switched-off dGPU (supergfxctl, envycontrol,
+a firmware MUX) can drop off the PCI bus and look exactly like a card that was taken out.
+A new driver is still installed there. The removal is printed as a command to run by
+hand. **Nothing is removed if the new driver failed to install**, and nothing at all
+happens when `chwd` lists no display device.
+
+**The NVIDIA hold is released once NVIDIA is gone**, meaning no NVIDIA display device and
+no NVIDIA profile installed. Its twelve names are taken out of every `IgnorePkg` line,
+other held names stay, an emptied line goes back to the stock `#IgnorePkg   =`, and the
+old file is kept as `/etc/pacman.conf.before-gpu-change`. The result is written only if
+`pacman-conf` can read it. The hold is never added from here: on a fresh machine that
+would pin the broken driver in place rather than keep it out.
+
+**Nothing else in the config assumes NVIDIA.** `env.lua` sets the NVIDIA variables only
+when the boot GPU is NVIDIA, `system-stats.sh` reads amdgpu, and the WirePlumber HDMI rule
+matches any GPU's HDMI audio. Brave's `VaapiOnNvidiaGPUs` flag only concerns NVIDIA, and
+hardware video decoding in Brave on AMD has not been tested.
+
+**Tested with stand-ins** for `chwd`, `sudo` and pacman's `-Qq`, with everything else
+(including `pacman -Rp`) run against this machine's real database:
+
+- **An AMD swap on a desktop:** installs `amd`, removes the NVIDIA profile, reinstalls
+  the two loaders, deletes the leftover files, rebuilds the initramfs and releases the
+  hold.
+- **The same swap on a laptop:** installs `amd` and removes nothing.
+- **Unchanged hardware:** makes no sudo call at all.
+- **A failed install:** removes nothing.
+- **An empty `chwd` listing:** does nothing.
+
+The rewritten `pacman.conf` was read back with `pacman-conf`.
+
+**Not yet verified:** a real swap. The stand-ins logged the root commands without
+running them, so `chwd -i`, `chwd -r`, the reinstall and the initramfs rebuild have not
+been run for real.
 
 ## Services (`enable_services`)
 

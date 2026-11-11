@@ -47,6 +47,10 @@ PACMAN_PKGS=(
     # The Herdr app is a GPU (Vulkan) program that dlopen()s the loader rather than
     # linking it, so no package depends on it for Herdr's sake (setup_herdr).
     vulkan-icd-loader
+    # CachyOS's hardware detection tool. setup_gpu_drivers drives it, and the
+    # CachyOS installer already put it here -- listed because this script now
+    # depends on it, not because anything deployed does.
+    chwd
     # Present on this machine only because the CachyOS desktop profile installed
     # them -- nothing above pulls any of them in, so a no-desktop install would
     # deploy the configs that use them and have them silently do nothing:
@@ -61,11 +65,12 @@ PACMAN_PKGS=(
     #                                does not arrive on its own: no screencast
     #   xdg-desktop-portal-gtk       the portal file chooser gtk-3.0/mocha.css themes
     #   bluez-utils                  bluetoothctl; blueman pulls only bluez itself
-    #   libva-nvidia-driver          what brave/brave-origin-flags.conf switches on;
-    #                                it depends on no NVIDIA package, so it is inert
-    #                                on a machine without that hardware
+    # GPU drivers are deliberately NOT in this list. They follow the hardware, by
+    # way of chwd's profiles (setup_gpu_drivers). libva-nvidia-driver, which
+    # brave/brave-origin-flags.conf switches on, comes with the NVIDIA profile:
+    # listed here, it would come back on every run after a swap to AMD removed it.
     upower pipewire-pulse fish git base-devel xdg-desktop-portal-hyprland
-    xdg-desktop-portal-gtk bluez-utils libva-nvidia-driver
+    xdg-desktop-portal-gtk bluez-utils
 )
 
 PARU_PKGS=(
@@ -96,6 +101,8 @@ Usage: install.sh [OPTION]
                 and asks no questions (sudo aside).
   --pull        Copy the LIVE configs back into this repo so changes made on
                 the machine can be reviewed and committed. Does not commit.
+  --gpu-check   Show which GPUs are installed and what a full run would change
+                about their drivers. Changes nothing and needs no sudo.
   --help        Show this message.
 EOF
 }
@@ -233,6 +240,411 @@ check_nerd_font() {
 
     echo "    WARNING: JetBrainsMono Nerd Font is missing ${missing[*]} (v3 codepoints)."
     echo "             Icon modules may render incorrectly."
+}
+
+# ---------------------------------------------------------------------------
+# GPU drivers
+# ---------------------------------------------------------------------------
+# Which driver a GPU needs is chwd's call, not a package list here. chwd is
+# CachyOS's hardware detection tool, and its profiles already know every vendor
+# and generation (NVIDIA open / 580xx / 470xx / nouveau and their laptop
+# ".prime" variants, AMD, Intel) plus the per-kernel module packages and the
+# initramfs settings each one needs. What this adds is the hardware CHANGING:
+#   - a display device no installed profile covers gets chwd's best profile;
+#   - on a desktop, an installed profile no device asks for any more is removed.
+# With the same hardware as last time it changes nothing, and that is the point.
+# chwd installs with `pacman -S --needed`, which upgrades an out-of-date package,
+# and under --noconfirm even one held in IgnorePkg. Re-running it on every deploy
+# would push the NVIDIA driver straight past the hold that keeps 620 off this
+# machine. See "GPU drivers follow the hardware" in CLAUDE.md.
+CHWD_DB=/var/lib/chwd/db/pci/graphic_drivers/profiles.toml
+CHWD_LOCAL=/var/lib/chwd/local/pci/graphic_drivers/profiles.toml
+CHWD_LOCAL_DIR=/var/lib/chwd/local
+PACMAN_CONF=/etc/pacman.conf
+GPU_CHASSIS_FILE="${GPU_CHASSIS_FILE:-/sys/class/dmi/id/chassis_type}"
+
+# The NVIDIA 620 hold from CLAUDE.md. It is never ADDED from here: on a fresh
+# machine that would pin the broken driver in place rather than keep it out. But
+# once no NVIDIA hardware or driver is left it pins nothing but the kernel, so it
+# is taken back out of /etc/pacman.conf.
+NVIDIA_HOLD=(
+    nvidia-utils lib32-nvidia-utils opencl-nvidia lib32-opencl-nvidia nvidia-settings
+    libxnvctrl linux-cachyos linux-cachyos-headers linux-cachyos-nvidia-open
+    linux-cachyos-lts linux-cachyos-lts-headers linux-cachyos-lts-nvidia-open
+)
+
+gpu_vendor() {
+    case "$1" in
+        10de) echo NVIDIA ;;
+        1002) echo AMD ;;
+        8086) echo Intel ;;
+        *)    echo "$1" ;;
+    esac
+}
+
+# Every graphics profile name chwd knows: shipped, or installed by an older chwd
+# whose name the shipped database may since have dropped.
+chwd_graphics_names() {
+    cat "$CHWD_DB" "$CHWD_LOCAL" 2>/dev/null |
+        sed -nE 's/^\[([A-Za-z0-9._-]+)\][[:space:]]*$/\1/p' | LC_ALL=C sort -u
+}
+
+# chwd prints tables ("│ name ┆ priority │"), not data, so both listings are
+# parsed from those rows. ANSI colour is stripped in case a later chwd colours
+# its output even when it is not writing to a terminal.
+#
+# gpu_offers: "bdf class vendor profile priority" for each graphics profile chwd
+# offers a display device -- PCI class 0300 (VGA), 0302 (3D) or 0380 (other).
+gpu_offers() {
+    chwd --list 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' |
+        awk -v names="$(chwd_graphics_names | tr '\n' ' ')" '
+            BEGIN { n = split(names, a, " "); for (i = 1; i <= n; i++) g[a[i]] = 1 }
+            /^> / {
+                dev = ""
+                if (match($0, /\([0-9a-f]+:[0-9a-f]+:[0-9a-f]+\)/)) {
+                    split(substr($0, RSTART + 1, RLENGTH - 2), id, ":")
+                    if (id[1] ~ /^03(00|02|80)$/) { dev = $2; cls = id[1]; ven = id[2] }
+                }
+                next
+            }
+            dev != "" && index($0, "┆") {
+                row = $0; gsub("│", "", row); sub("┆", " ", row)
+                if (split(row, f, " ") == 2 && f[2] ~ /^[0-9]+$/ && (f[1] in g))
+                    print dev, cls, ven, f[1], f[2]
+            }'
+}
+
+# gpu_installed: the installed graphics profiles, one per line.
+gpu_installed() {
+    chwd --list-installed 2>/dev/null | sed 's/\x1b\[[0-9;]*m//g' |
+        awk -v names="$(chwd_graphics_names | tr '\n' ' ')" '
+            BEGIN { n = split(names, a, " "); for (i = 1; i <= n; i++) g[a[i]] = 1 }
+            index($0, "┆") {
+                row = $0; gsub("│", "", row); sub("┆", " ", row)
+                if (split(row, f, " ") == 2 && f[2] ~ /^[0-9]+$/ && (f[1] in g)) print f[1]
+            }'
+}
+
+# A one-line string field of [profile] in a chwd profiles file. Headers are
+# matched whole, so a hook line such as "[ -z ... ]" is never taken for one.
+profile_field() {   # file profile key
+    awk -v sec="[$2]" -v key="$3" -v q="'" '
+        /^\[[A-Za-z0-9._-]+\][[:space:]]*$/ { s = ($1 == sec); next }
+        s && $1 == key && $2 == "=" {
+            v = $0; sub(/^[^=]*=[[:space:]]*/, "", v)
+            gsub("^[\"" q "]|[\"" q "][[:space:]]*$", "", v)
+            print v; exit
+        }' "$1" 2>/dev/null
+}
+
+# A multi-line """ field of [profile]: a hook, or conditional_packages.
+profile_block() {   # file profile key
+    awk -v sec="[$2]" -v key="$3" '
+        !c && /^\[[A-Za-z0-9._-]+\][[:space:]]*$/ { s = ($1 == sec); next }
+        s && !c && $1 == key && $2 == "=" && $3 == "\"\"\"" { c = 1; next }
+        c && /^[[:space:]]*"""[[:space:]]*$/ { exit }
+        c' "$1" 2>/dev/null
+}
+
+is_nvidia_profile() {   # profile
+    [ "$1" = fallback ] && return 1   # mesa + vesa: names every vendor, belongs to none
+    case "$1" in nvidia*|nouveau*) return 0 ;; esac
+    case " $(profile_field "$CHWD_LOCAL" "$1" vendor_ids) " in *" 10de "*) return 0 ;; esac
+    return 1
+}
+
+# What `chwd -r <profile>` hands to pacman, worked out the way chwd's own
+# remove() does it: the profile's packages plus whatever its conditional_packages
+# snippet prints (for NVIDIA, one kernel module package per installed CachyOS
+# kernel), installed under that exact name, minus mesa and lib32-mesa, which chwd
+# never removes. Read from the INSTALLED copy of the profile, the one chwd
+# removes by, not the shipped one, whose package list may have changed since.
+profile_packages() {   # profile
+    {
+        profile_field "$CHWD_LOCAL" "$1" packages | tr -s ' ' '\n'
+        profile_block "$CHWD_LOCAL" "$1" conditional_packages | bash 2>/dev/null | tr -s ' ' '\n'
+    } | { grep -vxE 'mesa|lib32-mesa|' || true; } | LC_ALL=C sort -u |
+        LC_ALL=C comm -12 - <(pacman -Qq | LC_ALL=C sort)
+}
+
+# Of the packages given, the ones pacman itself would refuse to remove, because
+# something else still needs them. `pacman -Rp` is a dry run, needs no root, and
+# resolves provides, which is what keeps nvidia-utils OUT of this set once mesa
+# is there: opengl-driver, the thing hyprland and aquamarine ask for, comes from
+# mesa too. A package that is only needed by one of the refused ones shows up on
+# the next round, hence the loop. Exits 1 if pacman fails for any other reason.
+removal_keepers() {   # packages...
+    local -a cand=("$@") keep=() new=()
+    local out ok=""
+    for _ in 1 2 3 4 5 6 7 8; do
+        if [ "${#cand[@]}" -eq 0 ] || out="$(LC_ALL=C pacman -Rp "${cand[@]}" 2>&1)"; then
+            ok=1
+            break
+        fi
+        mapfile -t new < <(sed -nE 's/^:: removing ([^ ]+) breaks dependency .*/\1/p' <<<"$out" | LC_ALL=C sort -u)
+        [ "${#new[@]}" -gt 0 ] || return 1
+        keep+=("${new[@]}")
+        mapfile -t cand < <(printf '%s\n' "${cand[@]}" | { grep -vxF -f <(printf '%s\n' "${keep[@]}") || true; })
+    done
+    [ -n "$ok" ] || return 1
+    printf '%s\n' "${keep[@]}" | sed '/^$/d' | LC_ALL=C sort -u
+}
+
+# Remove driver profiles whose hardware is gone. chwd removes with `pacman -Rdd`,
+# which skips the dependency check, and the NVIDIA profile lists packages that
+# are not NVIDIA's: vulkan-icd-loader is needed by gtk4, ffmpeg, mpv and steam,
+# and lib32-vulkan-icd-loader by steam. So pacman is asked first what it would
+# refuse to remove, chwd removes the profile (its own hooks put the initramfs
+# settings back), and exactly those packages are reinstalled afterwards, together
+# with anything chwd took that PACMAN_PKGS or a still-installed profile lists.
+gpu_remove() {   # profiles...
+    local p out before explicit after
+    local -a pkgs=() keep=() removed=() wanted=() back=() back_explicit=() back_deps=()
+
+    mapfile -t pkgs < <(for p in "$@"; do profile_packages "$p"; done | LC_ALL=C sort -u)
+    if ! out="$(removal_keepers "${pkgs[@]}")"; then
+        echo "    WARNING: pacman could not say what removing $* would break,"
+        echo "             so it is left installed."
+        return 1
+    fi
+    mapfile -t keep < <(sed '/^$/d' <<<"$out")
+
+    before="$(pacman -Qq | LC_ALL=C sort)"
+    explicit="$(pacman -Qqe | LC_ALL=C sort)"
+    for p in "$@"; do
+        if sudo chwd -r "$p"; then
+            echo "    removed $p"
+        else
+            echo "    WARNING: chwd could not remove $p"
+        fi
+    done
+    after="$(pacman -Qq | LC_ALL=C sort)"
+
+    mapfile -t removed < <(LC_ALL=C comm -23 <(printf '%s\n' "$before") <(printf '%s\n' "$after"))
+    [ "${#removed[@]}" -gt 0 ] || return 0
+    mapfile -t wanted < <({
+        printf '%s\n' "${keep[@]}" "${PACMAN_PKGS[@]}"
+        while read -r p; do
+            profile_field "$CHWD_LOCAL" "$p" packages | tr -s ' ' '\n'
+        done < <(gpu_installed)
+    } | sed '/^$/d' | LC_ALL=C sort -u)
+    mapfile -t back < <(LC_ALL=C comm -12 <(printf '%s\n' "${removed[@]}") <(printf '%s\n' "${wanted[@]}"))
+    [ "${#back[@]}" -gt 0 ] || return 0
+
+    for p in "${back[@]}"; do
+        if grep -qxF "$p" <<<"$explicit"; then back_explicit+=("$p"); else back_deps+=("$p"); fi
+    done
+    echo "    reinstalling what other software still needs: ${back[*]}"
+    if { [ "${#back_explicit[@]}" -eq 0 ] || sudo pacman -S --noconfirm --needed "${back_explicit[@]}"; } &&
+       { [ "${#back_deps[@]}" -eq 0 ] || sudo pacman -S --noconfirm --needed --asdeps "${back_deps[@]}"; }; then
+        return 0
+    fi
+    echo "    WARNING: could not reinstall them. Do it by hand before rebooting:"
+    echo "               sudo pacman -S --needed ${back[*]}"
+}
+
+# Files chwd generated under /etc that no installed profile accounts for. chwd's
+# own removal deletes a profile's files, but only the ones that profile knew
+# about when it was installed. A file is a candidate only if it carries chwd's
+# "automatically generated" line, and it is stale only when no installed chwd
+# profile, of any kind, mentions it by name.
+gpu_stale_files() {
+    local f
+    for f in /etc/mkinitcpio.conf.d/10-chwd*.conf /etc/modprobe.d/chwd-*.conf; do
+        [ -f "$f" ] || continue
+        grep -q "automatically generated by chwd" "$f" 2>/dev/null || continue
+        grep -rqF "${f##*/}" "$CHWD_LOCAL_DIR" 2>/dev/null || printf '%s\n' "$f"
+    done
+}
+
+rebuild_initramfs() {
+    if command -v limine-mkinitcpio >/dev/null 2>&1; then
+        sudo limine-mkinitcpio
+    else
+        sudo mkinitcpio -P
+    fi
+}
+
+# /etc/pacman.conf with the NVIDIA hold's names taken out of every IgnorePkg
+# line, on stdout. Other held names stay. A line left empty goes back to the
+# commented-out "#IgnorePkg   =" pacman.conf ships with. Exits 1 when no line
+# held any of them, so there is nothing to write.
+strip_nvidia_hold() {   # conf
+    awk -v drop="${NVIDIA_HOLD[*]}" '
+        BEGIN { n = split(drop, a, " "); for (i = 1; i <= n; i++) d[a[i]] = 1 }
+        /^[[:space:]]*IgnorePkg[[:space:]]*=/ {
+            v = $0; sub(/^[^=]*=/, "", v)
+            m = split(v, p, " "); out = ""; hit = 0
+            for (i = 1; i <= m; i++) {
+                if (p[i] in d) { hit = 1; continue }
+                out = out (out == "" ? "" : " ") p[i]
+            }
+            if (hit) {
+                changed = 1
+                print (out == "" ? "#IgnorePkg   =" : "IgnorePkg = " out)
+                next
+            }
+        }
+        { print }
+        END { exit !changed }' "$1"
+}
+
+release_nvidia_hold() {
+    local conf="$PACMAN_CONF" tmp
+    tmp="$(mktemp)"
+    if ! strip_nvidia_hold "$conf" >"$tmp"; then
+        rm -f "$tmp"
+        return 0
+    fi
+    # Only written if pacman can still read the result and finds none of the names.
+    if pacman-conf --config "$tmp" >/dev/null 2>&1 &&
+       ! pacman-conf --config "$tmp" IgnorePkg | grep -qxF -f <(printf '%s\n' "${NVIDIA_HOLD[@]}") &&
+       sudo cp -p "$conf" "$conf.before-gpu-change" &&
+       sudo install -m 644 -o root -g root "$tmp" "$conf"; then
+        echo "    released the NVIDIA hold in $conf (previous copy: $conf.before-gpu-change)"
+        echo "    run 'paru' to update the kernel and the rest of what it held back"
+    else
+        echo "    WARNING: could not release the NVIDIA hold. Take these out of IgnorePkg"
+        echo "             in $conf by hand: ${NVIDIA_HOLD[*]}"
+    fi
+    rm -f "$tmp"
+}
+
+# A laptop never has a profile removed. A dGPU that is switched off -- by
+# supergfxctl, envycontrol or a firmware MUX -- can drop off the PCI bus entirely
+# and look exactly like a card that has been taken out. Chassis types from the
+# SMBIOS spec: portable, laptop, notebook, hand held, sub notebook, tablet,
+# convertible, detachable.
+gpu_portable() {
+    case "$(cat "$GPU_CHASSIS_FILE" 2>/dev/null)" in
+        8|9|10|11|14|30|31|32) return 0 ;;
+    esac
+    return 1
+}
+
+setup_gpu_drivers() {   # [--check]
+    local check=""
+    [ "${1:-}" = --check ] && check=1
+    info "GPU drivers"
+
+    if ! command -v chwd >/dev/null 2>&1 || [ ! -f "$CHWD_DB" ]; then
+        echo "    skip (chwd, CachyOS's hardware detection tool, is not installed)"
+        return 0
+    fi
+
+    local -a offers=() installed=() devs=() add=() stale=() files=()
+    mapfile -t offers < <(gpu_offers)
+    mapfile -t installed < <(gpu_installed)
+    if [ "${#offers[@]}" -eq 0 ]; then
+        echo "    WARNING: chwd offers no driver for any display device, so nothing is"
+        echo "             changed. 'chwd --list' shows what it sees."
+        return 0
+    fi
+
+    local line dev cls ven prof prio p nv_hw="" nv_kept=""
+    local -A is_installed=() offered=() best=() best_prio=() covered=() using=() vendor=()
+    for p in "${installed[@]}"; do is_installed[$p]=1; done
+    for line in "${offers[@]}"; do
+        read -r dev cls ven prof prio <<<"$line"
+        offered[$prof]=1
+        vendor[$dev]="$ven"
+        [ "$ven" = 10de ] && nv_hw=1
+        if [ -z "${best_prio[$dev]:-}" ] || [ "$prio" -gt "${best_prio[$dev]}" ]; then
+            best[$dev]="$prof"
+            best_prio[$dev]="$prio"
+        fi
+        # Any installed profile that is offered for the device covers it, not
+        # only the best one. So a working driver is never swapped for another
+        # just because CachyOS ships a new favourite.
+        if [ -n "${is_installed[$prof]:-}" ] && [ "$prof" != fallback ]; then
+            covered[$dev]=1
+            using[$dev]="$prof"
+        fi
+    done
+
+    mapfile -t devs < <(printf '%s\n' "${!best[@]}" | LC_ALL=C sort)
+    for dev in "${devs[@]}"; do
+        # fallback (mesa + vesa) covers a device only when nothing better is offered
+        if [ -z "${covered[$dev]:-}" ] && [ "${best[$dev]}" = fallback ] && [ -n "${is_installed[fallback]:-}" ]; then
+            covered[$dev]=1
+            using[$dev]=fallback
+        fi
+        if [ -n "${covered[$dev]:-}" ]; then
+            printf '    %s  %-6s  %s\n' "$dev" "$(gpu_vendor "${vendor[$dev]}")" "${using[$dev]}"
+        else
+            printf '    %s  %-6s  needs %s, which is not installed\n' "$dev" "$(gpu_vendor "${vendor[$dev]}")" "${best[$dev]}"
+            case " ${add[*]} " in *" ${best[$dev]} "*) ;; *) add+=("${best[$dev]}") ;; esac
+        fi
+    done
+    for p in "${installed[@]}"; do
+        [ "$p" = fallback ] || [ -n "${offered[$p]:-}" ] || stale+=("$p")
+    done
+    for p in "${stale[@]}"; do
+        echo "    $p is installed, but no device needs it any more"
+    done
+
+    if [ "${#stale[@]}" -gt 0 ] && gpu_portable; then
+        echo "    Not removing ${stale[*]}: on a laptop a switched-off GPU can drop off the"
+        echo "    PCI bus and look removed. If the hardware really is gone:"
+        for p in "${stale[@]}"; do echo "      sudo chwd -r $p"; done
+        stale=()
+    fi
+    for p in "${installed[@]}"; do
+        if is_nvidia_profile "$p" && [[ " ${stale[*]} " != *" $p "* ]]; then nv_kept=1; fi
+    done
+    [ "${#add[@]}" -gt 0 ] || [ "${#stale[@]}" -gt 0 ] || echo "    drivers match the hardware"
+
+    if [ -n "$check" ]; then
+        [ "${#add[@]}" -eq 0 ] || echo "    would install: ${add[*]}"
+        for p in "${stale[@]}"; do
+            echo "    would remove $p: $(profile_packages "$p" | tr '\n' ' ')"
+        done
+        [ "${#stale[@]}" -eq 0 ] ||
+            echo "    (anything on that list other software still needs is reinstalled straight after)"
+        mapfile -t files < <(gpu_stale_files)
+        [ "${#files[@]}" -eq 0 ] || echo "    would delete ${files[*]} and rebuild the initramfs"
+        if [ -z "$nv_hw" ] && [ -z "$nv_kept" ] && strip_nvidia_hold "$PACMAN_CONF" >/dev/null; then
+            echo "    would release the NVIDIA hold in $PACMAN_CONF"
+        fi
+        return 0
+    fi
+
+    local changed="" failed=""
+    for p in "${add[@]}"; do
+        if sudo chwd -i "$p"; then
+            echo "    installed $p"
+            changed=1
+        else
+            echo "    WARNING: chwd could not install $p. Update the system ('paru') and"
+            echo "             run this again."
+            failed=1
+        fi
+    done
+    if [ "${#stale[@]}" -gt 0 ]; then
+        if [ -n "$failed" ]; then
+            echo "    not removing ${stale[*]} until the new driver is installed"
+        elif gpu_remove "${stale[@]}"; then
+            changed=1
+        fi
+    fi
+
+    mapfile -t files < <(gpu_stale_files)
+    if [ "${#files[@]}" -gt 0 ] && sudo rm -f "${files[@]}"; then
+        echo "    deleted ${files[*]}"
+        if rebuild_initramfs; then
+            echo "    initramfs rebuilt"
+        else
+            echo "    WARNING: the initramfs did not rebuild. Run 'sudo limine-mkinitcpio' before rebooting."
+        fi
+        changed=1
+    fi
+
+    # Re-read: NVIDIA counts as gone only once neither a card nor a driver is left.
+    nv_kept=""
+    while read -r p; do is_nvidia_profile "$p" && nv_kept=1; done < <(gpu_installed)
+    [ -n "$nv_hw" ] || [ -n "$nv_kept" ] || release_nvidia_hold
+
+    [ -z "$changed" ] || echo "    reboot to start on the new driver"
 }
 
 # Warn if systemd-logind lid settings deviate from defaults
@@ -840,11 +1252,13 @@ main() {
     case "${1:-}" in
         --help|-h) usage; exit 0 ;;
         --pull)    pull_configs; exit 0 ;;
+        --gpu-check) setup_gpu_drivers --check; exit 0 ;;
         "")        ;;
         *)         echo "Unknown option: $1" >&2; usage >&2; exit 1 ;;
     esac
 
     install_packages
+    setup_gpu_drivers
 
     migrate_audio_icons
     save_lock_wallpaper
@@ -872,4 +1286,8 @@ main() {
     info "Done."
 }
 
-main "$@"
+# Sourcing this file defines the functions without running anything, which is
+# how setup_gpu_drivers is tested against stand-in chwd/sudo commands.
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+    main "$@"
+fi

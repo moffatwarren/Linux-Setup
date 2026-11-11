@@ -35,6 +35,12 @@ value a deploy still carries across is the chosen wallpaper, which `SUPER+W`
 records in `hyprlock.conf`. Updating a machine that predates the
 audio menu carries its old headphone and bluetooth sinks into it as icons, once.
 
+GPU drivers follow the hardware. CachyOS's `chwd` decides which driver a card needs.
+`install.sh` installs one for a card that has none, and on a desktop it removes a driver
+whose card is gone, reinstalling anything other software still needs. With the same
+hardware it changes nothing. After swapping a graphics card, run
+`install.sh --gpu-check` to see what it will do without changing anything.
+
 Two apps that are not packages are installed by their own installers, only where
 they are missing, and then update themselves: Superwhisper (dictation) and Herdr
 (terminals and coding agents, themed Catppuccin Mocha like everything else).
