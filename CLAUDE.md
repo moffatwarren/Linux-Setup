@@ -414,7 +414,9 @@ The cost is that a fullscreen HDR game no longer switches the monitor to HDR by 
 The 2026-11-11 update (NVIDIA 615.78.08 → 620.70.06, kernel 7.3.1 → 7.3.3, Hyprland
 0.57.1 → 0.57.2) made every login a frozen black screen with an oversized cursor. No
 config change fixed it. The machine was recovered by booting the pre-update snapshot,
-and the fix in use is to **stay on driver 615**. Nothing in this repo works around 620.
+and its NVIDIA card was then replaced with an AMD one (see **GPU drivers follow the
+hardware**). On an NVIDIA machine the fix is to **stay on driver 615**. Nothing in this
+repo works around 620.
 
 **Driver 620 loses page-flip events, and a bare config reproduces it.** A minimal config
 (one catch-all monitor rule and a background colour) failed the same way, so nothing in
@@ -489,8 +491,10 @@ that the same bug is back.
 - **`/home` is its own subvolume (`@home`), so a rollback leaves it alone.** This repo and
   `~/.config` keep whatever was deployed before the rollback.
 
-**Not yet verified:** Hyprland 0.57.2 with driver 615. That is the partial update this
-section describes.
+**Never settled:** whether driver 620 or Hyprland 0.57.2 was the cause. The card was
+swapped for an AMD one before 0.57.2 was tried on driver 615. 0.57.2 runs fine on AMD,
+which says nothing about NVIDIA, so the hold stays written up here for the next NVIDIA
+machine.
 
 ### `SUPER+CTRL+Z` swaps the two monitors left-to-right
 
@@ -3722,9 +3726,26 @@ hardware video decoding in Brave on AMD has not been tested.
 
 The rewritten `pacman.conf` was read back with `pacman-conf`.
 
-**Not yet verified:** a real swap. The stand-ins logged the root commands without
-running them, so `chwd -i`, `chwd -r`, the reinstall and the initramfs rebuild have not
-been run for real.
+**Verified on a real swap** (2026-11-11: RTX 5070 Ti out, an AMD card in, the Intel iGPU
+kept). pacman's log shows the order the tests predicted:
+
+- `chwd -i amd` installed `vulkan-radeon`, `lib32-vulkan-radeon`, `xf86-video-amdgpu`,
+  `cachyos-drm-awaiter` and `opencl-mesa`.
+- One second later, `chwd -r nvidia-open-dkms` removed the same 11 packages the dry run
+  had listed, the two loaders among them.
+- 13 s after that, the two loaders were reinstalled.
+- `chwd`'s own removal deleted `10-chwd.conf` and `10-chwd-kms.conf`, so the backstop had
+  nothing to do. The initramfs rebuild the removal triggered ran the `kms` hook for both
+  kernels, with no errors.
+- Every installed package's dependencies are satisfied. Since `pacman -Dk` cannot check
+  that here, the check was
+  `pacman -Qi | sed -n 's/^Depends On *: //p' | tr -s ' ' '\n' | grep -vx None | sort -u | xargs pacman -T`,
+  which printed nothing and exited 0 over 1,550 dependency strings.
+- Hyprland 0.57.2 runs on the AMD card.
+
+**Not yet verified:** a boot from the rebuilt initramfs. The boot that ran the swap still
+logged `NVRM: No NVIDIA GPU found.`, from the old initramfs that forced the nvidia modules
+in.
 
 ## Services (`enable_services`)
 
