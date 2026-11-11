@@ -408,6 +408,87 @@ content, and no other fullscreen app was tested.
 
 The cost is that a fullscreen HDR game no longer switches the monitor to HDR by itself.
 
+### NVIDIA 620 breaks every login, and the driver is held back
+
+The 2026-11-11 update (NVIDIA 615.78.08 → 620.70.06, kernel 7.3.1 → 7.3.3, Hyprland
+0.57.1 → 0.57.2) made every login a frozen black screen with an oversized cursor. No
+config change fixed it. The machine was recovered by booting the pre-update snapshot,
+and the fix in use is to **stay on driver 615**. Nothing in this repo works around 620.
+
+**Driver 620 loses page-flip events, and a bare config reproduces it.** A minimal config
+(one catch-all monitor rule and a background colour) failed the same way, so nothing in
+this repo's config is involved. Hyprland's first frame never completes:
+
+```
+nvidia-drm: Flip event timeout on head 0
+nvidia-drm: Infoframe changed on CRTC 0 (hdr=1 colorspace=0 vsif=0), adding planes on CRTC to atomic commit
+nvidia-drm: Failed to apply atomic modeset.  Error code: -22
+nv_flip == NULL
+WARNING: nvidia-drm/nvidia-drm-crtc.h:371 at __nv_drm_handle_flip_event
+```
+
+aquamarine's trace showed DP-2 stuck with `isPageFlipPending true` after one flip event,
+while DP-3 flipped at 60 Hz. The last boot before the update logged none of these lines.
+Blaming the driver rather than Hyprland 0.57.2 is an inference: none of the 0.57.2 fixes
+touch DRM, and aquamarine was not part of the update. Running 0.57.2 on driver 615
+settles it.
+
+**Two workarounds were tried. Neither fixed an SDDM login, and both were reverted.**
+
+- **HDR and colour management off**, from
+  [hyprwm/aquamarine#487](https://github.com/hyprwm/aquamarine/issues/487), which reports
+  the same lines: `render.cm_enabled = false`, plus `supports_hdr = -1` and
+  `supports_wide_color = -1` on every monitor rule. The `hdr=1` line went away. The flip
+  timeouts and the black screen did not. That line is a symptom.
+- **`AQ_NO_ATOMIC=1`**, set with `hl.env` in `env.lua`, which makes aquamarine use legacy
+  KMS. From a TTY it looked like a fix: the kernel logged nothing, and the real config
+  came up at 170 Hz and 240 Hz. Hyprland's log confirmed the setting was read from the
+  config. **An SDDM login with it still failed**: flip timeouts began 5 s after login,
+  then the `-22`. Either the setting did not apply under `start-hyprland`, or the
+  handoff from SDDM's greeter breaks the legacy path as well. That boot's log was lost to
+  a reboot, so which one is unknown.
+
+**A TTY test reproduces the failure, but a passing one proves nothing.** A run like
+`timeout -k 5 20 Hyprland -c <minimal.lua>` from a TTY takes over that VT for 20 s and
+then hands it back. On the default atomic path it showed exactly the failure a real login
+did. On the legacy path it passed while a real login failed. So a pass from a TTY means
+"not obviously broken", and only an SDDM login confirms a fix.
+
+**The hold is `IgnorePkg` in `/etc/pacman.conf`**, which this repo does not deploy, so
+it is per machine. It has to include the kernel, because each NVIDIA module package is
+built for one exact kernel, and the module for 7.3.3 is 620:
+
+```
+IgnorePkg = nvidia-utils lib32-nvidia-utils opencl-nvidia lib32-opencl-nvidia nvidia-settings libxnvctrl linux-cachyos linux-cachyos-headers linux-cachyos-nvidia-open linux-cachyos-lts linux-cachyos-lts-headers linux-cachyos-lts-nvidia-open
+```
+
+`install.sh` cannot undo the hold. Under `--noconfirm`, pacman would install an ignored
+package if one were named explicitly, or required at a version only the update has.
+Neither happens: `PACMAN_PKGS` names none of the twelve, and `libva-nvidia-driver`, the
+one NVIDIA-adjacent package in it, depends only on `glibc`, `gst-plugins-bad-libs` and
+`libegl`.
+
+**Retry once a driver newer than 620.70.06 is released.** Remove the line, update, and log
+in. If the screen goes black, switch to a TTY with `Ctrl+Alt+F3` instead of rebooting:
+Hyprland's log is in `$XDG_RUNTIME_DIR/hypr/*/hyprland.log`, and a reboot wipes it.
+`journalctl -k -b -1` survives a reboot, and its flip-timeout lines are enough to show
+that the same bug is back.
+
+**Recovering from a bad update:**
+
+- **Booting a snapshot from the Limine menu is not a rollback.** The root filesystem is
+  the snapshot mounted read-only, with changes held in RAM: `findmnt /` shows an
+  `overlay`, and `/proc/cmdline` names `subvol=/@/.snapshots/<N>/snapshot`. Anything
+  installed then is lost at the next boot, and the next normal boot is the broken system
+  again.
+- **`sudo limine-snapper-restore` makes it permanent.** Run with no options, it calls
+  `limine-snapper-sync --restore` on the snapshot you are booted into.
+- **`/home` is its own subvolume (`@home`), so a rollback leaves it alone.** This repo and
+  `~/.config` keep whatever was deployed before the rollback.
+
+**Not yet verified:** Hyprland 0.57.2 with driver 615. That is the partial update this
+section describes.
+
 ### `SUPER+CTRL+Z` swaps the two monitors left-to-right
 
 `swap_monitors()` puts the right-hand screen on the left and the left-hand one on the
