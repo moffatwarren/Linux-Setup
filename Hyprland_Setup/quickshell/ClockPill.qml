@@ -52,7 +52,8 @@ Pill {
             anchors.leftMargin: 12
             anchors.baseline: time.baseline
             text: Qt.formatDateTime(clock.date, "dd-MMM-yyyy")
-            color: root.labelColor
+            // A step dimmer than the time, so the time is what the eye lands on.
+            color: Qt.darker(root.labelColor, 1.2)
             font.family: Theme.fontFamily
             font.pixelSize: Theme.fontSize
             font.bold: true

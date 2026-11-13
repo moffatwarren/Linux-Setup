@@ -741,7 +741,9 @@ so no other module is affected.
 **The clock is the one bold module.** The time is drawn at `fontSize + 2` and the date at
 `fontSize`, so `ClockPill` draws its own two `Text`s through `contentWidth` rather than a
 label, which can only be one size. The date sits on the time's baseline. Centring the two
-sizes on each other leaves the smaller text floating above the line.
+sizes on each other leaves the smaller text floating above the line. The date is also a
+step dimmer (`Qt.darker(labelColor, 1.2)`), so the eye lands on the time first. The order
+is time, date, weather. Date first was tried and swapped back.
 
 **The gap from the date to the weather is the gap from the time to the date, 12 px**, so
 the three read as one block. With the default padding it was 26 px: 12 px of clock
