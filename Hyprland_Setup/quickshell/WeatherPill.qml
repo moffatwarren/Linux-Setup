@@ -26,13 +26,27 @@ Pill {
 
     readonly property var condition: WeatherCodes.condition(current.code)
 
-    // Only the glyph is coloured by the condition; the temperature stays the
-    // bar's normal text colour, the way ScriptPill colours just the state word.
+    // The glyph is coloured by the condition, and the temperature by how warm
+    // it is, so the colour says something rather than only standing out from
+    // the blue clock beside it. Thresholds are in °C; a °F reading is
+    // converted first.
+    readonly property string tempColor: {
+        const t = current.temp;
+        if (t === undefined) return Theme.text;
+        const c = unit === "F" ? (t - 32) * 5 / 9 : t;
+        if (c <= 0) return Theme.sky;
+        if (c <= 10) return Theme.teal;
+        if (c <= 20) return Theme.green;
+        if (c <= 27) return Theme.yellow;
+        if (c <= 32) return Theme.peach;
+        return Theme.red;
+    }
+
     richText: true
     label: {
         if (current.temp === undefined) return "";
         return '<font color="' + condition.color + '">' + condition.icon + "</font> "
-             + Math.round(current.temp) + "°" + unit;
+             + '<font color="' + tempColor + '">' + Math.round(current.temp) + "°" + unit + "</font>";
     }
 
     // Left-click opens the forecast; right-click forces an immediate background re-fetch.

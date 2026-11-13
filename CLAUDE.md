@@ -743,6 +743,15 @@ so no other module is affected.
 label, which can only be one size. The date sits on the time's baseline. Centring the two
 sizes on each other leaves the smaller text floating above the line.
 
+**The gap from the date to the weather is the gap from the time to the date, 12 px**, so
+the three read as one block. With the default padding it was 26 px: 12 px of clock
+padding, the 2 px margin and 12 px of weather padding. `Pill.padLeft`/`padRight` (both
+`Theme.pillPad` by default) make it 6 + 2 + 4. Uneven padding moves a pill's content off
+its centre by `contentOffset`, so the clock is anchored with `horizontalCenterOffset:
+-clock.contentOffset`. That keeps the *text*, not the pill, at the centre of the bar
+(measured: the ink spans x=1202–1358 on a 2560 px screen, centre 1280). A module that
+draws its own content has to apply `contentOffset` itself, as `ClockPill`'s `face` does.
+
 **`qs ipc call bar refresh` rebuilds every `Bar`**, and it is the only IPC target that
 does not belong to a module. `shell.qml` holds a `barsLoaded` flag that the `Variants`
 model reads (`barsLoaded ? Quickshell.screens : []`), so flipping it false and back true
@@ -1050,9 +1059,12 @@ than blanking.
 
 `WeatherCodes.qml` is the singleton holding that table — WMO code to glyph, short
 label and colour. It is a singleton precisely because two things read it. An unmapped
-code returns the "N/A" glyph, not a sun. The pill colours only the glyph by condition
-and leaves the temperature the bar's normal colour, so only the part that actually
-carries the state is tinted.
+code returns the "N/A" glyph, not a sun. The pill colours the glyph by condition and the
+temperature by how warm it is (`tempColor`: sky at 0 °C or below, then teal, green,
+yellow and peach, and red above 32 °C; a °F reading is converted first). The temperature
+was the bar's normal text colour until the weather moved beside the bold blue clock, where
+it needed to stand apart. It is a scale rather than a fixed accent so that the colour says
+something, the same rule the glyph follows.
 
 `ForecastPopup` takes the same `MenuPopup` frame and supplies its own body rather than
 reusing `ListPopup`,

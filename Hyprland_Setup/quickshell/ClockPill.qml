@@ -29,6 +29,7 @@ Pill {
     Item {
         id: face
         anchors.centerIn: parent
+        anchors.horizontalCenterOffset: root.contentOffset
         width: time.implicitWidth + date.anchors.leftMargin + date.implicitWidth
         height: time.implicitHeight
 

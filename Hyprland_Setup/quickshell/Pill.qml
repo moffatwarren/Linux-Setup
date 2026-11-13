@@ -20,6 +20,12 @@ Rectangle {
     // Caps the label's width and elides what does not fit; -1 is no cap. For a
     // label with no natural bound -- the media module's track title.
     property real maxLabelWidth: -1
+    // The padding either side of the content. Uneven padding moves the content
+    // off the pill's centre by `contentOffset`; a module drawing its own
+    // content (ClockPill) has to offset it by that too.
+    property real padLeft: Theme.pillPad
+    property real padRight: Theme.pillPad
+    readonly property real contentOffset: (padLeft - padRight) / 2
     readonly property real labelWidth: maxLabelWidth >= 0
                                        ? Math.min(text.implicitWidth, maxLabelWidth)
                                        : text.implicitWidth
@@ -55,7 +61,7 @@ Rectangle {
     signal scrolled(int delta)
 
     visible: hasContent
-    implicitWidth: (contentWidth >= 0 ? contentWidth : labelWidth) + Theme.pillPad * 2
+    implicitWidth: (contentWidth >= 0 ? contentWidth : labelWidth) + padLeft + padRight
     implicitHeight: Theme.pillHeight
     radius: height / 2
     color: menuOpen || (hovered && handoffTarget) ? Theme.surface0 : Theme.pill
@@ -82,6 +88,7 @@ Rectangle {
     Text {
         id: text
         anchors.centerIn: parent
+        anchors.horizontalCenterOffset: root.contentOffset
         // implicitWidth stays the full text's width even when elided, so
         // setting width here cannot feed back into labelWidth.
         width: root.labelWidth

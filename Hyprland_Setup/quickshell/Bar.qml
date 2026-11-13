@@ -65,13 +65,22 @@ PanelWindow {
     // right edge. Anchored rather than sharing one centred Row, because a Row
     // would centre the *group*, and the clock would sit off-centre by half the
     // weather's width -- which changes with the temperature.
+    //
+    // The date-to-weather gap is the clock's right padding + the 2px margin +
+    // the weather's left padding: 6 + 2 + 4 = 12, the same as the clock's own
+    // time-to-date gap, so the three read as one block. The uneven padding
+    // moves the clock's text off its pill's centre, and the offset here puts
+    // the text, not the pill, at the centre of the bar.
     ClockPill {
         id: clock
+        padRight: 6
         anchors.horizontalCenter: parent.horizontalCenter
+        anchors.horizontalCenterOffset: -clock.contentOffset
         anchors.verticalCenter: parent.verticalCenter
     }
 
     WeatherPill {
+        padLeft: 4
         anchors.left: clock.right
         anchors.leftMargin: 2
         anchors.verticalCenter: parent.verticalCenter
