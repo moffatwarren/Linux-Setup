@@ -722,6 +722,27 @@ claim to ask about a choice that no longer existed.
 `Pill.qml` is the shared rounded-module background, and `Theme.qml` is a `pragma Singleton`
 holding the Catppuccin Mocha palette.
 
+**The layout:** workspaces and media on the left; clock and weather in the middle; the
+status modules on the right. **The clock is the exact centre of the bar**, so it is
+anchored to `horizontalCenter` on its own, and the weather is anchored to its right edge.
+One centred `Row` holding both would centre the *group* instead, and the clock would move
+whenever the weather's width did.
+
+**The media is on the left, not beside the clock, because its width is unbounded.** It
+was briefly to the right of the clock. A short weather on one side and a long track title
+on the other made the middle of the bar look heavy on the right, and the middle changed
+shape every time playback started or stopped. On the left the only other module is the
+workspace dots, so a title has the most room there. The left `Row`'s spacing is 10, not
+the 2 the right-hand modules use: the album art is a circle like the workspace dots, and
+at 2 it looks like one more workspace. `Bar.qml` gives `MediaGroup` a `maxWidth` up to
+the clock's left edge, less 8 px, and the title elides through `Pill.maxLabelWidth`. That cap is -1 by default, which means no cap,
+so no other module is affected.
+
+**The clock is the one bold module.** The time is drawn at `fontSize + 2` and the date at
+`fontSize`, so `ClockPill` draws its own two `Text`s through `contentWidth` rather than a
+label, which can only be one size. The date sits on the time's baseline. Centring the two
+sizes on each other leaves the smaller text floating above the line.
+
 **`qs ipc call bar refresh` rebuilds every `Bar`**, and it is the only IPC target that
 does not belong to a module. `shell.qml` holds a `barsLoaded` flag that the `Variants`
 model reads (`barsLoaded ? Quickshell.screens : []`), so flipping it false and back true

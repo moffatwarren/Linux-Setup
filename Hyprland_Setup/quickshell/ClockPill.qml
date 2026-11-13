@@ -18,8 +18,45 @@ Pill {
                                            clock.date.getMonth(),
                                            clock.date.getDate())
 
-    label: Qt.formatDateTime(clock.date, "hh:mm AP  dd-MMM-yyyy")
+    // Drawn rather than labelled, the way TailscalePill draws its logo: the
+    // time is a size up from the date, and a Pill label is one font at one
+    // size. Both are bold, so the clock stands out from the rest of the bar.
+    label: ""
+    hasContent: true
+    contentWidth: face.width
     labelColor: Theme.blue
+
+    Item {
+        id: face
+        anchors.centerIn: parent
+        width: time.implicitWidth + date.anchors.leftMargin + date.implicitWidth
+        height: time.implicitHeight
+
+        Text {
+            id: time
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            text: Qt.formatDateTime(clock.date, "hh:mm AP")
+            color: root.labelColor
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize + 2
+            font.bold: true
+        }
+
+        // On the time's baseline, not centred beside it: two sizes centred
+        // on each other leave the smaller text floating above the line.
+        Text {
+            id: date
+            anchors.left: time.right
+            anchors.leftMargin: 12
+            anchors.baseline: time.baseline
+            text: Qt.formatDateTime(clock.date, "dd-MMM-yyyy")
+            color: root.labelColor
+            font.family: Theme.fontFamily
+            font.pixelSize: Theme.fontSize
+            font.bold: true
+        }
+    }
 
     // Left-click opens the calendar, the way every other pill that owns a
     // drop-down does. Google Calendar moved into that panel's footer: `clicked`

@@ -17,6 +17,12 @@ Rectangle {
     // does not capture the base's own `visible` binding).
     property bool hasContent: label.length > 0
     property real contentWidth: -1
+    // Caps the label's width and elides what does not fit; -1 is no cap. For a
+    // label with no natural bound -- the media module's track title.
+    property real maxLabelWidth: -1
+    readonly property real labelWidth: maxLabelWidth >= 0
+                                       ? Math.min(text.implicitWidth, maxLabelWidth)
+                                       : text.implicitWidth
     // Lets modules drive a hover popup without another MouseArea.
     readonly property alias hovered: mouse.containsMouse
     property color labelColor: Theme.text
@@ -49,7 +55,7 @@ Rectangle {
     signal scrolled(int delta)
 
     visible: hasContent
-    implicitWidth: (contentWidth >= 0 ? contentWidth : text.implicitWidth) + Theme.pillPad * 2
+    implicitWidth: (contentWidth >= 0 ? contentWidth : labelWidth) + Theme.pillPad * 2
     implicitHeight: Theme.pillHeight
     radius: height / 2
     color: menuOpen || (hovered && handoffTarget) ? Theme.surface0 : Theme.pill
@@ -76,6 +82,10 @@ Rectangle {
     Text {
         id: text
         anchors.centerIn: parent
+        // implicitWidth stays the full text's width even when elided, so
+        // setting width here cannot feed back into labelWidth.
+        width: root.labelWidth
+        elide: Text.ElideRight
         text: root.label
         color: root.labelColor
         textFormat: root.richText ? Text.StyledText : Text.PlainText

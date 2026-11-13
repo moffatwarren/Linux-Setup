@@ -2,7 +2,8 @@ import Quickshell
 import Quickshell.Hyprland
 import QtQuick
 
-// Layout mirrors the waybar config's modules-left / -center / -right.
+// Workspaces and media on the left; clock and weather in the middle, with the
+// clock at the exact centre; status modules on the right.
 PanelWindow {
     id: bar
 
@@ -41,27 +42,43 @@ PanelWindow {
     }
 
     Row {
+        id: leftModules
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 2
-
-        ClockPill {}
-
-        WeatherPill {}
-
-        MediaGroup {}
-    }
-
-    Row {
-        anchors.horizontalCenter: parent.horizontalCenter
-        anchors.verticalCenter: parent.verticalCenter
+        // Wider than the other rows' 2: the album art is a circle like the
+        // workspace dots, and at 2 it reads as one more workspace.
+        spacing: 10
 
         WorkspacesPill {
             monitorName: bar.monitorName
         }
+
+        // Capped at the gap up to the clock: a track title is unbounded and
+        // would otherwise run over the middle of the bar.
+        MediaGroup {
+            id: media
+            maxWidth: clock.x - (leftModules.x + media.x) - 8
+        }
+    }
+
+    // The clock is the exact centre of the bar, and the weather hangs off its
+    // right edge. Anchored rather than sharing one centred Row, because a Row
+    // would centre the *group*, and the clock would sit off-centre by half the
+    // weather's width -- which changes with the temperature.
+    ClockPill {
+        id: clock
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.verticalCenter: parent.verticalCenter
+    }
+
+    WeatherPill {
+        anchors.left: clock.right
+        anchors.leftMargin: 2
+        anchors.verticalCenter: parent.verticalCenter
     }
 
     Row {
+        id: rightModules
         anchors.right: parent.right
         anchors.verticalCenter: parent.verticalCenter
         spacing: 2

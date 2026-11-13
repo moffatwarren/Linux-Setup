@@ -26,6 +26,10 @@ Row {
 
     visible: title.length > 0
 
+    // The most room the whole module may take, art included; -1 is no cap.
+    // Bar.qml sets it to the gap up to the clock in the middle of the bar.
+    property real maxWidth: -1
+
     function toggleMenu() {
         if (mediaMenu.open) mediaMenu.requestClose();
         else mediaMenu.open = true;
@@ -101,6 +105,9 @@ Row {
     Pill {
         anchors.verticalCenter: parent.verticalCenter
         label: root.artist.length > 0 ? root.artist + " - " + root.title : root.title
+        maxLabelWidth: root.maxWidth < 0 ? -1
+            : Math.max(0, root.maxWidth - Theme.pillPad * 2
+                          - (root.artUrl.length > 0 ? Theme.pillHeight + root.spacing : 0))
         // The menu is anchored to the whole Row (art + title), but the title is
         // most of the module's width, so this is what hands off on hover.
         menu: mediaMenu
