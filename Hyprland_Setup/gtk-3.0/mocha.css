@@ -17,7 +17,7 @@
 
 /* --- libadwaita names ---------------------------------------------------- */
 
-/* Accent is `blue`, matching the bar: CalendarPopup's today disc, the
+/* Accent is `blue`, matching the bar: the clock menu's today disc, the
    normal-urgency stripe on a notification, and the wallpaper picker's
    selection all use it. */
 @define-color accent_color            #89b4fa;

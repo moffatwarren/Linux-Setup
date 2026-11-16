@@ -2,8 +2,8 @@ import Quickshell
 import Quickshell.Hyprland
 import QtQuick
 
-// Workspaces and media on the left; clock and weather in the middle, with the
-// clock at the exact centre; status modules on the right.
+// Workspaces and media on the left; the clock at the exact centre; status
+// modules on the right.
 PanelWindow {
     id: bar
 
@@ -61,28 +61,12 @@ PanelWindow {
         }
     }
 
-    // The clock is the exact centre of the bar, and the weather hangs off its
-    // right edge. Anchored rather than sharing one centred Row, because a Row
-    // would centre the *group*, and the clock would sit off-centre by half the
-    // weather's width -- which changes with the temperature.
-    //
-    // The date-to-weather gap is the clock's right padding + the 2px margin +
-    // the weather's left padding: 6 + 2 + 4 = 12, the same as the clock's own
-    // time-to-date gap, so the three read as one block. The uneven padding
-    // moves the clock's text off its pill's centre, and the offset here puts
-    // the text, not the pill, at the centre of the bar.
+    // The clock is the exact centre of the bar, anchored on its own rather
+    // than placed in a Row, so nothing beside it can move it. The date and the
+    // weather that used to hang off its right edge are in its drop-down now.
     ClockPill {
         id: clock
-        padRight: 6
         anchors.horizontalCenter: parent.horizontalCenter
-        anchors.horizontalCenterOffset: -clock.contentOffset
-        anchors.verticalCenter: parent.verticalCenter
-    }
-
-    WeatherPill {
-        padLeft: 4
-        anchors.left: clock.right
-        anchors.leftMargin: 2
         anchors.verticalCenter: parent.verticalCenter
     }
 

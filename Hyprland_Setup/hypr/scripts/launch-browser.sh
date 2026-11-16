@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
 # Launches whatever browser is currently the default -- SUPER+B, SUPER+G and
-# CalendarPopup's footer all come through here, so nothing in this repo names a
-# browser.
+# the clock menu's calendar footer all come through here, so nothing in this
+# repo names a browser.
 #
 #   launch-browser.sh                 open the browser
 #   launch-browser.sh <url>           open a URL in it

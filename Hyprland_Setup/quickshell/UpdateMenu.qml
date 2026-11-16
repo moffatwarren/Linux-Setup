@@ -10,8 +10,8 @@ import QtQuick.Layouts
 // Frame, anchoring and dismissal match PowerMenu and NotificationMenu --
 // Theme.base inside a surface1 border, Escape or a click outside to close.
 //
-// It replaced a ListPopup hover panel, which is the move CalendarPopup and
-// ForecastPopup already made and for the same reason: a hover panel is
+// It replaced a ListPopup hover panel, which is the move the calendar and the
+// forecast had already made and for the same reason: a hover panel is
 // dismissed only by moving the pointer, so it could not be read at leisure and
 // had to truncate the list to a dozen rows because a panel that follows the
 // cursor cannot be scrolled. A menu can, so this shows everything.

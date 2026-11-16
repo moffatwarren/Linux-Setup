@@ -50,9 +50,10 @@ put there.
 Currently retired: `rofi`, `swaync`, `hypr/scripts/clipboard-menu.sh`,
 `hypr/scripts/wallpaper-selector.sh`, `hypr/modules/utils/wallpaper_utils.lua`,
 `hypr/scripts/monitor-toggle.sh`, the two `noctalia.css`, the three
-`quickshell/Tray*.qml`, and `swappy`. `ORPHANS` never uninstalls a *package*. The only
-packages `install.sh` ever removes are GPU drivers whose hardware is gone (see **GPU
-drivers follow the hardware**).
+`quickshell/Tray*.qml`, `swappy`, and the three files the clock menu replaced
+(`quickshell/WeatherPill.qml`, `CalendarPopup.qml`, `ForecastPopup.qml`). `ORPHANS`
+never uninstalls a *package*. The only packages `install.sh` ever removes are GPU drivers
+whose hardware is gone (see **GPU drivers follow the hardware**).
 
 Non-`~/.config` destinations are still explicit in `deploy_configs()`:
 `voidsddm` → `/usr/share/sddm/themes`, `sddm.conf.d` → `/etc` (both sudo),
@@ -722,14 +723,15 @@ claim to ask about a choice that no longer existed.
 `Pill.qml` is the shared rounded-module background, and `Theme.qml` is a `pragma Singleton`
 holding the Catppuccin Mocha palette.
 
-**The layout:** workspaces and media on the left; clock and weather in the middle; the
+**The layout:** workspaces and media on the left; the clock alone in the middle; the
 status modules on the right. **The clock is the exact centre of the bar**, so it is
-anchored to `horizontalCenter` on its own, and the weather is anchored to its right edge.
-One centred `Row` holding both would centre the *group* instead, and the clock would move
-whenever the weather's width did.
+anchored to `horizontalCenter` on its own rather than placed in a `Row`. The date and the
+weather used to sit beside it, and both moved into its drop-down — see **The clock menu**
+below.
 
 **The media is on the left, not beside the clock, because its width is unbounded.** It
-was briefly to the right of the clock. A short weather on one side and a long track title
+was briefly to the right of the clock, when the weather sat on the clock's other side. A
+short weather on one side and a long track title
 on the other made the middle of the bar look heavy on the right, and the middle changed
 shape every time playback started or stopped. On the left the only other module is the
 workspace dots, so a title has the most room there. The left `Row`'s spacing is 10, not
@@ -738,21 +740,11 @@ at 2 it looks like one more workspace. `Bar.qml` gives `MediaGroup` a `maxWidth`
 the clock's left edge, less 8 px, and the title elides through `Pill.maxLabelWidth`. That cap is -1 by default, which means no cap,
 so no other module is affected.
 
-**The clock is the one bold module.** The time is drawn at `fontSize + 2` and the date at
-`fontSize`, so `ClockPill` draws its own two `Text`s through `contentWidth` rather than a
-label, which can only be one size. The date sits on the time's baseline. Centring the two
-sizes on each other leaves the smaller text floating above the line. The date is also a
-step dimmer (`Qt.darker(labelColor, 1.2)`), so the eye lands on the time first. The order
-is time, date, weather. Date first was tried and swapped back.
-
-**The gap from the date to the weather is the gap from the time to the date, 12 px**, so
-the three read as one block. With the default padding it was 26 px: 12 px of clock
-padding, the 2 px margin and 12 px of weather padding. `Pill.padLeft`/`padRight` (both
-`Theme.pillPad` by default) make it 6 + 2 + 4. Uneven padding moves a pill's content off
-its centre by `contentOffset`, so the clock is anchored with `horizontalCenterOffset:
--clock.contentOffset`. That keeps the *text*, not the pill, at the centre of the bar
-(measured: the ink spans x=1202–1358 on a 2560 px screen, centre 1280). A module that
-draws its own content has to apply `contentOffset` itself, as `ClockPill`'s `face` does.
+**The clock is the one bold module.** The time is drawn bold at `fontSize + 2`, so
+`ClockPill` draws its own `Text` through `contentWidth` rather than a label, which is one
+regular font at one size. A module that draws its own content has to apply
+`contentOffset` itself, as that `Text` does — 0 today, since the uneven padding that lined
+the date up with the weather went with them.
 
 **`qs ipc call bar refresh` rebuilds every `Bar`**, and it is the only IPC target that
 does not belong to a module. `shell.qml` holds a `barsLoaded` flag that the `Variants`
@@ -767,8 +759,8 @@ screen at every login.
 ### `MenuPopup.qml` is the frame every drop-down wears
 
 **A popup is drawn as a continuation of the bar slab, not as a card under it**, and that is
-one file. `MenuPopup` is to the thirteen module drop-downs what `OverlayPanel.qml` is to the
-four full-screen overlays. Before it, every one of them repeated the same four-line anchor
+one file. `MenuPopup` is to the module drop-downs what `OverlayPanel.qml` is to the full-screen
+overlays. Before it, every one of the thirteen there were then repeated the same four-line anchor
 block and the same six-line frame `Rectangle` — so "make the popups look attached" was a
 thirteen-file edit, and the values had already drifted apart (popup radius 12, slab radius
 8, toast radius 14). `Theme.popupRadius` / `borderWidth` / `popupPad` are those literals.
@@ -990,91 +982,163 @@ menu it duplicates, and `AudioPill` tracked `Pipewire.defaultAudioSource` in its
 `PwObjectTracker` only for that panel — the label reads the sink alone, and `AudioService`
 already tracks every node the menu draws.
 
-`CalendarPopup.qml` is the clock's **left-click dropdown**: the current month as a grid,
-today picked out with a filled blue disc, with the leading and trailing days of the
-neighbouring months dimmed so every week is complete. It takes `MenuPopup`'s frame and
-supplies only a grid, rather than reusing `ListPopup`, which only stacks rows. It is a
-menu, so it keeps its own `open` flag and gets `grabFocus`, an Escape handler and a
-`HyprlandFocusGrab` from the frame, exactly like `PowerMenu`: a hover panel cannot own
-the keyboard and so could never answer Escape. The 300 ms open delay went with the hover
-— it existed to keep a panel from flashing up as the pointer crossed the pill, and a
-panel you asked for should not make you wait. Whole weeks that fall entirely outside the
-month are dropped, so a short month leaves no blank row. `ClockPill` feeds it a
-**midnight-truncated** date: `SystemClock` ticks every second, and a `date` property
-only signals a change when the value differs, so the grid rebuilds once a day instead of
-once a second. It is display-only — no month navigation — and **Google Calendar is a
-link in its footer**, where the pill's double-click used to be: `clicked` arrives before
-`doubleClicked`, so leaving it on the double-click would open the panel on the way to
-the browser. The footer is where pavucontrol and blueman already sit in their own menus.
+**The clock menu.** `ClockMenu.qml` is the clock's **left-click dropdown**, and it is the only place the date
+and the weather appear. Both used to be on the bar beside the time — the date inside
+`ClockPill`, the weather as a `WeatherPill` with a forecast menu of its own and the
+calendar as the clock's menu — and both moved in here, so the bar carries the time alone
+and one click answers what day, what time and what weather. It is three `MenuCard`s in one
+`MenuPopup` frame:
 
-`WeatherPill.qml` is the current condition and temperature, with `ForecastPopup.qml`
-— the week ahead as a table — as its **left-click dropdown**, dismissed the same way
-`CalendarPopup` is (`open`, `grabFocus`, Escape, `HyprlandFocusGrab`; no hover, no open
-delay). Both halves read one `hypr/scripts/`
-`weather-forecast.sh` poll, and both draw their glyph from one WMO code table, so
-the pill and the panel can never disagree about the weather or the icon for it.
+| card | holds |
+|---|---|
+| the header | the place and the date on the left, the time and its zone on the right, `SunTrack` under them |
+| `CalendarCard` | the year's progress, the month grid with previous/next/back-to-today, and the Google Calendar footer |
+| `ForecastCard` | the weather now, the seven-day table, the reading's age and the Refresh button |
 
-The panel's footer says how old the reading is, and carries the **Refresh button** that
-re-fetches immediately (`weather-forecast.sh --force`, which sets `FORECAST_MAX_AGE=0`
-so the age check can never pass) — the same `surface0` chip `BluetoothMenu` and
-`WifiMenu` use for Scan. That was the pill's right-click, and the footer could only
-*describe* it in words ("right-click to refresh"), which is a gesture you had to open
-the panel to discover sitting next to somewhere to put a button. The panel owns no state
-and runs no process: it raises `refreshRequested()` and `WeatherPill` fetches, the split
-`TailscaleMenu` and `PiaMenu` use. It does not close on the click — the point of
-pressing it is to watch the numbers land. The age stays on screen throughout and the
-*button* is what says "Refreshing…", so the one row that exists to report the reading's
-age does not stop reporting it mid-fetch. The age comes from the script, as `updated` —
-the **cache file's mtime**, not the time of the poll that read it. Almost every poll is
-served from the ten-minute cache, so a QML-side "last fetched" clock would report when
-the bar last ran a `cat`; the mtime is when the data actually arrived, and it survives a
-bar restart. It is also what makes a failed refresh legible: the script prints the stale
-cache on a network error, so the footer keeps showing the old age instead of claiming to
-have just updated. `Process.command` is bound to a `force` flag, so `refresh()` must not
-fire while the process runs — a second press mid-fetch is ignored. The footer's "N min
-ago" is re-rendered by a 30 s timer gated on the popup being visible.
+`MenuCard.qml` is a recessed `mantle` card in a `surface0` border, with its children in a
+`ColumnLayout`. Mantle rather than a lighter surface because the controls inside the
+cards — the calendar's arrows, the Refresh chip — fill and hover in `surface0`, which would
+vanish on a `surface0` card. The dividers inside a card are `surface0` for the same
+reason the menus' are `surface1`: one step up from what they sit on.
 
-It is **not** a `ScriptPill`, and **`hypr/scripts/weather.sh` is gone**. Its one
-remaining case, `--openWeather` — a floating kitty running the weathr TUI — was the
-pill's right-click, and the right button was given the refresh instead (which has since
-moved into the panel's footer), so nothing called the script at all. Retiring it took
-all three of the usual steps: the file deleted, the path added to `ORPHANS` so `cp -rf`
-does not leave it on a machine that already has it, and `rules.lua`'s `weathr-float`
-float rule dropped, since only that script ever set the class. **`weathr-bin` is out of
-`PARU_PKGS` too**, so a new machine does not install a TUI nothing on the desktop
-launches; a machine that already has it keeps it, because `install.sh` never uninstalls.
-`weathr/config.toml` stays in `CONFIGS` — it costs nothing to deploy and is the settings
-waiting if `weathr` is ever installed by hand. wttr.in publishes three days, not seven,
-and its one-line format exposes no condition code at all — only an emoji — so a pill fed
-from wttr.in could not show the same icon as a panel fed from anywhere else. Both now
-come from Open-Meteo (free, no key), which publishes a WMO code for the current hour and
-for each day. The location still comes from wttr.in, so only one service does the IP
-geolocation. The script also probes `wttr.in/?format=%t` for whether this location is °C
-or °F — wttr.in picks that from the location and exposes it nowhere in its JSON — and
-asks Open-Meteo for the same unit, so the reading matches what wttr.in would have said.
-It prints raw numbers (WMO code, temperature, min/max, precipitation chance) and leaves
-the formatting to the QML, like `system-stats.sh`. Weather is cached for ten minutes
-(matching both the pill's refresh and Open-Meteo's own update rate) and the location for
-a week, so most ticks are a `cat` rather than a request; on a network failure it prints
-the stale cache, or nothing at all, and the module keeps its last good reading rather
-than blanking.
+**The header's time is the bar's time.** `ClockPill` owns the one `SystemClock` and feeds
+the menu `now` and the midnight-truncated `today`, so the bar and the menu cannot show two
+different minutes. The place is wttr.in's area name with the region dropped (`North
+Surrey`), and before the first reading the weekday stands in for it. The zone is
+`Qt.formatDateTime(now, "t")`, the abbreviation from the system's tzdata (`MST`).
+**Not `"tttt"`**: Qt's long zone names come from its own locale data, and measured with
+`qs -p` it still calls America/Vancouver "Pacific Standard Time" after BC moved to
+permanent UTC-7 on 1 Nov 2026 — the same lag `haakonlife` hit in Node's ICU.
 
-`WeatherCodes.qml` is the singleton holding that table — WMO code to glyph, short
-label and colour. It is a singleton precisely because two things read it. An unmapped
-code returns the "N/A" glyph, not a sun. The pill colours the glyph by condition and the
-temperature by how warm it is (`tempColor`: sky at 0 °C or below, then teal, green,
-yellow and peach, and red above 32 °C; a °F reading is converted first). The temperature
-was the bar's normal text colour until the weather moved beside the bold blue clock, where
-it needed to stand apart. It is a scale rather than a fixed accent so that the colour says
-something, the same rule the glyph follows.
+**`SunTrack.qml` is the whole day, midnight to midnight**: a `surface0` line, the daylight
+between sunrise and sunset in `surface2`, the part of it the sun has already crossed in
+full `yellow`, and a dot for now — yellow while the sun is up, lavender while it is down,
+`subtext0` when there is no sunrise to judge by. The two times sit under the ends of the
+daylight, pushed apart where a short day would make them touch. Three things in it:
 
-`ForecastPopup` takes the same `MenuPopup` frame and supplies its own body rather than
-reusing `ListPopup`,
-because a forecast day is six aligned columns and `ListPopup` only puts one label
-opposite one detail. Its columns are sized from `TextMetrics.advanceWidth` (**not**
-`.width`, which is the ink bounding box and is a fraction narrower than the space the
-same string lays out in — every condition elided by one pixel), so the table does not
-reflow as the numbers change width.
+- **Grey plus full yellow, not a translucent yellow.** The first version drew the daylight
+  as `yellow` at 35% opacity, and on the card's near-black that is khaki — the mud the
+  aquarium's dimmed warm fish turned (see **The tank**).
+- **Everything is placed by time of day on the system clock.** `weather-forecast.sh` turns
+  sunrise and sunset into Unix seconds, and the dot is the same `now` the time is drawn
+  from. A weather location in another zone (a VPN exit) can therefore put the daylight
+  across midnight on this clock, and `segments()` draws it as two pieces rather than as a
+  negative width. Verified in a scratch `qs -p` with forced times: afternoon, night, a
+  110-minute day, daylight from 22:00 to 09:00, and no data.
+- **The glyphs are Material Design's `md-weather_sunset_up`/`_down`** (U+F059C/U+F059B,
+  so surrogate pairs). Weather Icons' sunrise and sunset (U+E34C/U+E34D) are wider than
+  their advance and ran into the digits.
+
+The header takes today's sunrise from the forecast row whose `date` is today, falling back
+to `days[0]`: a cache that outlived midnight with no network is yesterday's, and
+yesterday's sunrise is a minute out, not wrong.
+
+`CalendarCard.qml` is what `CalendarPopup.qml` was: the current month as a grid, today
+picked out with a filled blue disc, the leading and trailing days of the neighbouring
+months dimmed so every week is complete, and whole weeks outside the month dropped so a
+short month leaves no blank row. The arrows step a month either way, a third button comes
+back to today's month, and opening the menu comes back there too. `ClockPill` feeds it a
+**midnight-truncated** date: `SystemClock` ticks every second, and a `date` property only
+signals a change when the value differs, so the grid rebuilds once a day instead of once a
+second. The "Monday, 16 November" line under the month went with the move — the header
+says it.
+
+**The cells stretch to the forecast card's width**, which is the widest of the three, so
+the grid is a `Grid` positioner inside an `Item` whose `implicitWidth` is the constant
+7 × 28. A `GridLayout` would be a binding loop: its implicit width is the sum of its
+cells, and the cells take their width from the space they are given. Today's disc is sized
+off the cell's *height*, so it stays a circle.
+
+**Google Calendar is a link in the calendar's footer**, where the pill's double-click used
+to be: `clicked` arrives before `doubleClicked`, so leaving it on the double-click would
+open the menu on the way to the browser.
+
+**`WeatherService.qml` is the weather**, a `pragma Singleton` that polls
+`hypr/scripts/weather-forecast.sh` every ten minutes and whenever the clock menu opens. It
+lived inside `WeatherPill` until the pill went, and a singleton is the better home anyway,
+for the reason `UpdateService` is one: a poll per `Bar` ran the script once per screen.
+The poll on opening is there because a suspend stops the timer's clock, so after a night's
+sleep the background tick can be most of an interval behind; with a warm cache it is a
+`cat`. `tempColor()` colours the temperature by how warm it is (sky at 0 °C or below, then
+teal, green, yellow and peach, and red above 32 °C; a °F reading is converted first) and
+`WeatherCodes` colours the glyph by condition, so in both cases the colour says something.
+
+`ForecastCard.qml` is what `ForecastPopup.qml` was, and it reads and calls `WeatherService`
+directly, the way `UpdateMenu` reads `UpdateService`.
+
+**The weather now is the top of `ForecastCard`, large**: the condition's glyph at
+`fontSize + 22` and the temperature bold at `fontSize + 14`, the condition in words under
+it, and today's high, low and chance of rain on the right. Those three come from the
+table's own `Today` row, so the block and the row cannot disagree. It started in the
+header as a body-size temperature and glyph beside the time, and next to a 24px clock that
+was too easy to miss — the header is where the eye goes for the time, so the weather got a
+block of its own rather than a bigger slot there. Hidden until the first reading, when the
+card says "Fetching forecast…" instead.
+
+Its footer says how old the reading
+is, and carries the **Refresh button** that re-fetches immediately
+(`weather-forecast.sh --force`, which sets `FORECAST_MAX_AGE=0` so the age check can never
+pass) — the same `surface0` chip `BluetoothMenu` and `WifiMenu` use for Scan. That was the
+weather pill's right-click once, and a footer could only *describe* it in words. It does
+not close the menu — the point of pressing it is to watch the numbers land. The age stays
+on screen throughout and the *button* is what says "Refreshing…", so the one row that
+exists to report the reading's age does not stop reporting it mid-fetch. The age comes from
+the script, as `updated` — the **cache file's mtime**, not the time of the poll that read
+it. Almost every poll is served from the ten-minute cache, so a QML-side "last fetched"
+clock would report when the bar last ran a `cat`; the mtime is when the data actually
+arrived, and it survives a bar restart. It is also what makes a failed refresh legible: the
+script prints the stale cache on a network error, so the footer keeps showing the old age
+instead of claiming to have just updated. `Process.command` is bound to a `force` flag, so
+`refresh()` must not fire while the process runs — a second press mid-fetch is ignored.
+The footer's "N min ago" is re-rendered by a 30 s timer gated on the menu being open.
+
+The table supplies its own body rather than reusing `ListPopup`, because a forecast day is
+six aligned columns and `ListPopup` only puts one label opposite one detail. Its columns
+are sized from `TextMetrics.advanceWidth` (**not** `.width`, which is the ink bounding box
+and is a fraction narrower than the space the same string lays out in — every condition
+elided by one pixel), so the table does not reflow as the numbers change width.
+
+**`hypr/scripts/weather.sh` is gone**, and so is the TUI it opened. Its one remaining case,
+`--openWeather` — a floating kitty running the weathr TUI — was the weather pill's
+right-click, and the right button was given the refresh instead, so nothing called the
+script at all. Retiring it took all three of the usual steps: the file deleted, the path
+added to `ORPHANS` so `cp -rf` does not leave it on a machine that already has it, and
+`rules.lua`'s `weathr-float` float rule dropped, since only that script ever set the
+class. **`weathr-bin` is out of `PARU_PKGS` too**, so a new machine does not install a TUI
+nothing on the desktop launches; a machine that already has it keeps it, because
+`install.sh` never uninstalls. `weathr/config.toml` stays in `CONFIGS` — it costs nothing
+to deploy and is the settings waiting if `weathr` is ever installed by hand.
+
+**`weather-forecast.sh` takes everything from Open-Meteo** (free, no key), which publishes a
+WMO code for the current hour and for each day. wttr.in publishes three days, not seven,
+and its one-line format exposes no condition code at all — only an emoji — so a reading
+fed from wttr.in could not show the same icon as a table fed from anywhere else. The
+location still comes from wttr.in, so only one service does the IP geolocation. The script
+also probes `wttr.in/?format=%t` for whether this location is °C or °F — wttr.in picks that
+from the location and exposes it nowhere in its JSON — and asks Open-Meteo for the same
+unit. It prints raw numbers (WMO code, temperature, min/max, precipitation chance, sunrise
+and sunset) and leaves the formatting to the QML, like `system-stats.sh`. Weather is
+cached for ten minutes (matching both `WeatherService`'s poll and Open-Meteo's own update
+rate) and the location for a week, so most ticks are a `cat` rather than a request; on a
+network failure it prints the stale cache, or nothing at all, and the menu keeps its last
+good reading rather than blanking.
+
+Two things in it are newer than the rest:
+
+- **Sunrise and sunset arrive as the location's wall time with no offset**
+  (`2026-11-16T08:23`, because of `timezone=auto`), so the script subtracts the
+  `utc_offset_seconds` Open-Meteo reports beside them and prints Unix seconds. An
+  unparseable time becomes null and is dropped like any other missing reading.
+- **The forecast cache carries a version, `v`**, and a cache without the current one is
+  stale whatever its age. Without that, a deploy that adds a field shows nothing new for up
+  to ten minutes, which reads as the feature being broken. Bump `FORECAST_VERSION` whenever
+  the QML starts reading a new field. Verified: a pre-version cache is re-fetched on the
+  next run, and the run after is served from cache.
+
+`WeatherCodes.qml` is the singleton holding the WMO table — code to glyph, short label and
+colour. It is a singleton because `ForecastCard` reads it for the current
+block and for every row of the table, and the two must never disagree. An unmapped code returns the "N/A" glyph,
+not a sun.
 
 `WifiMenu.qml` is the **left**-click dropdown on the network module, and it is two halves.
 The top is the **status block** — the SSID and its strength on wifi, then ↓/↑ throughput,
@@ -1243,7 +1307,7 @@ shortcut for when you already know.
 
 **Every pill that owns a menu opens it on the primary button** —
 `AudioPill`, `BluetoothPill`, `NetworkPill`, `NotificationPill`, `PowerPill`,
-`ClockPill`, `WeatherPill`, `TailscalePill`, `PiaPill`, `PowerProfilePill` and
+`ClockPill`, `TailscalePill`, `PiaPill`, `PowerProfilePill` and
 `UpdatePill` all do, and
 the media module's
 cover art does too. Audio,
@@ -1251,10 +1315,10 @@ bluetooth and notifications bind the right button as well (mute, adapter, DND), 
 updates (force a re-check, which is what the left button did before there was a menu) and
 power-profile (cycle it, likewise); `NetworkPill`'s is unbound, since the wifi radio toggle
 already sits in `WifiMenu`'s header and nothing else on the network module wants a
-shortcut, and **`WeatherPill`, `TailscalePill` and `PiaPill` bind no second button at
-all** — weather's right-click forced a re-fetch, `tailscale file get` was tailscale's
-and PIA's started its daemon; all three are controls inside the menu now, the way
-`CalendarPopup` took the clock's old double-click into its own footer.
+shortcut, and **`ClockPill`, `TailscalePill` and `PiaPill` bind no second button at
+all** — the weather pill's right-click forced a re-fetch, `tailscale file get` was
+tailscale's and PIA's started its daemon; all three are controls inside a menu now, the
+way the calendar took the clock's old double-click into its own footer.
 
 **Nothing on this bar opens a panel on hover any more except `RecorderPill`.** The
 calendar and the forecast were hover panels and are dropdowns now, for one reason: a
@@ -1686,7 +1750,7 @@ binding, which resolves against `Pill`'s own), so this is about the reader, not 
 
 The palette in `Theme.qml` is still stored as **strings** rather than `color` values —
 QML converts on assignment, and `ScriptPill.altColors` was not the only thing that
-interpolated one into markup (`WeatherPill` still does).
+interpolated one into markup (`ForecastCard`'s high/low and `SunTrack`'s labels still do).
 
 Twelve things to know before editing the QML:
 
@@ -2334,7 +2398,7 @@ is carried across by the migration above. `config.terminal` is untouched.
 
 ### Anything that opens a browser goes through `launch-browser.sh`
 
-`SUPER+B`, `SUPER+G` (Gemini) and `CalendarPopup`'s "Open Google Calendar" footer all
+`SUPER+B`, `SUPER+G` (Gemini) and `CalendarCard`'s "Open Google Calendar" footer all
 run `hypr/scripts/launch-browser.sh`, so **nothing in this repo names a browser** —
 `config.browser` is gone from `config.lua` with the last reader. Three usages: bare
 (open the browser), a URL, and `--app=<url>` for a standalone app window.
@@ -3390,7 +3454,7 @@ colour declarations only so the two GTK versions stay diffable against each othe
 
 Surfaces follow the bar: content is `base` (as the bar slab and every hover panel
 are), chrome — headerbar, sidebar — is the recessed `mantle`, popovers and cards
-step up to `surface0`, and the accent is `blue`, the same one `CalendarPopup`'s
+step up to `surface0`, and the accent is `blue`, the same one the clock menu's
 today disc and swaync's normal-urgency stripe use.
 
 Seven things to know before editing:

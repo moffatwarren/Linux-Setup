@@ -23,6 +23,9 @@ ORPHANS=(
     hypr/scripts/monitor-toggle.sh
     hypr/scripts/weather.sh
     swappy
+    quickshell/WeatherPill.qml
+    quickshell/CalendarPopup.qml
+    quickshell/ForecastPopup.qml
 )
 
 # CachyOS only: paru, brave-origin-bin and localsend live in the `cachyos` repo

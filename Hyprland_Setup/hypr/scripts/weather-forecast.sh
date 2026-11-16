@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Current conditions plus a seven-day forecast for the quickshell weather
-# module -- both the pill and its hover panel.
+# Current conditions, today's sunrise and sunset, and a seven-day forecast for
+# the quickshell clock menu (ClockMenu.qml), read through WeatherService.qml.
 #
 # Everything comes from Open-Meteo (free, no API key), which publishes a WMO
 # condition code the bar can map to an icon. wttr.in, which used to drive the
@@ -14,8 +14,8 @@
 # system-stats.sh does. On any failure it prints nothing, so the module keeps
 # its last good reading rather than showing a confidently wrong one.
 #
-# --force ignores the forecast cache's age, for the panel's double-click-to-
-# refresh. The location cache is left alone: it is a week old at worst, it
+# --force ignores the forecast cache's age, for the forecast card's Refresh
+# button. The location cache is left alone: it is a week old at worst, it
 # costs two extra requests to rebuild, and where you are is not what you are
 # asking to re-check.
 
@@ -25,11 +25,15 @@ CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}"
 LOC_CACHE="$CACHE_DIR/weather-location.json"
 FORECAST_CACHE="$CACHE_DIR/weather-forecast.json"
 
-# The bar polls this on the pill's own refresh interval and reuses the same
-# answer for the hover panel, so it is cached: the weather for ten minutes
+# WeatherService polls this every ten minutes and whenever the clock menu
+# opens, so it is cached: the weather for ten minutes
 # (Open-Meteo updates about every fifteen), the location for a week.
 LOC_MAX_AGE=$((7 * 24 * 3600))
 FORECAST_MAX_AGE=$((10 * 60))
+# Bumped whenever the forecast cache gains a field the QML reads, so a cache
+# written by an older copy of this script counts as stale and is re-fetched on
+# the next poll rather than up to ten minutes later. 2 added sunrise/sunset.
+FORECAST_VERSION=2
 
 case "${1:-}" in
     --force) FORECAST_MAX_AGE=0 ;;   # fresh() compares age -lt 0, never true
@@ -74,7 +78,9 @@ refresh_location() {
 }
 
 refresh_forecast() {
-    fresh "$FORECAST_CACHE" "$FORECAST_MAX_AGE" && return 0
+    fresh "$FORECAST_CACHE" "$FORECAST_MAX_AGE" \
+        && jq -e --argjson v "$FORECAST_VERSION" '.v == $v' "$FORECAST_CACHE" >/dev/null 2>&1 \
+        && return 0
     [ -s "$LOC_CACHE" ] || return 1
 
     local lat lon place unit temp_unit url daily
@@ -88,7 +94,7 @@ refresh_forecast() {
 
     url="https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon"
     url+="&current=weather_code,temperature_2m"
-    url+="&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"
+    url+="&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset"
     url+="&temperature_unit=$temp_unit&timezone=auto&forecast_days=7"
 
     daily=$(curl -s --max-time 15 "$url") || return 1
@@ -98,9 +104,19 @@ refresh_forecast() {
     # Transpose Open-Meteo's parallel arrays into one row per day. A day
     # missing a reading keeps the row and drops the field, so the QML can omit
     # that column instead of printing a zero it was never told.
-    jq -e --arg place "$place" --arg unit "$unit" '
+    #
+    # Sunrise and sunset come back as the location's local wall time with no
+    # offset ("2026-11-16T08:23", because of timezone=auto), so they are turned
+    # into Unix seconds here with the offset Open-Meteo reports beside them.
+    # The QML then places them on the system's own clock, the same one the
+    # menu's time and the sun track's dot are read from. Anything unparseable
+    # becomes null and is dropped like any other missing reading.
+    jq -e --arg place "$place" --arg unit "$unit" --argjson v "$FORECAST_VERSION" '
+        def unix($off): try ((.[0:16] + ":00Z" | fromdateiso8601) - $off) catch null;
         .daily as $d
+        | (.utc_offset_seconds // 0) as $off
         | {
+            v:     $v,
             place: $place,
             unit:  $unit,
             current: ({ code: .current.weather_code, temp: .current.temperature_2m }
@@ -110,7 +126,9 @@ refresh_forecast() {
                       code: $d.weather_code[$i],
                       max:  $d.temperature_2m_max[$i],
                       min:  $d.temperature_2m_min[$i],
-                      pop:  $d.precipitation_probability_max[$i]
+                      pop:  $d.precipitation_probability_max[$i],
+                      sunrise: ($d.sunrise[$i] // null | if . then unix($off) else null end),
+                      sunset:  ($d.sunset[$i]  // null | if . then unix($off) else null end)
                     } | with_entries(select(.value != null)) ]
           }
         | select((.days | length) > 0)

@@ -58,7 +58,7 @@ Singleton {
 
         // Bound into the command, so it must not be rewritten under a running
         // process -- every caller above guards on `running` first. Same rule as
-        // WeatherPill's `force`.
+        // WeatherService's `force`.
         property string mode: ""
 
         command: ["bash", "-lc", root.scriptPath + (mode.length > 0 ? " " + mode : "")]

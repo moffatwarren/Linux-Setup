@@ -7,7 +7,7 @@ import QtQuick
 // which is what the empty label achieves via Pill.visible.
 //
 // Left-click opens the detail panel. It was a hover panel, and moving it onto
-// the button is the same trade CalendarPopup and ForecastPopup made: a panel
+// the button is the same trade the calendar and the forecast made: a panel
 // that appears because the pointer crossed the pill also vanishes because the
 // pointer left it, so it cannot be read at leisure and cannot be dismissed by
 // any means except moving away. Opened by a click it dismisses like every other

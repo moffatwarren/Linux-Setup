@@ -32,8 +32,8 @@ Singleton {
 
     // The bar's one surface colour: `Bar.qml` paints its whole slab with this
     // too, so a pill is indistinguishable from the strip behind it. `base`
-    // matches the popup frames (ListPopup, CalendarPopup, ForecastPopup and the
-    // menus all draw `Theme.base` inside a surface1 border), so a hover panel
+    // matches the popup frames (ListPopup, ClockMenu and the other menus all
+    // draw `Theme.base` inside a surface1 border), so a hover panel
     // reads as an extension of the bar rather than a separate surface.
     readonly property color pill: base
 
@@ -48,7 +48,7 @@ Singleton {
     // Every drop-down hangs off the bottom edge of the slab, so it carries the
     // slab's own radius on the two corners that are still corners -- MenuPopup
     // squares the top pair off. These were the literals 12 / 1 / 10 repeated in
-    // all thirteen popup files.
+    // all thirteen popup files there were then.
     readonly property int popupRadius: barRadius
     readonly property int borderWidth: 1
     readonly property int popupPad: 10

@@ -88,6 +88,12 @@ values into the repo — review with `git diff` before committing.
 `Hyprland_Setup/hypr/modules/binds.lua` is the full list, and `SUPER+K` puts a
 readable copy of it on screen.
 
+The middle of the bar is just the time. Clicking it opens one menu with the
+rest: where you are, the date and the time zone at the top, with a line across
+the day showing sunrise, sunset and where the sun is now; the month below that;
+and at the bottom the weather now, in large type, above the week's forecast
+and a `Refresh` button.
+
 The bar is also the notification daemon — there is no separate one. The bell
 module, right of the network one, shows whether notifications are muted and how
 many are unread; clicking it opens the list, and right-clicking it mutes.

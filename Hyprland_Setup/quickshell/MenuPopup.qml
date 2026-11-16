@@ -5,8 +5,8 @@ import QtQuick
 // The frame every bar drop-down wears: a panel hanging off the bottom edge of
 // the bar slab, in the slab's own colour, with the join between them invisible.
 //
-// This is to the thirteen module menus what OverlayPanel.qml is to the four
-// full-screen overlays. Before it, every one of them repeated the same four-line
+// This is to the module menus what OverlayPanel.qml is to the full-screen
+// overlays. Before it, every one of them repeated the same four-line
 // anchor block and the same six-line Rectangle, so "make the popups look
 // attached" was a thirteen-file edit and the values had already drifted (popup
 // radius 12, slab radius 8, toast radius 14).

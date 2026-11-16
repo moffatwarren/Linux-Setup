@@ -4,9 +4,9 @@ import Quickshell
 import QtQuick
 
 // The WMO weather codes Open-Meteo publishes, mapped to a nerd font glyph, a
-// short label and a colour. A singleton because both halves of the weather
-// module read it: the pill shows the current condition's glyph, and
-// ForecastPopup shows one per day -- and they must never disagree.
+// short label and a colour. A singleton so there is one table: ForecastCard
+// draws the current condition's glyph large at its top and one per day in
+// its table, and the two must never disagree.
 Singleton {
     // WMO weather codes, as published by Open-Meteo. Glyphs are private-use
     // nerd font codepoints written as \u escapes -- pasting the character

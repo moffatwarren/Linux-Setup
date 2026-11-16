@@ -9,10 +9,10 @@ import QtQuick
 //
 // Left-click opens UpdateMenu, the way every pill that owns a menu does.
 // Right-click re-checks without opening anything -- the menu/shortcut split
-// BluetoothPill and NotificationPill use, and exactly what WeatherPill's right
-// button already means (force a re-fetch). The re-check was the left button
-// before there was a menu; it is also a button inside the menu, so the
-// shortcut is for when you already know.
+// BluetoothPill and NotificationPill use, and what the weather pill's right
+// button meant while there was one (force a re-fetch). The re-check was the
+// left button before there was a menu; it is also a button inside the menu,
+// so the shortcut is for when you already know.
 Pill {
     id: root
 
