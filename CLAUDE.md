@@ -993,7 +993,7 @@ and one click answers what day, what time and what weather. It is three `MenuCar
 |---|---|
 | the header | the place and the date on the left, the time and its zone on the right, `SunTrack` under them |
 | `CalendarCard` | the year's progress, the month grid with previous/next/back-to-today, and the Google Calendar footer |
-| `ForecastCard` | the weather now, the seven-day table, the reading's age and the Refresh button |
+| `ForecastCard` | the weather now, the next 24 hours (`HourlyChart`), the seven-day table, the reading's age and the Refresh button |
 
 `MenuCard.qml` is a recessed `mantle` card in a `surface0` border, with its children in a
 `ColumnLayout`. Mantle rather than a lighter surface because the controls inside the
@@ -1009,6 +1009,11 @@ Surrey`), and before the first reading the weekday stands in for it. The zone is
 **Not `"tttt"`**: Qt's long zone names come from its own locale data, and measured with
 `qs -p` it still calls America/Vancouver "Pacific Standard Time" after BC moved to
 permanent UTC-7 on 1 Nov 2026 — the same lag `haakonlife` hit in Node's ICU.
+
+**The header's hour is computed, not formatted** (`getHours() % 12 || 12`). Qt's `h` is
+12-hour only when the *same* format string contains `AP`, and the AM/PM is a separate,
+smaller `Text`, so `"h:mm"` on its own read `13:39` beside a `PM`. It went unseen at
+first because the first test ran at 7:49 AM, where 12- and 24-hour agree.
 
 **`SunTrack.qml` is the whole day, midnight to midnight**: a `surface0` line, the daylight
 between sunrise and sunset in `surface2`, the part of it the sun has already crossed in
@@ -1075,6 +1080,38 @@ was too easy to miss — the header is where the eye goes for the time, so the w
 block of its own rather than a bigger slot there. Hidden until the first reading, when the
 card says "Fetching forecast…" instead.
 
+**`HourlyChart.qml` is the next 24 hours under it**: the temperature as a `yellow` line
+through every hour with a fill that fades out downwards, and every third hour marked —
+its temperature above the line, then the condition's glyph, then the time, the glyph on
+top of the time as asked. Eight columns is what fits a time (`11pm`, Qt's `hap`) per
+column in the card's width, which is why the labels are every third hour and the line
+every hour. Four things in it:
+
+- **The first column is the current reading, labelled `Now`**, not the current hour's
+  forecast: that hour is already partly over, and a "Now" that disagreed with the big
+  temperature above it would be the one number on the card you could catch out.
+- **Hours already over are dropped, against the card's half-minute tick**, so a cache that
+  outlived an hour (no network) draws from the present, and an open menu loses an hour as
+  it passes. Short of a day, the labels stop where the data does and the line is held
+  flat to the right edge rather than ending in mid-air.
+- **The scale never spans less than 4 °C (7 °F)**, so a day that moves by a degree reads
+  as flat rather than as a cliff.
+- **The fill is a gradient, not one alpha** — `yellow` at a third over near-black is
+  khaki, the trap `SunTrack`'s first daylight fell into. It is a `Shape` on
+  `Shape.CurveRenderer` with two `PathPolyline`s, the renderer `WallpaperPicker`'s
+  tiles use.
+
+Verified in a scratch `qs -p` against live data and three made-up cases: a night start
+in °F with rain and snow, a stale cache with five hours left, and a flat day.
+
+**At night the sun glyphs become a moon.** `WeatherCodes.condition(code, isDay)` takes
+Open-Meteo's `is_day`, which the script now asks for on the current reading and on each
+hour, and swaps codes 0–2 (clear, mainly clear, partly cloudy) for `weather-night_clear`
+(U+E32B) and `weather-night_alt_partly_cloudy` (U+E379), in `lavender`. Clouds, rain and
+snow look the same either way and keep their glyphs. The seven-day table passes no flag,
+so a whole day is drawn as day; a sun at 2 am in the hourly row was the case this is
+for, and it applies to the big current glyph too.
+
 Its footer says how old the reading
 is, and carries the **Refresh button** that re-fetches immediately
 (`weather-forecast.sh --force`, which sets `FORECAST_MAX_AGE=0` so the age check can never
@@ -1117,7 +1154,7 @@ location still comes from wttr.in, so only one service does the IP geolocation. 
 also probes `wttr.in/?format=%t` for whether this location is °C or °F — wttr.in picks that
 from the location and exposes it nowhere in its JSON — and asks Open-Meteo for the same
 unit. It prints raw numbers (WMO code, temperature, min/max, precipitation chance, sunrise
-and sunset) and leaves the formatting to the QML, like `system-stats.sh`. Weather is
+and sunset, and per hour the code, temperature and `is_day`) and leaves the formatting to the QML, like `system-stats.sh`. Weather is
 cached for ten minutes (matching both `WeatherService`'s poll and Open-Meteo's own update
 rate) and the location for a week, so most ticks are a `cat` rather than a request; on a
 network failure it prints the stale cache, or nothing at all, and the menu keeps its last
@@ -1129,15 +1166,24 @@ Two things in it are newer than the rest:
   (`2026-11-16T08:23`, because of `timezone=auto`), so the script subtracts the
   `utc_offset_seconds` Open-Meteo reports beside them and prints Unix seconds. An
   unparseable time becomes null and is dropped like any other missing reading.
+- **The hours are timed from the first one, an hour apart**, rather than each wall time
+  being converted with today's offset. The first hour is the current one, so today's
+  offset is right for it, and stepping in real hours stays right across a DST change
+  inside the window, where per-hour conversion would put every hour past the change an
+  hour out. It asks for `forecast_hours=27`, which counts from the current hour: three
+  more than the chart draws, so a ten-minute-old cache across an hour boundary still
+  fills it.
 - **The forecast cache carries a version, `v`**, and a cache without the current one is
   stale whatever its age. Without that, a deploy that adds a field shows nothing new for up
   to ten minutes, which reads as the feature being broken. Bump `FORECAST_VERSION` whenever
-  the QML starts reading a new field. Verified: a pre-version cache is re-fetched on the
+  the QML starts reading a new field — 2 added sunrise and sunset, 3 the hours and
+  `is_day`. Verified: a pre-version cache is re-fetched on the
   next run, and the run after is served from cache.
 
 `WeatherCodes.qml` is the singleton holding the WMO table — code to glyph, short label and
 colour. It is a singleton because `ForecastCard` reads it for the current
-block and for every row of the table, and the two must never disagree. An unmapped code returns the "N/A" glyph,
+block, `HourlyChart` for every labelled hour and the table for every day, and they must
+never disagree. An unmapped code returns the "N/A" glyph,
 not a sun.
 
 `WifiMenu.qml` is the **left**-click dropdown on the network module, and it is two halves.

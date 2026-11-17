@@ -1,9 +1,9 @@
 import QtQuick
 import QtQuick.Layouts
 
-// The bottom card of the clock menu: the weather now, large, then the next
-// seven days as a table, then how old the reading is and the button that
-// forces a new one.
+// The bottom card of the clock menu: the weather now, large, with the next
+// 24 hours as a line under it (HourlyChart), then the next seven days as a
+// table, then how old the reading is and the button that forces a new one.
 //
 // This was ForecastPopup, the weather pill's drop-down; it became a card when
 // the weather moved off the bar and into the clock's menu. The place name it
@@ -174,6 +174,15 @@ MenuCard {
                 font.pixelSize: Theme.fontSize - 1
             }
         }
+    }
+
+    HourlyChart {
+        Layout.fillWidth: true
+        Layout.topMargin: 4
+        hours: WeatherService.hours
+        current: WeatherService.current
+        unit: WeatherService.unit
+        nowSec: root.nowMs / 1000
     }
 
     Rectangle {

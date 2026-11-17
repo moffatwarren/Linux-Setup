@@ -5,13 +5,25 @@ import QtQuick
 
 // The WMO weather codes Open-Meteo publishes, mapped to a nerd font glyph, a
 // short label and a colour. A singleton so there is one table: ForecastCard
-// draws the current condition's glyph large at its top and one per day in
-// its table, and the two must never disagree.
+// draws the current condition's glyph large at its top, one per hour in
+// HourlyChart and one per day in its table, and they must never disagree.
 Singleton {
     // WMO weather codes, as published by Open-Meteo. Glyphs are private-use
     // nerd font codepoints written as \u escapes -- pasting the character
     // itself silently yields an empty string.
-    function condition(code) {
+    //
+    // `isDay` is Open-Meteo's is_day (1/0) for the current reading and each
+    // hour. Only the three codes whose glyph is the sun have a night version
+    // -- a moon, in lavender -- because clouds, rain and snow look the same
+    // either way. Absent, as it is for a whole day in the table, means day.
+    function condition(code, isDay) {
+        if (isDay === 0 || isDay === false) {
+            switch (code) {
+            case 0: return { icon: "\ue32b", text: "Clear",         color: Theme.lavender };
+            case 1: return { icon: "\ue379", text: "Mainly clear",  color: Theme.lavender };
+            case 2: return { icon: "\ue379", text: "Partly cloudy", color: Theme.subtext1 };
+            }
+        }
         switch (code) {
         case 0:  return { icon: "\ue30d", text: "Clear",         color: Theme.yellow };
         case 1:  return { icon: "\ue302", text: "Mainly clear",  color: Theme.yellow };

@@ -26,7 +26,10 @@ Singleton {
     // from the script. sunrise/sunset are Unix seconds. Every field but `date`
     // may be absent.
     property var days: []
-    // { code, temp } -- either field may be absent if Open-Meteo omitted it.
+    // [{ t, code, temp, day }, …] one per hour from the current one, t in Unix
+    // seconds and day Open-Meteo's is_day. Drawn by HourlyChart.
+    property var hours: []
+    // { code, temp, day } -- any field may be absent if Open-Meteo omitted it.
     property var current: ({})
     property string unit: ""
     // When the data was fetched, in Unix seconds -- the cache file's mtime, not
@@ -37,7 +40,7 @@ Singleton {
     property bool refreshing: false
 
     readonly property bool hasTemp: current.temp !== undefined
-    readonly property var condition: WeatherCodes.condition(current.code)
+    readonly property var condition: WeatherCodes.condition(current.code, current.day)
 
     // The temperature is coloured by how warm it is, so the colour says
     // something. Thresholds are in °C; a °F reading is converted first.
@@ -88,6 +91,7 @@ Singleton {
                     root.unit = j.unit !== undefined ? String(j.unit) : "";
                     root.current = j.current !== undefined ? j.current : ({});
                     root.days = j.days !== undefined ? j.days : [];
+                    root.hours = j.hours !== undefined ? j.hours : [];
                     root.updatedAt = j.updated !== undefined ? Number(j.updated) : 0;
                 } catch (e) {
                     console.warn("WeatherService: unparseable weather: " + e);

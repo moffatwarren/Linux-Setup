@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Current conditions, today's sunrise and sunset, and a seven-day forecast for
-# the quickshell clock menu (ClockMenu.qml), read through WeatherService.qml.
+# Current conditions, the next day hour by hour, today's sunrise and sunset,
+# and a seven-day forecast for the quickshell clock menu (ClockMenu.qml), read
+# through WeatherService.qml.
 #
 # Everything comes from Open-Meteo (free, no API key), which publishes a WMO
 # condition code the bar can map to an icon. wttr.in, which used to drive the
@@ -32,8 +33,9 @@ LOC_MAX_AGE=$((7 * 24 * 3600))
 FORECAST_MAX_AGE=$((10 * 60))
 # Bumped whenever the forecast cache gains a field the QML reads, so a cache
 # written by an older copy of this script counts as stale and is re-fetched on
-# the next poll rather than up to ten minutes later. 2 added sunrise/sunset.
-FORECAST_VERSION=2
+# the next poll rather than up to ten minutes later. 2 added sunrise/sunset,
+# 3 the hourly forecast and day/night.
+FORECAST_VERSION=3
 
 case "${1:-}" in
     --force) FORECAST_MAX_AGE=0 ;;   # fresh() compares age -lt 0, never true
@@ -93,7 +95,11 @@ refresh_forecast() {
     [ "$unit" = F ] && temp_unit=fahrenheit
 
     url="https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon"
-    url+="&current=weather_code,temperature_2m"
+    url+="&current=weather_code,temperature_2m,is_day"
+    # forecast_hours counts from the current hour. 27 rather than 24: the QML
+    # drops hours already over, and a cache can be up to ten minutes old, so
+    # this leaves the 24-hour timeline whole across an hour boundary.
+    url+="&hourly=weather_code,temperature_2m,is_day&forecast_hours=27"
     url+="&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset"
     url+="&temperature_unit=$temp_unit&timezone=auto&forecast_days=7"
 
@@ -111,16 +117,33 @@ refresh_forecast() {
     # The QML then places them on the system's own clock, the same one the
     # menu's time and the sun track's dot are read from. Anything unparseable
     # becomes null and is dropped like any other missing reading.
+    #
+    # The hours are timed from the first one alone, an hour apart: that offset
+    # is the current one, so it is right for the current hour, and stepping in
+    # real hours stays right across a DST change inside the window, where
+    # converting each wall time with today's offset would put every hour past
+    # the change an hour out.
     jq -e --arg place "$place" --arg unit "$unit" --argjson v "$FORECAST_VERSION" '
         def unix($off): try ((.[0:16] + ":00Z" | fromdateiso8601) - $off) catch null;
         .daily as $d
+        | .hourly as $h
         | (.utc_offset_seconds // 0) as $off
+        | (($h.time // [])[0] // null | if . then unix($off) else null end) as $h0
         | {
             v:     $v,
             place: $place,
             unit:  $unit,
-            current: ({ code: .current.weather_code, temp: .current.temperature_2m }
+            current: ({ code: .current.weather_code, temp: .current.temperature_2m,
+                        day: .current.is_day }
                       | with_entries(select(.value != null))),
+            hours: (if $h0 == null then [] else
+                     [ range(0; ($h.time | length)) as $i | {
+                         t:    ($h0 + $i * 3600),
+                         code: $h.weather_code[$i],
+                         temp: $h.temperature_2m[$i],
+                         day:  $h.is_day[$i]
+                       } | with_entries(select(.value != null)) ]
+                   end),
             days: [ range(0; ($d.time | length)) as $i | {
                       date: $d.time[$i],
                       code: $d.weather_code[$i],

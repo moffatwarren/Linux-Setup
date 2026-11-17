@@ -101,7 +101,11 @@ MenuPopup {
                     anchors.right: ampm.left
                     anchors.rightMargin: 3
                     anchors.top: parent.top
-                    text: Qt.formatDateTime(root.now, "h:mm")
+                    // The hour is worked out here, not formatted: Qt's "h" is
+                    // 12-hour only when the SAME format string has an "AP" in
+                    // it, and the AM/PM is a separate, smaller Text -- so
+                    // "h:mm" alone read "13:39" beside a "PM".
+                    text: (root.now.getHours() % 12 || 12) + Qt.formatDateTime(root.now, ":mm")
                     color: Theme.blue
                     font.family: Theme.fontFamily
                     font.pixelSize: Theme.fontSize + 12
