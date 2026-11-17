@@ -2677,11 +2677,11 @@ modelled on WarrenTool's Windows one. It replaced swappy: `swappy/` is out of
 `CONFIGS`, the package out of `PACMAN_PKGS`, and `~/.config/swappy` is in `ORPHANS`
 (the package stays installed, since `install.sh` uninstalls nothing).
 
-The toolbar is pen, arrow, rectangle, ellipse, text and pixelate; eight swatches (the
-seven accents plus `crust`, the one that shows on a white page); a size from 1 to 20;
-undo, redo and clear; then Save and Copy. Keys: `1`–`6` pick a tool, `-`/`+` the size,
-`Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`, `Ctrl+C` or Enter copies, `Ctrl+S` saves, Delete
-clears, Escape closes. WarrenTool's seventh tool (OCR) is not here — that is `SUPER+ALT+S`.
+The toolbar is pen, highlighter, arrow, rectangle, ellipse, text and pixelate; eight
+swatches (the seven accents plus `crust`, the one that shows on a white page); a size from
+1 to 20; undo, redo and clear; then Save and Copy. Keys: `1`–`7` pick a tool, `-`/`+` the
+size, `Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`, `Ctrl+C` or Enter copies, `Ctrl+S` saves,
+Delete clears, Escape closes. WarrenTool's OCR tool is not here — that is `SUPER+ALT+S`.
 
 Copy and Save render the annotated image to `$XDG_RUNTIME_DIR/screenshot-edited-*.png`
 and hand it back to `screenshot.sh --copy` / `--save`, which own `wl-copy` and
@@ -2703,6 +2703,26 @@ Things that took measuring, all against quickshell 0.3.2:
 - **Pixelate reads `paper`'s own pixels** (`getImageData`), so it mosaics whatever is
   under it, earlier annotations included, in drawing order. Five samples per block,
   not every pixel.
+- **The highlighter multiplies, then screens a 35% tint over that.** Plain
+  transparency, the obvious version, failed on white: at 35–55% the pastel yellow came
+  out a faint cream and the text under it went grey. Multiply alone is a real
+  highlighter on a light page (white takes the colour, black text stays black) and is
+  invisible on a dark one. Together, white gets the full swatch and a Mocha-dark capture
+  a visible band with its text still light — checked for yellow, green, red and blue on
+  both. Each pass is one `stroke()` of the whole path, so a stroke does not darken where
+  it crosses itself. Its width is `size × 3 + 6` (21 at the default 5), a line of text.
+- **The highlighter's preview is the committed result, and that takes a copy of
+  `paper`.** Multiply and screen blend with what is beneath, and `live` is empty. So the
+  preview strokes the shape opaque, fills it with a `getImageData` copy of `paper` via
+  `source-in` (clipped to the stroke's box), and blends onto that. The copy is taken on
+  the first preview frame, dropped if `paper` repaints mid-drag (an undo), and released
+  on release. Verified with QtTest-driven drags against a scratch copy of the editor:
+  preview and committed differ only on the stroke's one-pixel antialiased edge, and the
+  redo and full-repaint paths match the incremental one pixel for pixel.
+- **The highlighter thins its points to half a stroke-width apart**, its last point
+  following the cursor until it is kept. Each preview frame strokes the whole path three
+  times: on a 4K capture, keeping every sample cost ~23 ms a frame by the 120th and kept
+  climbing; thinned, a 3000px drag holds 7.8 ms against the pen's ~7.
 - **Clear is an op**, which redraws the bare capture, so Undo brings everything back.
 - **The export waits for a paint, and must not wait on `onPainted`.** Committing an
   open text box queues a paint, so the save is triggered from the end of `onPaint` via

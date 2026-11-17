@@ -27,6 +27,11 @@ import QtQuick
 //
 // Pixelate reads `paper`'s own pixels with getImageData, so it mosaics what is
 // underneath it *including* earlier annotations, in the order they were drawn.
+//
+// The highlighter blends with what is under it too (multiply, then a screened
+// tint -- see drawOp), which an empty `live` layer cannot show. So its preview
+// copies `paper` once per stroke and blends onto that copy, and what is shown
+// while dragging is what gets committed.
 PanelWindow {
     id: root
 
@@ -59,12 +64,13 @@ PanelWindow {
     property string pendingExport: ""
 
     readonly property var tools: [
-        { id: "pen",      glyph: "󰲶", key: Qt.Key_1 }, // md-pencil_outline
-        { id: "arrow",    glyph: "󰁜", key: Qt.Key_2 }, // md-arrow_top_right
-        { id: "rect",     glyph: "󰹟", key: Qt.Key_3 }, // md-rectangle_outline
-        { id: "ellipse",  glyph: "󰝦", key: Qt.Key_4 }, // md-circle_outline
-        { id: "text",     glyph: "󰊄", key: Qt.Key_5 }, // md-format_text
-        { id: "pixelate", glyph: "󰄺", key: Qt.Key_6 }  // md-checkerboard
+        { id: "pen",         glyph: "󰲶", key: Qt.Key_1 },          // md-pencil_outline
+        { id: "highlighter", glyph: "󰙒", key: Qt.Key_2 }, // md-marker
+        { id: "arrow",       glyph: "󰁜", key: Qt.Key_3 },          // md-arrow_top_right
+        { id: "rect",        glyph: "󰹟", key: Qt.Key_4 },          // md-rectangle_outline
+        { id: "ellipse",     glyph: "󰝦", key: Qt.Key_5 },          // md-circle_outline
+        { id: "text",        glyph: "󰊄", key: Qt.Key_6 },          // md-format_text
+        { id: "pixelate",    glyph: "󰄺", key: Qt.Key_7 }           // md-checkerboard
     ]
 
     // The pastel accents read on a dark capture and vanish on a white one, so
@@ -84,6 +90,9 @@ PanelWindow {
     // Sizes are chosen on screen, so they are divided by the fit: a 5 looks
     // like a 5 however far a 4K capture had to be shrunk to be shown.
     readonly property real strokeWidth: Math.max(1, root.size / root.fit)
+    // A highlighter has to cover a line of text, so it is far wider than the
+    // pen at the same size: 21px at the default 5.
+    readonly property real highlightWidth: (root.size * 3 + 6) / root.fit
     readonly property real textPx: (10 + root.size * 2) / root.fit
     readonly property real blockPx: Math.max(4, root.size * 3) / root.fit
 
@@ -216,22 +225,32 @@ PanelWindow {
         switch (op.tool) {
         case "pen": {
             const p = op.points;
-            ctx.beginPath();
             if (p.length === 1) {
+                ctx.beginPath();
                 ctx.arc(p[0].x, p[0].y, op.width / 2, 0, Math.PI * 2);
                 ctx.fill();
                 break;
             }
-            // Through the midpoints, with each sample as the control point:
-            // a smooth curve rather than a polyline of mouse samples.
-            ctx.moveTo(p[0].x, p[0].y);
-            for (let i = 1; i < p.length - 1; i++)
-                ctx.quadraticCurveTo(p[i].x, p[i].y,
-                                     (p[i].x + p[i + 1].x) / 2, (p[i].y + p[i + 1].y) / 2);
-            ctx.lineTo(p[p.length - 1].x, p[p.length - 1].y);
+            root.tracePath(ctx, p);
             ctx.stroke();
             break;
         }
+        // Multiply, then a screened tint on top. Multiply alone is a real
+        // highlighter on a light page -- white takes the colour, black text
+        // stays black -- and does nothing at all on a dark one, where the
+        // tint is what shows. Plain transparency, the obvious version, turns
+        // a pastel on white into a faint cream and greys the text under it.
+        // Each pass is one stroke() of the whole path, so the stroke does not
+        // darken where it crosses itself.
+        case "highlighter":
+            ctx.lineCap = "butt";
+            root.tracePath(ctx, op.points);
+            ctx.globalCompositeOperation = "qt-multiply";
+            ctx.stroke();
+            ctx.globalCompositeOperation = "qt-screen";
+            ctx.globalAlpha = 0.35;
+            ctx.stroke();
+            break;
         case "arrow": {
             const a = Math.atan2(op.y2 - op.y1, op.x2 - op.x1);
             const head = op.width * 3 + 8;
@@ -297,6 +316,17 @@ PanelWindow {
                 ctx.fillRect(x + bx, y + by, bw, bh);
             }
         }
+    }
+
+    // Through the midpoints, with each sample as the control point: a smooth
+    // curve rather than a polyline of mouse samples.
+    function tracePath(ctx: var, p: var): void {
+        ctx.beginPath();
+        ctx.moveTo(p[0].x, p[0].y);
+        for (let i = 1; i < p.length - 1; i++)
+            ctx.quadraticCurveTo(p[i].x, p[i].y,
+                                 (p[i].x + p[i + 1].x) / 2, (p[i].y + p[i + 1].y) / 2);
+        ctx.lineTo(p[p.length - 1].x, p[p.length - 1].y);
     }
 
     function norm(op: var): var {
@@ -407,7 +437,7 @@ PanelWindow {
                 anchors.rightMargin: 12
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.imgW + " × " + root.imgH
-                      + "     1–6 tools   Ctrl+Z undo   Ctrl+C / Enter copy   Ctrl+S save   Esc close"
+                      + "     1–7 tools   Ctrl+Z undo   Ctrl+C / Enter copy   Ctrl+S save   Esc close"
                 color: Theme.overlay0
                 elide: Text.ElideRight
                 font.family: Theme.fontFamily
@@ -634,6 +664,12 @@ PanelWindow {
                                 for (const op of paper.queue) root.drawOp(ctx, op);
                             }
                             paper.queue = [];
+                            // A highlighter being dragged previews against
+                            // what was here, which has just changed.
+                            if (root.draft && root.draft.tool === "highlighter") {
+                                live.backdrop = null;
+                                live.requestPaint();
+                            }
                             // Not onPainted: that is not emitted for a paint
                             // that drew nothing new, which is the usual export.
                             if (root.pendingExport !== "") Qt.callLater(root.finishExport);
@@ -642,6 +678,10 @@ PanelWindow {
 
                     Canvas {
                         id: live
+
+                        // A copy of `paper`, taken when a highlighter stroke
+                        // starts and dropped when it ends.
+                        property var backdrop: null
 
                         anchors.fill: parent
                         renderTarget: Canvas.FramebufferObject
@@ -652,6 +692,35 @@ PanelWindow {
                             ctx.clearRect(0, 0, width, height);
                             const op = root.draft;
                             if (!op) return;
+                            if (op.tool === "highlighter") {
+                                // Multiply and screen blend with what is under
+                                // them, and this layer is empty -- so the stroke's
+                                // shape is filled with a copy of `paper` first and
+                                // blended onto that, which makes the preview the
+                                // committed result exactly. Clipped to the stroke's
+                                // box, so only that much of the copy is drawn.
+                                if (!live.backdrop)
+                                    live.backdrop = paper.getContext("2d")
+                                                         .getImageData(0, 0, root.imgW, root.imgH);
+                                let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+                                for (const p of op.points) {
+                                    x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y);
+                                    x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y);
+                                }
+                                ctx.save();
+                                ctx.beginPath();
+                                ctx.rect(x0 - op.width, y0 - op.width,
+                                         x1 - x0 + op.width * 2, y1 - y0 + op.width * 2);
+                                ctx.clip();
+                                ctx.lineWidth = op.width;
+                                ctx.lineCap = "butt";
+                                ctx.lineJoin = "round";
+                                root.tracePath(ctx, op.points);
+                                ctx.stroke();
+                                ctx.globalCompositeOperation = "source-in";
+                                ctx.drawImage(live.backdrop, 0, 0);
+                                ctx.restore();
+                            }
                             if (op.tool !== "pixelate") {
                                 root.drawOp(ctx, op);
                                 return;
@@ -680,11 +749,17 @@ PanelWindow {
                                 textEditor.forceActiveFocus();
                                 return;
                             }
-                            root.draft = root.tool === "pen"
-                                ? { tool: "pen", color: root.penColor, width: root.strokeWidth,
-                                    points: [{ x: x, y: y }] }
-                                : { tool: root.tool, color: root.penColor, width: root.strokeWidth,
-                                    block: root.blockPx, x1: x, y1: y, x2: x, y2: y };
+                            live.backdrop = null;
+                            if (root.tool === "pen")
+                                root.draft = { tool: "pen", color: root.penColor, width: root.strokeWidth,
+                                               points: [{ x: x, y: y }] };
+                            else if (root.tool === "highlighter")
+                                root.draft = { tool: "highlighter", color: root.penColor,
+                                               width: root.highlightWidth, points: [{ x: x, y: y }],
+                                               tipKept: true };
+                            else
+                                root.draft = { tool: root.tool, color: root.penColor, width: root.strokeWidth,
+                                               block: root.blockPx, x1: x, y1: y, x2: x, y2: y };
                             live.requestPaint();
                         }
 
@@ -693,7 +768,21 @@ PanelWindow {
                             if (!op) return;
                             const x = Math.max(0, Math.min(root.imgW, mouse.x));
                             const y = Math.max(0, Math.min(root.imgH, mouse.y));
-                            if (op.tool === "pen") op.points.push({ x: x, y: y });
+                            const p = op.points;
+                            // The highlighter's last point follows the cursor, and
+                            // is kept only once it is half a stroke-width from the
+                            // kept point before it. Each preview frame strokes the
+                            // whole path three times: on a 4K capture, keeping
+                            // every sample cost ~23ms a frame by the 120th and kept
+                            // climbing, where thinned a 3000px drag stays at 7.8ms,
+                            // the pen's ~7. It also irons out the hand's wobble,
+                            // which suits a marker.
+                            if (op.tool === "highlighter") {
+                                if (op.tipKept) p.push({ x: x, y: y });
+                                else p[p.length - 1] = { x: x, y: y };
+                                op.tipKept = Math.hypot(x - p[p.length - 2].x,
+                                                        y - p[p.length - 2].y) >= op.width / 2;
+                            } else if (p) p.push({ x: x, y: y });
                             else { op.x2 = x; op.y2 = y; }
                             live.requestPaint();
                         }
@@ -701,12 +790,21 @@ PanelWindow {
                         onReleased: {
                             const op = root.draft;
                             root.draft = null;
+                            live.backdrop = null;
                             live.requestPaint();
                             if (!op) return;
-                            // A click with a shape tool draws nothing; with the
-                            // pen it is a dot, which is what a click means there.
-                            if (op.tool !== "pen"
-                                && Math.abs(op.x2 - op.x1) < 2 && Math.abs(op.y2 - op.y1) < 2) return;
+                            // A click with a shape tool or the highlighter draws
+                            // nothing; with the pen it is a dot, which is what a
+                            // click means there.
+                            // A third point means it moved half a width already, so
+                            // only a two-point stroke can be a click -- and a loop
+                            // ending where it began is not one.
+                            if (op.tool === "highlighter") {
+                                const p = op.points;
+                                if (p.length < 2 || (p.length === 2
+                                    && Math.hypot(p[1].x - p[0].x, p[1].y - p[0].y) < 2)) return;
+                            } else if (op.tool !== "pen"
+                                       && Math.abs(op.x2 - op.x1) < 2 && Math.abs(op.y2 - op.y1) < 2) return;
                             root.commit(op);
                         }
                     }
