@@ -23,8 +23,9 @@ awww img "$WALLPAPER" \
   --transition-fps 60
 
 # hyprlock.conf has exactly one `path =` line, in its background block. The
-# value is machine-local: install.sh's PRESERVE table captures and restores it
-# (group `wallpaper`, in NO_PROMPT_GROUPS), so writing it here survives a deploy.
+# value is machine-local: install.sh's save_lock_wallpaper reads it before the
+# deploy overwrites the file and restore_lock_wallpaper writes it back after, so
+# writing it here survives a deploy.
 #
 # `&` is the one character sed expands in a replacement, so escape it -- a
 # filename containing one would otherwise duplicate the matched text.

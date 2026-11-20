@@ -2,12 +2,9 @@ import QtQuick
 
 // Pending package updates: a box glyph and a count, opening UpdateMenu.
 //
-// Left-click opens UpdateMenu, which shows the list of pending packages,
-// a Check button to re-scan, and an Update button to launch paru -Syu in
-// an interactive floating terminal. Once the upgrade completes, the bar
-// automatically re-checks for any remaining updates.
-//
-// Left-click opens UpdateMenu, the way every pill that owns a menu does.
+// Left-click opens UpdateMenu, the way every pill that owns a menu does: the
+// pending packages, a Check button to re-scan, and an Update button that runs
+// paru -Syu in a floating terminal and has the bar re-check when it finishes.
 // Right-click re-checks without opening anything -- the menu/shortcut split
 // BluetoothPill and NotificationPill use, and what the weather pill's right
 // button meant while there was one (force a re-fetch). The re-check was the

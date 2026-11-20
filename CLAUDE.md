@@ -1633,7 +1633,13 @@ the bar at all. Four things to know:
   and `Pill` hides a module with no label — so it decides whether the module is in the bar
   at all. Two minutes is enough for it: the question it really asks is "is PIA installed",
   and the two moments the daemon's own state can change (`startService()`, `act()`) each
-  drive their own burst.
+  drive their own burst. **Once it says `absent`, the `--status` poll stops too.**
+  `command` is bound to `serviceAbsent ? "" : …`, and `ScriptPill`'s timer runs only while
+  `command` is non-empty. Without that gate, a machine with no PIA started a `bash -lc`
+  login shell every 3 s per `Bar` to feed a module that was already hidden. The
+  two-minute service check is what brings the poll back if PIA is installed mid-session.
+  `TailscalePill` has the same shape when tailscale is absent and is not gated yet:
+  `tailscale.sh --status` exits early, but the 3 s poll still forks for it.
 - **Picking a region connects.** `piactl connect` doubles as "reconnect to apply new
   settings" (`piactl --help`), so `--set-region` runs it either way: to apply the change
   when connected, and because choosing a place to connect to means you want to be there
@@ -1957,6 +1963,17 @@ playback on its way through. A button is greyed to `overlay0` and inert when the
 says its `canGoPrevious`/`canGoNext`/`canTogglePlaying` is false, and the menu closes
 itself when `player` goes null — the module hides when nothing is playing, and a menu left
 open would hang off an invisible anchor.
+
+**Under the artist is a seek bar**, with the elapsed time and the length on either side
+of it. Click or drag it to seek, when the player says `canSeek`. **`MprisPlayer.position`
+is not live, and a binding on it freezes.** Players send no signal while the position
+moves at normal speed, and Quickshell emits `positionChanged` only on a jump (a seek, a
+new track). So the elapsed time and the fill used to stay where they were when the menu
+opened. Reading the property always returns the current value, but a binding only
+re-reads when the signal fires. Quickshell's documented fix is to emit the signal
+yourself while you are watching, which a 1 s `Timer` does. It runs only while the menu
+is open, the track is playing and `positionSupported` is true. Once a second is enough
+for an `m:ss` readout, and the fill's 150 ms `Behavior` smooths the steps.
 
 ## The overlays — launcher, clipboard, wallpapers, keybinds, defaults (SUPER+SPACE / V / W / K / D)
 
@@ -2832,8 +2849,8 @@ dependency of `gst-plugins-bad` — the "arrived as somebody else's dependency" 
 `hypr/scripts/updates.sh` is the backend, `UpdateService.qml` holds the answer and
 `UpdatePill.qml` draws it: a box glyph immediately left of `PowerPill`, with a
 count when something is waiting. `UpdateMenu.qml` is its **left-click dropdown** — the
-pending packages split into `Repositories` and `AUR`, a `Check` button in the header and
-the age of the reading in the footer.
+pending packages split into `Repositories` and `AUR`, `Update` and `Check` buttons in the
+header and the age of the reading in the footer.
 
 **It was a `ListPopup` hover panel and the menu took its rows whole**, which is the rule
 this bar already holds to. Two things the panel could not do and the menu can: it had to
@@ -2847,17 +2864,22 @@ headings — a `ListView` delegate is one shape per row.
 not close the menu: the point of pressing it is to watch the list change. Its label reads
 `UpdateService.refreshing` — the state, not the request — so a check already running
 cannot leave the button claiming to be idle, the rule `WifiMenu`'s Scan button follows.
-Nothing in the menu upgrades anything; the rows have a hover highlight and no click
-handler at all.
+The rows have a hover highlight and no click handler at all.
 
-**It is an indicator and nothing more, deliberately — there is no button that runs the
-upgrade.** That is not scope-cutting, it is the same wall `PiaMenu`'s Start-service button
-hit: a system transaction needs a password and this session runs **no polkit agent**, and
-on top of that pacman asks real questions mid-run (replaces, conflicts, `[Y/n]`) that a
-`Process` in the bar has no way to answer and would simply hang on — with the bar as the
-parent of the transaction that is upgrading `quickshell` and `hyprland` underneath it. If
-a click is ever wanted, it has to open a `kitty --class …` the way `pia.sh
---start-service` does, and `rules.lua` has to float that class. Never in-process.
+**The `Update` button runs the upgrade in a terminal, never in the bar.** It closes the
+menu and `execDetached`s `kitty --class update-floating -e updates.sh --upgrade`, and
+`rules.lua`'s `float-update` rule floats that class at 900x650, centred. It hits the
+same wall as `PiaMenu`'s Start-service button: a system transaction needs a password,
+and this session runs **no polkit agent**. On top of that, pacman asks real questions
+mid-run (replaces, conflicts, `[Y/n]`). A `Process` in the bar has no way to answer them
+and would hang, with the bar as the parent of the transaction that is upgrading
+`quickshell` and `hyprland` underneath it. A terminal can answer both. Never in-process.
+
+`updates.sh --upgrade` runs `paru -Syu`, then `qs ipc call updates refresh`, then holds
+the window on "Press any key to close." so the output can be read. The same refresh is
+also on an `EXIT` trap, so closing the window mid-run still makes the bar re-check: bash
+runs `EXIT` traps when a SIGHUP kills it (verified, exit 129). The button is green and
+bold while anything is pending, and grey but still clickable at zero.
 
 **Never `pacman -Sy` to get a count.** A bare `-Sy` refreshes the sync databases without
 upgrading, which leaves the machine one single-package install away from a partial upgrade.
@@ -2907,10 +2929,12 @@ entry whose installed version is no longer the `old` it recorded: one `pacman -Q
 pending names, no network, and stale-whatever-it-is-now is the right test rather than
 comparing against `new`.
 
-`qs ipc call updates refresh` exists for the proper fix — a pacman `PostTransaction` hook
-would drop the count the instant a terminal upgrade finishes instead of waiting out the
-ten minutes. Nothing in this repo installs one yet; it would be an `/etc` file, and it has
-to re-enter the user session (`XDG_RUNTIME_DIR`) because hooks run as root.
+`qs ipc call updates refresh` is how an upgrade outside the bar reports back.
+`updates.sh --upgrade` is its one caller. A `paru -Syu` typed in your own terminal still
+waits out the ten minutes. A pacman `PostTransaction` hook would fix that: it would drop
+the count the instant any upgrade finishes. Nothing in this repo installs one yet. It
+would be an `/etc` file, and it would have to re-enter the user session
+(`XDG_RUNTIME_DIR`), because hooks run as root.
 
 **The pill is hidden until the first answer parses, but not hidden at zero.** "Nothing
 pending" and "the check has never worked" are different states and neither may be drawn as

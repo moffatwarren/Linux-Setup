@@ -120,14 +120,16 @@ else to close it.
 A small box just left of the power button says whether there are
 packages to update: dim and closed when there is nothing, yellow and open with
 a count when there is. Clicking it opens the list of what is waiting, split
-into repository and AUR packages, with a `Check` button and the age of the
-reading. Escape or a click outside closes it.
+into repository and AUR packages, with `Update` and `Check` buttons and the
+age of the reading. Escape or a click outside closes it.
 
-It is a readout and nothing more — updating is still `paru -Syu` in a terminal,
-by choice, and nothing in the menu will do it for you. `Check` re-checks, as
-does right-clicking the pill, which is how the count catches up after an
-upgrade the bar knew nothing about; it also re-checks itself every ten minutes
-while anything is pending, and syncs properly every six hours.
+`Update` opens a small floating terminal running `paru -Syu`, where you can
+type the password and answer paru's questions. When it finishes, the bar
+re-checks, and the window stays open until you press a key so you can read the
+output. `Check` re-checks without updating, and so does right-clicking the
+pill. That is how the count catches up after a `paru -Syu` you ran in your own
+terminal. The bar also re-checks every ten minutes while anything is pending,
+and syncs properly every six hours.
 
 `SUPER+CTRL+S` selects a region and starts recording it, along with whatever
 audio is playing on the current output. A red pill with the

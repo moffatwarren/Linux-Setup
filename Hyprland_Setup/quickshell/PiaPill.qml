@@ -35,7 +35,12 @@ ScriptPill {
     readonly property bool connected: rawAlt === "connected"
     readonly property string script: PiaService.script
 
-    command: script + " --status"
+    // Not polled at all on a machine with no PIA. ScriptPill's timer runs
+    // while `command` is non-empty, so without the gate every Bar would start
+    // a login shell running pia.sh --status every 3 s, all to feed a module that
+    // serviceAbsent has already hidden. refreshService() keeps asking every two
+    // minutes, so installing PIA mid-session brings the poll back.
+    command: serviceAbsent ? "" : script + " --status"
 
     // connecting / disconnecting, which pia.sh reports itself. The pill used to
     // be two colours because a hover panel named the transitional state in

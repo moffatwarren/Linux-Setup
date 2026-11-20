@@ -5,7 +5,10 @@ import QtQuick
 import QtQuick.Layouts
 
 // Drop-down for the update module: what is pending, split into repo and AUR,
-// with a Check button and the age of the reading.
+// with Update and Check buttons and the age of the reading. Update runs
+// `updates.sh --upgrade` in a floating kitty (`update-floating` in rules.lua),
+// because paru needs a password and asks questions mid-run, and a Process in
+// the bar can answer neither.
 //
 // Frame, anchoring and dismissal match PowerMenu and NotificationMenu --
 // Theme.base inside a surface1 border, Escape or a click outside to close.

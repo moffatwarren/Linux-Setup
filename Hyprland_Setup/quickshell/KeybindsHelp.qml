@@ -47,6 +47,7 @@ OverlayPanel {
                 { keys: "SUPER + B",         desc: "Web browser" },
                 { keys: "SUPER + T",         desc: "btop, floating system monitor" },
                 { keys: "SUPER + G",         desc: "Gemini, in an app window" },
+                { keys: "SUPER + Y",         desc: "YouTube, in an app window" },
             ]
         },
         {

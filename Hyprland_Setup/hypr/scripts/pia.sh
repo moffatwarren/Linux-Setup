@@ -4,16 +4,10 @@
 # Written for waybar originally; PiaPill.qml now drives it, and still parses the
 # waybar-style JSON --status prints.
 
-PIACTL="/usr/local/bin/piactl"
-if ! command -v piactl &> /dev/null; then
-  if [ -f "/usr/local/bin/piactl" ]; then
-    PIACTL="/usr/local/bin/piactl"
-  elif [ -f "/usr/bin/piactl" ]; then
-    PIACTL="/usr/bin/piactl"
-  else
-    PIACTL="piactl"
-  fi
-fi
+# Whatever is on PATH wins. Both PIA's own installer and piavpn-bin put a
+# /usr/local/bin/piactl symlink to the real binary in /opt/piavpn/bin, so the
+# fallback only matters where that symlink is missing or PATH is trimmed.
+PIACTL=$(command -v piactl 2>/dev/null || echo /opt/piavpn/bin/piactl)
 
 # The systemd unit the PIA installer ships. The pill asks about it because
 # piactl talks to this daemon: with it stopped, every `piactl get` fails and the

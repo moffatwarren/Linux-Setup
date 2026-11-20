@@ -161,11 +161,12 @@ ShellRoot {
         function clear(): void { NotificationService.clearAll(); }
     }
 
-    // Pending package updates. Nothing in this repo calls it yet -- the module
-    // polls on its own -- but it is what lets an upgrade run outside the bar
-    // tell the bar it happened, so a pacman PostTransaction hook can drop the
-    // count the moment a terminal upgrade finishes instead of waiting for the
-    // ten-minute revalidate. Same shape as the recorder's poke below.
+    // Pending package updates. It is how an upgrade run outside the bar tells
+    // the bar it happened. updates.sh --upgrade, which UpdateMenu's Update
+    // button runs in a terminal, calls it when paru finishes. A pacman
+    // PostTransaction hook could do the same for a `paru -Syu` typed by hand,
+    // which today waits for the ten-minute revalidate, but nothing installs
+    // one. Same shape as the recorder's poke below.
     IpcHandler {
         target: "updates"
 

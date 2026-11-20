@@ -28,6 +28,23 @@ MenuPopup {
     // otherwise hang off an invisible anchor with dead buttons.
     onPlayerChanged: if (player === null) requestClose();
 
+    // MprisPlayer.position is not live. Players do not signal a position
+    // that moves at normal speed, and Quickshell only emits positionChanged on
+    // a jump (a seek, a new track). Reading the property always returns the
+    // current value, but a binding re-reads only when the signal fires, so
+    // without this the elapsed time and the seek bar stay where they were
+    // when the menu opened. Quickshell's documented fix is to emit the signal
+    // yourself while you are watching. Once a second is enough for an m:ss
+    // readout, and the fill's 150 ms Behavior smooths the steps. Gated on the
+    // menu being open and the track playing, so a closed menu costs nothing.
+    Timer {
+        running: root.open && root.playing && root.player.positionSupported
+        interval: 1000
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: if (root.player) root.player.positionChanged()
+    }
+
     // Space is play/pause while this menu is up -- the transport control you
     // reach for without aiming at a button. Accepted either way, so it cannot
     // fall through to anything else; togglePlay() is already a no-op for a
