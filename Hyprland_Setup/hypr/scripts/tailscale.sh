@@ -64,6 +64,12 @@ set_exit_node() {
 }
 
 case "${1:-}" in
+--installed)
+  # TailscalePill's slow presence check, which gates its 3 s --status poll so a
+  # machine without tailscale forks nothing for a module it never shows. A
+  # word rather than an exit code, the way pia.sh --service prints "absent".
+  if command -v tailscale >/dev/null 2>&1; then echo present; else echo absent; fi
+  ;;
 --status)
   # Not installed at all: print nothing, which hides the module. (The logo is
   # drawn rather than labelled, so an empty label is not what hides it --

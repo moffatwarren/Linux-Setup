@@ -20,20 +20,61 @@ import QtQuick
 ScriptPill {
     id: root
 
-    readonly property bool connected: rawAlt === "connected"
+    // "present" or "absent" from tailscale.sh --installed, and "" until the
+    // first check lands. Unknown counts as present, as PiaPill's serviceAbsent
+    // does, so a machine with tailscale shows the module without waiting on
+    // the check. A machine without it spends one --status poll finding out.
+    property string presence: ""
+    readonly property bool absent: presence === "absent"
+
+    // Gated on `absent` as well as the poll, because rawAlt keeps its last
+    // value once the poll stops: tailscale removed mid-session would otherwise
+    // leave the module up, and a stale "connected" would keep the 10 s peer
+    // poll below running for ever.
+    readonly property bool connected: !absent && rawAlt === "connected"
     // tailscale.sh prints the literal string "no" when nothing is routing.
     readonly property string exitNode:
         connected && rawText.length > 0 && rawText !== "no" ? rawText : ""
 
-    readonly property string toggleCommand: "~/.config/hypr/scripts/tailscale.sh --toggle"
-    readonly property string getFileCommand: "~/.config/hypr/scripts/tailscale.sh --getFile"
+    readonly property string toggleCommand: script + " --toggle"
+    readonly property string getFileCommand: script + " --getFile"
 
-    command: "~/.config/hypr/scripts/tailscale.sh --status"
+    readonly property string script: "~/.config/hypr/scripts/tailscale.sh"
+
+    // ScriptPill polls every 3 s while `command` is non-empty, so this is what
+    // stops it. Without the gate, a machine with no tailscale started a login
+    // shell every 3 s per Bar, for a module that never appears.
+    command: absent ? "" : script + " --status"
+
+    Process {
+        id: presenceProc
+        command: ["bash", "-lc", root.script + " --installed"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const word = text.trim();
+                // Anything else (an older deployed script that does not know
+                // --installed prints nothing) leaves the last answer alone.
+                if (word === "present" || word === "absent") root.presence = word;
+            }
+        }
+    }
+
+    // Two minutes, like PiaPill's service check: whether tailscale is
+    // installed does not change under a running session, and this is what
+    // brings the poll back if it is installed mid-session.
+    Timer {
+        interval: 120000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: if (!presenceProc.running) presenceProc.running = true
+    }
 
     // The logo is drawn rather than labelled, so `hasContent` carries what an
-    // empty label used to: hidden until the first poll lands.
+    // empty label used to: hidden until the first poll lands, and hidden with
+    // no tailscale installed.
     label: ""
-    hasContent: rawAlt.length > 0
+    hasContent: !absent && rawAlt.length > 0
     contentWidth: logo.implicitWidth
     labelColor: connected ? Theme.green : Theme.text
 
@@ -172,7 +213,7 @@ ScriptPill {
         if (exitNodeBusy || exitNodeProc.running) return;
         exitNodeBusy = true;
         exitNodeProc.command = [Quickshell.env("HOME") + "/.config/hypr/scripts/tailscale.sh",
-                                "--exit-node", ip, name];
+                                "--exit-node", ip, name];   // argv, so no `~`: not root.script
         exitNodeProc.running = true;
     }
 

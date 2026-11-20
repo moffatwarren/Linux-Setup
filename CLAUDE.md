@@ -1638,8 +1638,8 @@ the bar at all. Four things to know:
   `command` is non-empty. Without that gate, a machine with no PIA started a `bash -lc`
   login shell every 3 s per `Bar` to feed a module that was already hidden. The
   two-minute service check is what brings the poll back if PIA is installed mid-session.
-  `TailscalePill` has the same shape when tailscale is absent and is not gated yet:
-  `tailscale.sh --status` exits early, but the 3 s poll still forks for it.
+  `TailscalePill` is gated the same way: `tailscale.sh --installed` prints `present` or
+  `absent` every two minutes, and `command` is empty while it says `absent`.
 - **Picking a region connects.** `piactl connect` doubles as "reconnect to apply new
   settings" (`piactl --help`), so `--set-region` runs it either way: to apply the change
   when connected, and because choosing a place to connect to means you want to be there
@@ -1698,10 +1698,15 @@ white tailscale mark and a `PIA` whose menu offered to start a unit that is not 
 `systemctl cat` first and prints its own word, **`absent`**, which blanks `PiaPill`'s
 label and so takes the module out of the bar — menu and all; `--start-service` refuses
 the same way rather than prompting, for the machine where it is reached some other way.
-`tailscale.sh --status` prints **nothing** when `command -v tailscale` fails, which clears
-`ScriptPill.rawAlt` and so drops `TailscalePill`'s `active` (the logo is drawn, not
-labelled, so an empty label is not what hides it — see below). Neither script uninstalls
-or installs anything — they only decline to claim a state they cannot see.
+For tailscale the check is `tailscale.sh --installed`, which prints **`absent`** when
+`command -v tailscale` fails. `TailscalePill` then drops `hasContent` (the logo is drawn,
+not labelled, so an empty label is not what hides it — see below) and stops its `--status`
+poll. Both are gated on `absent` rather than only on the poll's output. Once the poll
+stops, `rawAlt` keeps its last value, so tailscale removed mid-session would otherwise
+leave the module up, and a stale `connected` would keep the peer poll running.
+`--status` still prints **nothing** without tailscale, as a second line of defence.
+Neither script uninstalls or installs anything — they only decline to claim a state they
+cannot see.
 `piactl get region` reports the *selected* region, which is usually `auto` and so says
 nothing about where you landed. `hypr/scripts/pia-region.sh` resolves the real one by
 matching the exit IP against PIA's own published server list (first party, no
