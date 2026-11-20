@@ -3493,9 +3493,13 @@ turns `done` into `idle` once you look at that agent, so looking is what ends th
   - Verified that way: every demo mood, the real idle marker, and lock detection. Lock
     detection used a temporary copy of the mod pointed at a scratch guard flocked exactly
     as `lock.sh` does, never the real guard, because holding that would stop a real lock.
-  - Not verified: a real agent going `blocked` or `done` (the demos run the same code
-    with stand-in agents), hypridle writing the marker after a real 5 minutes (needs the
-    deploy), and a real lock.
+  - Verified with real agents (2026-11-20): an Antigravity terminal going `blocked` made
+    Pip knock, and one finishing in a tab you were not looking at made it dance. Pip never
+    checks which program an agent is. **An agent that exits leaves no `done`**: Herdr
+    clears a terminal's status once its shell is back in front, so a run that ends with
+    the program quitting goes from `working` straight to nothing, and Pip does not react.
+  - Not verified: hypridle writing the marker after a real 5 minutes (needs the deploy),
+    and a real lock.
 - **It replaced a kitty-window version (`littlebuddy`)**, which needed its own Claude Code
   hooks to learn what Herdr already knows. That version was never committed or deployed,
   so nothing is in `ORPHANS` for it, and its hooks are gone from `~/.claude/settings.json`.
