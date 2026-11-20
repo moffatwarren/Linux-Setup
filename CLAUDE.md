@@ -3794,7 +3794,9 @@ swappy's `custom_color` until the editor replaced swappy.)
   and rewrites the line with `sed` rather than calling `wallpaper-set.sh`, which needs
   the `awww` daemon up. During an install it is not.
 - `*.sh` under any deployed `<app>/scripts/` is made executable by a `find` sweep — new
-  scripts need no per-file `chmod`. (Several are committed mode 644, hence the sweep.)
+  scripts need no per-file `chmod`. Every `.sh` is committed mode 755 today; the sweep
+  stays because a new script easily lands as 644, as `screen-read.sh` did until
+  `git ls-files -s -- '*.sh'` caught it.
 - **A retired *daemon* needs more than a retired config.** `ORPHANS` deletes files;
   it does not stop a process or close a D-Bus activation path. `retire_swaync()` is the
   worked example — see **Notifications (quickshell)**.
