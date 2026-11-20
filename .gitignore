@@ -17,3 +17,9 @@ Hyprland_Setup/fish/conf.d/superwhisper.fish
 # otherwise carry them back in.
 Hyprland_Setup/gtk-3.0/noctalia.css
 Hyprland_Setup/gtk-4.0/noctalia.css
+
+# Herdr writes its API types (gpui-kit.d.ts, ~800 KB, rewritten as Herdr updates
+# itself) and a jsconfig.json into every mod folder. install.sh deploys and pulls
+# Pip file by file, so these only arrive by copying the whole folder back.
+Hyprland_Setup/herdr-app/mods/*/gpui-kit.d.ts
+Hyprland_Setup/herdr-app/mods/*/jsconfig.json

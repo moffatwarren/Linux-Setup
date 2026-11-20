@@ -3379,7 +3379,9 @@ layouts, `view.json`/`window.json`, agent state under `data/`, telemetry and a l
 socket. Herdr also writes `gpui-kit.d.ts` (812 KB) and `jsconfig.json` into *every* mod
 folder, Pip's included. A whole-directory `--pull` would bring all of that into git. So
 `deploy_configs` copies the named files out, and `pull_configs` copies back only those.
-To ship a new theme, copy it into `herdr-app/themes/` by hand once.
+Copying Pip's folder back by hand does the same thing, and it did once (`a7ac875`), so
+those two files are in `.gitignore` too. To ship a new theme, copy it into
+`herdr-app/themes/` by hand once.
 
 Things to know, from the `AGENTS.md` Herdr writes into that directory:
 
@@ -3406,7 +3408,7 @@ change). Nothing has to tell it anything:
 |---|---|
 | an agent is `blocked` | comes to the middle and knocks: paws on the glass, a rattle, a "Claude needs you!" sign in the theme's `blocked` colour, naming the space |
 | an agent is `done` | dances under bursts of confetti, with a "Claude's done!" sign in `done`'s colour |
-| any agent `working` | walks to a tiny pixel desk and types at a glowing laptop with rising sparks |
+| any agent `working` | walks to a tiny desk and types at a laptop, sparks rising off the screen; faster with more agents working, and every half-minute or so it looks round at you or stretches |
 | nothing going on | wanders, blinks, faces you |
 | you are away | naps, and says hello when you are back |
 
@@ -3441,6 +3443,20 @@ turns `done` into `idle` once you look at that agent, so looking is what ends th
   swings there *and back*, so confetti would float back up. The 500 ms tick (where to walk,
   when to blink, the next burst) redraws only when something changed. Herdr redraws the
   whole window on any mod redraw, so a timer that only animates costs real battery.
+  For the same reason a spent particle (heart, confetti, spark) is dropped **without a
+  redraw of its own**: each has faded to nothing by its expiry, so it leaves at the next
+  one. Asking for a redraw to remove it was a third of all redraws while an agent worked.
+- **At the desk.** The desk is tucked one column into Pip's 14-wide sprite (`DESK_TUCK`),
+  whose right-hand column is empty while it faces the desk, so the keyboard starts against
+  its body and the two typing paws (`WORK_PAWS`) are one-pixel nubs on the keys. The first
+  version put the keyboard a gap away, and the arm that reached it was a long bar at cheek
+  height that read as something sticking out of its face. Arriving sets `facing` to 1 for
+  good, so a pet or a break does not turn it back the way it walked in. The screen
+  shimmers between 0.8 and 1 opacity, not lower: yellow dimmed further on the dark sidebar
+  is khaki, the trap the aquarium's far fish fell into. Breaks (a glance at you, or a
+  stretch with its paws up) stop the sparks, since its paws are off the keys. The stretch
+  arms are not used for the party dance: its wag puts the tail in the same column and the
+  two make one long bar.
 - **Away is the screen locked, or no input for 5 minutes.**
   - Idle is hypridle's second 300 s listener, which keeps `$XDG_RUNTIME_DIR/pip.idle`.
     It needs a deploy, which restarts hypridle. On Wayland nothing else can see global
@@ -3457,8 +3473,8 @@ turns `done` into `idle` once you look at that agent, so looking is what ends th
   - Typing your password clears the idle marker but the guard is still held, so the hello
     waits for the unlock. Nothing needs replaying: Herdr keeps `blocked` and `done` until
     you act, so whatever an agent did while you were gone is still on show.
-- **`herdr-app do pip.demo-knock`** (`demo-party`, `demo-work`, `demo-sleep`, `demo-off`) previews a
-  mood. Mod commands arrive through `nextCommand()`. The demo agents have no address, so a
+- **`herdr-app do pip.demo-knock`** (`demo-party`, `demo-work`, `demo-busy`, `demo-sleep`,
+  `demo-off`) previews a mood; `demo-busy` is three agents working, for the typing pace. Mod commands arrive through `nextCommand()`. The demo agents have no address, so a
   click pets.
 - **Testing:**
   - `herdr-app check ~/.config/herdr-app/mods/pip` loads the mod and renders it once,

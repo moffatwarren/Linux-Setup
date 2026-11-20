@@ -148,11 +148,13 @@ Herdr's sidebar has a little pixel critter, Pip, under the Agents list. It
 keeps an eye on your agents: when one needs you (a permission prompt, a
 question) it comes up to the glass and knocks, with a sign saying who; when one
 is done it dances under confetti until you look at that agent; while they work
-it sits at a tiny laptop and types, with glowing sparks rising from the screen.
-Click it to jump to the agent that wants you, or just to pet it. It naps while
-you are away (screen locked, or no keyboard or mouse for 5 minutes) and says
-hello when you are back. `herdr-app do pip.demo-knock` (or `demo-party`,
-`demo-work`, `demo-sleep`, `demo-off`) shows a mood without waiting for an agent.
+it sits at a tiny laptop and types, with glowing sparks rising from the screen,
+faster the more agents are working, stopping now and then to look round at you
+or stretch. Click it to jump to the agent that wants you, or just to pet it. It
+naps while you are away (screen locked, or no keyboard or mouse for 5 minutes)
+and says hello when you are back. `herdr-app do pip.demo-knock` (or
+`demo-party`, `demo-work`, `demo-busy`, `demo-sleep`, `demo-off`) shows a mood
+without waiting for an agent.
 
 ## Layout
 

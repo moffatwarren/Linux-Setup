@@ -2,14 +2,16 @@
 //
 //   an agent needs you     comes to the glass and knocks, saying who
 //   an agent is done       dances under confetti until you look at it
-//   anything working       sits at a tiny laptop and types, sparks rising
+//   anything working       types at a tiny laptop, sparks rising off the screen; faster
+//                          with more agents at it, and now and then it looks round at
+//                          you or stretches
 //   nothing going on       wanders, blinks, watches you
 //   you are away           naps (screen locked, or no input for 5 minutes),
 //                          and says hello when you are back
 //
 // Click it to go to the agent that wants you; otherwise clicking pets it.
-// `herdr-app do pip.demo-knock` (demo-party, demo-work, demo-sleep, demo-off) shows a mood
-// without waiting for an agent.
+// `herdr-app do pip.demo-knock` (demo-party, demo-work, demo-busy, demo-sleep, demo-off)
+// shows a mood without waiting for an agent.
 //
 // Herdr's own agent status drives all of it (`agents()`; "done" turns "idle"
 // once you look), so nothing has to tell Pip anything. It is drawn from
@@ -36,14 +38,18 @@ const BODY = [
   "...bb....bb...",
 ];
 const PAW = ["b.b.b", ".....", ".bbb.", ".bbb."];
-// Side-view desk + open laptop facing Pip: 't' desk, 'd' chassis/keyboard, 'g' glowing screen.
+// A low desk and an open laptop seen side on, its lit screen facing Pip: 'k' the
+// keyboard deck and bezel, 'd' the back of the lid, 'g' the screen, 't' the desk.
+// Its bottom row stands on the grass and its keyboard sits at Pip's belly, so
+// the paws (WORK_PAWS) rest on the keys rather than reaching across a gap.
 const DESK = [
-  ".......gd",
-  "......gd.",
-  ".....gd..",
-  ".dddddd..",
-  "ttttttttt",
-  ".t.....t.",
+  "........kd",
+  ".......ggd",
+  ".......ggd",
+  "......ggd.",
+  "kkkkkkkd..",
+  "tttttttttt",
+  "..t....t..",
 ];
 const DESK_CHASSIS = DESK.map((r) => r.replaceAll("g", "."));
 const DESK_SCREEN = DESK.map((r) => r.replace(/[^g]/g, "."));
@@ -51,8 +57,13 @@ const SW = BODY[0].length;
 const SH = BODY.length;
 const DESK_W = DESK[0].length;
 const DESK_H = DESK.length;
+// The desk overlaps Pip's right-hand column, which is empty while it faces the desk
+// (the tail is on the other side), so the keyboard starts right against Pip.
+const DESK_TUCK = 1;
+// The two typing paws, in Pip's own pixels: just above the keyboard row.
+const WORK_PAWS = [{ col: 13, row: 6, period: 220 }, { col: 15, row: 6, period: 280 }];
 
-function sprite({ eyes = "open", mouth = "small", look = 0, facing = 1, wag = false, lying = false }) {
+function sprite({ eyes = "open", mouth = "small", look = 0, facing = 1, wag = false, lying = false, arms = false }) {
   const g = BODY.map((r) => r.split(""));
   const hole = (r, c) => {
     if (g[r] && g[r][c] && g[r][c] !== ".") g[r][c] = "o";
@@ -71,6 +82,9 @@ function sprite({ eyes = "open", mouth = "small", look = 0, facing = 1, wag = fa
   else if (mouth === "open") { hole(mr, m0); hole(mr, m1); hole(mr + 1, m0); hole(mr + 1, m1); }
   const tail = facing > 0 ? 0 : SW - 1;
   for (const r of wag ? [4, 5] : [5, 6]) g[r][tail] = "b";
+  // Paws in the air for a stretch: up from the shoulders, either side of the head.
+  // Not with a wag, which puts the tail in the same column and makes one long bar.
+  if (arms) for (const c of [0, SW - 1]) for (const r of [1, 2, 3]) g[r][c] = "b";
   return lying ? g.slice(0, -1) : g;
 }
 
@@ -119,6 +133,10 @@ export default class Pip extends View {
     this.sparks = [];
     this.burstAt = 0;
     this.sparkAt = 0;
+    this.working = 0;            // how many agents are working, for the typing pace
+    this.breakUntil = 0;         // a pause from typing: glancing at you, or a stretch
+    this.breakKind = null;
+    this.nextBreak = 0;
     this.ids = 0;
     this.mode = null;
     this.away = false;
@@ -223,11 +241,12 @@ export default class Pip extends View {
     if (this.petUntil && now > this.petUntil) { this.petUntil = 0; dirty = true; }
     if (this.walkUntil && now > this.walkUntil) { this.walkUntil = 0; dirty = true; }
 
-    const before = this.hearts.length + this.confetti.length + this.sparks.length;
+    // Spent particles have already faded to nothing, so dropping them waits for the
+    // next redraw instead of asking for one. Herdr redraws the whole window for a
+    // mod, and while an agent works this was a third of Pip's redraws.
     this.hearts = this.hearts.filter((p) => now - p.born < 1600);
     this.confetti = this.confetti.filter((p) => now - p.born < 7000);
     this.sparks = this.sparks.filter((p) => now - p.born < 1400);
-    if (this.hearts.length + this.confetti.length + this.sparks.length !== before) dirty = true;
 
     if (this.mode === "party") {
       // A burst of confetti every few seconds, and a turn on the spot each second.
@@ -240,8 +259,19 @@ export default class Pip extends View {
         this.turnAt = now + 1000;
       }
       dirty = true;
-    } else if (this.mode === "work") {
-      if (now >= this.walkUntil && now >= this.sparkAt) {
+    } else if (this.mode === "work" && now >= this.walkUntil) {
+      // Typing, with a break every half a minute or so: a look round at you, or a
+      // stretch with its paws in the air. No sparks while its paws are off the keys.
+      if (this.breakUntil && now >= this.breakUntil) {
+        this.breakUntil = 0;
+        this.nextBreak = now + rand(25000, 50000);
+        dirty = true;
+      } else if (!this.breakUntil && now >= this.nextBreak) {
+        this.breakKind = Math.random() < 0.6 ? "glance" : "stretch";
+        this.breakUntil = now + (this.breakKind === "stretch" ? 1800 : rand(2200, 3500));
+        dirty = true;
+      }
+      if (!this.breakUntil && now >= this.sparkAt) {
         this.spark(cx, now);
         this.sparkAt = now + rand(900, 1500);
         dirty = true;
@@ -294,9 +324,10 @@ export default class Pip extends View {
     const t = theme();
     const px = this.px();
     const colors = [t.working ?? t.ansi3, t.accent ?? t.ansi4, t.ansi6, t.ansi5].filter(Boolean);
-    const screenX = this.workX() + (SW + 6) * px;
-    const screenY = this.baseY() + 4 * px;
-    const n = Math.random() < 0.4 ? 2 : 1;
+    // Off the top edge of the screen.
+    const screenX = this.deskX() + 7 * px;
+    const screenY = this.deskY();
+    const n = Math.random() < (this.working > 1 ? 0.7 : 0.4) ? 2 : 1;
     const fresh = [];
     for (let i = 0; i < n; i++) {
       const x = screenX + rand(-px, px * 1.5);
@@ -326,7 +357,10 @@ export default class Pip extends View {
   px() { return this.w < 120 ? 2 : 4; }
   ground() { return this.h - 9; }                   // the grass line
   baseY() { return this.ground() - SH * this.px(); } // the critter's top when standing
-  workX() { return Math.max(0, (this.w - (SW + DESK_W) * this.px()) / 2); }
+  // Pip at the desk, the pair centred together.
+  workX() { return Math.max(0, (this.w - (SW - DESK_TUCK + DESK_W) * this.px()) / 2); }
+  deskX() { return this.workX() + (SW - DESK_TUCK) * this.px(); }
+  deskY() { return this.baseY() + (SH - DESK_H) * this.px(); }
 
   // ---- render ------------------------------------------------------------------------
 
@@ -337,19 +371,25 @@ export default class Pip extends View {
     const sw = SW * px;
     if (this.x === null) this.x = Math.max(0, (this.w - sw) / 2);
 
-    const fake = (status) => [{ status, program: { name: "Claude Code" }, space_name: "demo", address: null }];
+    const fake = (status, n = 1) => Array.from({ length: n }, () => ({ status, program: { name: "Claude Code" }, space_name: "demo", address: null }));
     const list = this.demo === "knock" ? fake("blocked")
       : this.demo === "party" ? fake("done")
       : this.demo === "work" ? fake("working")
+      : this.demo === "busy" ? fake("working", 3)
       : agents();
     const needing = list.filter((a) => a.status === "blocked");
     const done = list.filter((a) => a.status === "done");
-    const busy = list.some((a) => a.status === "working");
+    this.working = list.filter((a) => a.status === "working").length;
     const away = this.away || this.demo === "sleep";
-    const mode = needing.length ? "knock" : done.length ? "party" : away ? "sleep" : busy ? "work" : "idle";
+    const mode = needing.length ? "knock" : done.length ? "party" : away ? "sleep" : this.working ? "work" : "idle";
     if (mode !== this.mode) {
       if (mode === "party") this.burstAt = 0;
-      if (mode === "work") { this.sparkAt = 0; this.walkUntil = 0; }
+      if (mode === "work") {
+        this.sparkAt = 0;
+        this.walkUntil = 0;
+        this.breakUntil = 0;
+        this.nextBreak = now + rand(20000, 40000);
+      }
       if (mode === "idle") this.nextMove = now + rand(1500, 3500);
       this.mode = mode;
     }
@@ -371,16 +411,22 @@ export default class Pip extends View {
     }
     const walking = now < this.walkUntil;
     const petting = now < this.petUntil;
-    const typing = mode === "work" && !walking;
+    const atDesk = mode === "work" && !walking;
+    // It has arrived, so it faces the desk from now on, and a pet or a break that
+    // lets go of the keys does not turn it back the way it walked in.
+    if (atDesk) this.facing = 1;
+    const onBreak = atDesk && now < this.breakUntil;
+    const stretching = onBreak && this.breakKind === "stretch";
+    const typing = atDesk && !onBreak && !petting;
 
     let face;
     if (mode === "sleep") face = { eyes: "closed", mouth: "none", lying: true };
     else if (mode === "knock") face = { eyes: "wide", mouth: "open" };
     else if (mode === "party" || petting) face = { eyes: "happy", mouth: "smile", wag: true };
-    else face = { eyes: this.blink ? "blink" : "open", mouth: mode === "work" ? "small" : "smile" };
-    const facing = typing ? 1 : this.facing;
-    const look = typing ? 1 : walking ? facing : 0;
-    const grid = sprite({ ...face, look, facing });
+    else if (stretching) face = { eyes: "happy", mouth: "smile", arms: true };
+    else face = { eyes: this.blink ? "blink" : "open", mouth: typing ? "small" : "smile" };
+    const look = typing ? 1 : walking ? this.facing : 0;
+    const grid = sprite({ ...face, look, facing: this.facing });
     const colors = { b: t.ansi5 ?? "#f5c2e7", c: t.ansi1 ?? "#f38ba8" };
 
     // body <- hop/bob <- rattle <- pixels
@@ -391,6 +437,7 @@ export default class Pip extends View {
     if (mode === "party") bounce = bounce.loop("top", { from: 0, to: -12, period: 520, easing: "ease-out" });
     else if (mode === "knock") bounce = bounce.loop("top", { from: 0, to: -4, period: 560 });
     else if (petting) bounce = bounce.loop("top", { from: 0, to: -6, period: 380, easing: "ease-out" });
+    else if (stretching) bounce = bounce.loop("top", { from: 0, to: -px, period: 900 });
     else if (walking) bounce = bounce.loop("top", { from: 0, to: -2, period: 260 });
     else if (typing) bounce = bounce.loop("top", { from: 0, to: -1.5, period: 320 });
 
@@ -423,30 +470,28 @@ export default class Pip extends View {
     children.push(body);
 
     if (mode === "work") {
-      const deskX = workX + sw;
-      const deskY = this.baseY() + (SH - DESK_H) * px;
       const deskColors = {
         t: t.dim ?? "#7f849c",
         d: t.muted ?? "#a6adc8",
+        k: t.ansi8 ?? t.dim ?? "#585b70",
         g: t.working ?? t.ansi3 ?? "#f9e2af",
       };
       children.push(
-        div().id("pip-desk").absolute().left(deskX).top(deskY).w(DESK_W * px).h(DESK_H * px)
+        div().id("pip-desk").absolute().left(this.deskX()).top(this.deskY()).w(DESK_W * px).h(DESK_H * px)
           .children(pixels(DESK_CHASSIS, deskColors, px, "dk"))
           .child(div().id("pip-screen").absolute().left(0).top(0).w(DESK_W * px).h(DESK_H * px)
-            .loop("opacity", { from: 0.4, to: 1, period: 680 })
+            // A shimmer, not a pulse: yellow dimmed much further on a dark sidebar
+            // is khaki, the trap the aquarium's far fish fell into.
+            .loop("opacity", { from: 0.8, to: 1, period: 1600 })
             .children(pixels(DESK_SCREEN, deskColors, px, "sc")))
       );
       if (typing) {
-        const pawY = this.baseY() + 6.5 * px;
-        children.push(
-          div().id("wpaw0").absolute().left(workX + 13 * px).top(pawY).w(2.5 * px).h(px)
-            .child(div().id("wpaw0-m").absolute().left(0).top(0).w(2.5 * px).h(px).bg(colors.b)
-              .loop("top", { from: 0, to: -px, period: 210 })),
-          div().id("wpaw1").absolute().left(workX + 15.5 * px).top(pawY).w(2 * px).h(px)
-            .child(div().id("wpaw1-m").absolute().left(0).top(0).w(2 * px).h(px).bg(colors.b)
-              .loop("top", { from: -px, to: 0, period: 270 }))
-        );
+        // Faster with more agents at it: 1, 2, 3 or more.
+        const pace = this.working >= 3 ? 0.55 : this.working === 2 ? 0.75 : 1;
+        WORK_PAWS.forEach((p, i) => children.push(
+          div().id(`wpaw${i}`).absolute().left(workX + p.col * px).top(this.baseY() + p.row * px).w(px).h(px)
+            .child(div().id(`wpaw${i}-m`).absolute().left(0).top(0).w(px).h(px).bg(colors.b)
+              .loop("top", { from: i ? -px : 0, to: i ? 0 : -px, period: Math.round(p.period * pace) }))));
       }
     }
 
