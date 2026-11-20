@@ -2,13 +2,13 @@
 //
 //   an agent needs you     comes to the glass and knocks, saying who
 //   an agent is done       dances under confetti until you look at it
-//   anything working       potters about
+//   anything working       sits at a tiny laptop and types, sparks rising
 //   nothing going on       wanders, blinks, watches you
 //   you are away           naps (screen locked, or no input for 5 minutes),
 //                          and says hello when you are back
 //
 // Click it to go to the agent that wants you; otherwise clicking pets it.
-// `herdr-app do pip.demo-knock` (demo-party, demo-sleep, demo-off) shows a mood
+// `herdr-app do pip.demo-knock` (demo-party, demo-work, demo-sleep, demo-off) shows a mood
 // without waiting for an agent.
 //
 // Herdr's own agent status drives all of it (`agents()`; "done" turns "idle"
@@ -36,8 +36,21 @@ const BODY = [
   "...bb....bb...",
 ];
 const PAW = ["b.b.b", ".....", ".bbb.", ".bbb."];
+// Side-view desk + open laptop facing Pip: 't' desk, 'd' chassis/keyboard, 'g' glowing screen.
+const DESK = [
+  ".......gd",
+  "......gd.",
+  ".....gd..",
+  ".dddddd..",
+  "ttttttttt",
+  ".t.....t.",
+];
+const DESK_CHASSIS = DESK.map((r) => r.replaceAll("g", "."));
+const DESK_SCREEN = DESK.map((r) => r.replace(/[^g]/g, "."));
 const SW = BODY[0].length;
 const SH = BODY.length;
+const DESK_W = DESK[0].length;
+const DESK_H = DESK.length;
 
 function sprite({ eyes = "open", mouth = "small", look = 0, facing = 1, wag = false, lying = false }) {
   const g = BODY.map((r) => r.split(""));
@@ -103,7 +116,9 @@ export default class Pip extends View {
     this.petUntil = 0;
     this.hearts = [];            // one-shot particles: { id, x, y, phase }
     this.confetti = [];
+    this.sparks = [];
     this.burstAt = 0;
+    this.sparkAt = 0;
     this.ids = 0;
     this.mode = null;
     this.away = false;
@@ -208,10 +223,11 @@ export default class Pip extends View {
     if (this.petUntil && now > this.petUntil) { this.petUntil = 0; dirty = true; }
     if (this.walkUntil && now > this.walkUntil) { this.walkUntil = 0; dirty = true; }
 
-    const before = this.hearts.length + this.confetti.length;
+    const before = this.hearts.length + this.confetti.length + this.sparks.length;
     this.hearts = this.hearts.filter((p) => now - p.born < 1600);
     this.confetti = this.confetti.filter((p) => now - p.born < 7000);
-    if (this.hearts.length + this.confetti.length !== before) dirty = true;
+    this.sparks = this.sparks.filter((p) => now - p.born < 1400);
+    if (this.hearts.length + this.confetti.length + this.sparks.length !== before) dirty = true;
 
     if (this.mode === "party") {
       // A burst of confetti every few seconds, and a turn on the spot each second.
@@ -224,18 +240,23 @@ export default class Pip extends View {
         this.turnAt = now + 1000;
       }
       dirty = true;
-    } else if ((this.mode === "work" || this.mode === "idle") && now >= this.nextMove && this.x !== null) {
+    } else if (this.mode === "work") {
+      if (now >= this.walkUntil && now >= this.sparkAt) {
+        this.spark(cx, now);
+        this.sparkAt = now + rand(900, 1500);
+        dirty = true;
+      }
+    } else if (this.mode === "idle" && now >= this.nextMove && this.x !== null) {
       // Wander: walk somewhere else, or turn and stand.
       const room = Math.max(0, this.w - sw - 8);
       if (Math.random() < 0.7 && room > 20) {
         let tx = rand(4, 4 + room);
         if (Math.abs(tx - this.x) < 24) tx = (tx + room / 2) % room + 4;
-        const speed = this.mode === "work" ? 55 : 32;
-        this.walkMs = Math.max(400, (Math.abs(tx - this.x) / speed) * 1000);
+        this.walkMs = Math.max(400, (Math.abs(tx - this.x) / 32) * 1000);
         this.facing = tx > this.x ? 1 : -1;
         this.x = tx;
         this.walkUntil = now + this.walkMs;
-        this.nextMove = this.walkUntil + rand(1500, this.mode === "work" ? 4000 : 7000);
+        this.nextMove = this.walkUntil + rand(1500, 7000);
       } else {
         this.facing = -this.facing;
         this.nextMove = now + rand(2000, 5000);
@@ -269,6 +290,27 @@ export default class Pip extends View {
     cx.timer.after(40, (cx) => { fresh.forEach((p) => (p.phase = 1)); cx.notify(); });
   }
 
+  spark(cx, now) {
+    const t = theme();
+    const px = this.px();
+    const colors = [t.working ?? t.ansi3, t.accent ?? t.ansi4, t.ansi6, t.ansi5].filter(Boolean);
+    const screenX = this.workX() + (SW + 6) * px;
+    const screenY = this.baseY() + 4 * px;
+    const n = Math.random() < 0.4 ? 2 : 1;
+    const fresh = [];
+    for (let i = 0; i < n; i++) {
+      const x = screenX + rand(-px, px * 1.5);
+      const y = screenY + rand(-px, px);
+      fresh.push({
+        id: ++this.ids, born: now, phase: 0, color: pick(colors),
+        x, y, x2: x + rand(-10, 10), y2: y - rand(22, 38),
+        size: Math.random() < 0.5 ? 3 : 2, ms: rand(850, 1250),
+      });
+    }
+    this.sparks.push(...fresh);
+    cx.timer.after(40, (cx) => { fresh.forEach((p) => (p.phase = 1)); cx.notify(); });
+  }
+
   pet(cx, now) {
     this.petUntil = now + 1400;
     const cx0 = (this.x ?? 0) + (SW * this.px()) / 2;
@@ -284,6 +326,7 @@ export default class Pip extends View {
   px() { return this.w < 120 ? 2 : 4; }
   ground() { return this.h - 9; }                   // the grass line
   baseY() { return this.ground() - SH * this.px(); } // the critter's top when standing
+  workX() { return Math.max(0, (this.w - (SW + DESK_W) * this.px()) / 2); }
 
   // ---- render ------------------------------------------------------------------------
 
@@ -295,7 +338,10 @@ export default class Pip extends View {
     if (this.x === null) this.x = Math.max(0, (this.w - sw) / 2);
 
     const fake = (status) => [{ status, program: { name: "Claude Code" }, space_name: "demo", address: null }];
-    const list = this.demo === "knock" ? fake("blocked") : this.demo === "party" ? fake("done") : agents();
+    const list = this.demo === "knock" ? fake("blocked")
+      : this.demo === "party" ? fake("done")
+      : this.demo === "work" ? fake("working")
+      : agents();
     const needing = list.filter((a) => a.status === "blocked");
     const done = list.filter((a) => a.status === "done");
     const busy = list.some((a) => a.status === "working");
@@ -303,27 +349,38 @@ export default class Pip extends View {
     const mode = needing.length ? "knock" : done.length ? "party" : away ? "sleep" : busy ? "work" : "idle";
     if (mode !== this.mode) {
       if (mode === "party") this.burstAt = 0;
+      if (mode === "work") { this.sparkAt = 0; this.walkUntil = 0; }
+      if (mode === "idle") this.nextMove = now + rand(1500, 3500);
       this.mode = mode;
     }
 
-    // Knocking and dancing happen in the middle, at the front.
+    // Knocking, dancing and working happen in the middle.
     const center = Math.max(0, (this.w - sw) / 2);
+    const workX = this.workX();
     let x = this.x;
     let walkMs = this.walkMs;
     if (mode === "knock" || mode === "party") {
       walkMs = Math.max(300, (Math.abs(center - this.x) / 90) * 1000);
       x = this.x = center;
+    } else if (mode === "work" && Math.abs(workX - this.x) > 1) {
+      walkMs = Math.max(300, (Math.abs(workX - this.x) / 90) * 1000);
+      this.facing = workX >= this.x ? 1 : -1;
+      this.walkMs = walkMs;
+      this.walkUntil = now + walkMs;
+      x = this.x = workX;
     }
     const walking = now < this.walkUntil;
     const petting = now < this.petUntil;
+    const typing = mode === "work" && !walking;
 
     let face;
     if (mode === "sleep") face = { eyes: "closed", mouth: "none", lying: true };
     else if (mode === "knock") face = { eyes: "wide", mouth: "open" };
     else if (mode === "party" || petting) face = { eyes: "happy", mouth: "smile", wag: true };
     else face = { eyes: this.blink ? "blink" : "open", mouth: mode === "work" ? "small" : "smile" };
-    const look = walking ? this.facing : 0;
-    const grid = sprite({ ...face, look, facing: this.facing });
+    const facing = typing ? 1 : this.facing;
+    const look = typing ? 1 : walking ? facing : 0;
+    const grid = sprite({ ...face, look, facing });
     const colors = { b: t.ansi5 ?? "#f5c2e7", c: t.ansi1 ?? "#f38ba8" };
 
     // body <- hop/bob <- rattle <- pixels
@@ -335,6 +392,7 @@ export default class Pip extends View {
     else if (mode === "knock") bounce = bounce.loop("top", { from: 0, to: -4, period: 560 });
     else if (petting) bounce = bounce.loop("top", { from: 0, to: -6, period: 380, easing: "ease-out" });
     else if (walking) bounce = bounce.loop("top", { from: 0, to: -2, period: 260 });
+    else if (typing) bounce = bounce.loop("top", { from: 0, to: -1.5, period: 320 });
 
     const lift = face.lying ? px : 0;
     let body = div().id("pip-body").absolute().left(x).top(this.baseY() + lift).w(sw).h(SH * px)
@@ -364,6 +422,41 @@ export default class Pip extends View {
     }
     children.push(body);
 
+    if (mode === "work") {
+      const deskX = workX + sw;
+      const deskY = this.baseY() + (SH - DESK_H) * px;
+      const deskColors = {
+        t: t.dim ?? "#7f849c",
+        d: t.muted ?? "#a6adc8",
+        g: t.working ?? t.ansi3 ?? "#f9e2af",
+      };
+      children.push(
+        div().id("pip-desk").absolute().left(deskX).top(deskY).w(DESK_W * px).h(DESK_H * px)
+          .children(pixels(DESK_CHASSIS, deskColors, px, "dk"))
+          .child(div().id("pip-screen").absolute().left(0).top(0).w(DESK_W * px).h(DESK_H * px)
+            .loop("opacity", { from: 0.4, to: 1, period: 680 })
+            .children(pixels(DESK_SCREEN, deskColors, px, "sc")))
+      );
+      if (typing) {
+        const pawY = this.baseY() + 6.5 * px;
+        children.push(
+          div().id("wpaw0").absolute().left(workX + 13 * px).top(pawY).w(2.5 * px).h(px)
+            .child(div().id("wpaw0-m").absolute().left(0).top(0).w(2.5 * px).h(px).bg(colors.b)
+              .loop("top", { from: 0, to: -px, period: 210 })),
+          div().id("wpaw1").absolute().left(workX + 15.5 * px).top(pawY).w(2 * px).h(px)
+            .child(div().id("wpaw1-m").absolute().left(0).top(0).w(2 * px).h(px).bg(colors.b)
+              .loop("top", { from: -px, to: 0, period: 270 }))
+        );
+      }
+    }
+
+    for (const p of this.sparks) {
+      children.push(div().id(`sp${p.id}`).absolute().w(p.size).h(p.size).bg(p.color)
+        .left(p.phase ? p.x2 : p.x).top(p.phase ? p.y2 : p.y).opacity(p.phase ? 0 : 0.95)
+        .transition("top", { duration: Math.round(p.ms), easing: "ease-out" })
+        .transition("left", { duration: Math.round(p.ms), easing: "ease-out" })
+        .transition("opacity", { duration: Math.round(p.ms * 0.7), delay: Math.round(p.ms * 0.3) }));
+    }
     for (const p of this.confetti) {
       children.push(div().id(`cf${p.id}`).absolute().w(3).h(3).bg(p.color)
         .left(p.phase ? p.x2 : p.x).top(p.phase ? p.y2 : p.y).opacity(p.phase ? 0 : 1)

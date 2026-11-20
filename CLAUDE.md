@@ -3406,7 +3406,7 @@ change). Nothing has to tell it anything:
 |---|---|
 | an agent is `blocked` | comes to the middle and knocks: paws on the glass, a rattle, a "Claude needs you!" sign in the theme's `blocked` colour, naming the space |
 | an agent is `done` | dances under bursts of confetti, with a "Claude's done!" sign in `done`'s colour |
-| any agent `working` | potters about |
+| any agent `working` | walks to a tiny pixel desk and types at a glowing laptop with rising sparks |
 | nothing going on | wanders, blinks, faces you |
 | you are away | naps, and says hello when you are back |
 
@@ -3457,7 +3457,7 @@ turns `done` into `idle` once you look at that agent, so looking is what ends th
   - Typing your password clears the idle marker but the guard is still held, so the hello
     waits for the unlock. Nothing needs replaying: Herdr keeps `blocked` and `done` until
     you act, so whatever an agent did while you were gone is still on show.
-- **`herdr-app do pip.demo-knock`** (`demo-party`, `demo-sleep`, `demo-off`) previews a
+- **`herdr-app do pip.demo-knock`** (`demo-party`, `demo-work`, `demo-sleep`, `demo-off`) previews a
   mood. Mod commands arrive through `nextCommand()`. The demo agents have no address, so a
   click pets.
 - **Testing:**
