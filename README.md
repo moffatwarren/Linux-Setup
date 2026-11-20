@@ -151,12 +151,16 @@ is done it dances under confetti until you look at that agent; while they work
 it gets to work, and every minute or so walks off to do something else: typing
 at a tiny laptop, reading a book, stacking a pyramid of blocks, hunting a bug
 across the grass, or thinking until a lightbulb goes on. It goes faster the more
-agents are working. Click it to jump to the agent that wants you, or just to pet it. It
+agents are working. When nothing is going on it wanders about, and now and then
+kicks a ball around, chases a butterfly, smells a flower, digs up a gem, or
+yawns and stretches. Click it to jump to the agent that wants you, or just to pet it. It
 naps while you are away (screen locked, or no keyboard or mouse for 5 minutes)
 and says hello when you are back. `herdr-app do pip.demo-knock` (or
 `demo-party`, `demo-work`, `demo-busy`, `demo-sleep`, `demo-off`) shows a mood
-without waiting for an agent, and `pip.work-read` (or `work-type`, `work-build`,
-`work-bugs`, `work-think`) picks what it does while working.
+without waiting for an agent (`demo-idle` for none at all); `pip.work-read` (or
+`work-type`, `work-build`, `work-bugs`, `work-think`) picks what it does while
+working, and `pip.idle-ball` (or `idle-butterfly`, `idle-flower`, `idle-dig`,
+`idle-yawn`) what it does idle.
 
 ## Layout
 

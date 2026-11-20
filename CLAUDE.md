@@ -3409,7 +3409,7 @@ change). Nothing has to tell it anything:
 | an agent is `blocked` | comes to the middle and knocks: paws on the glass, a rattle, a "Claude needs you!" sign in the theme's `blocked` colour, naming the space |
 | an agent is `done` | dances under bursts of confetti, with a "Claude's done!" sign in `done`'s colour |
 | any agent `working` | gets to work, and every 40-75 s walks off to do something else: types at a laptop, reads a book, stacks blocks, hunts a bug, or thinks until a lightbulb goes on (below) |
-| nothing going on | wanders, blinks, faces you |
+| nothing going on | wanders, blinks, faces you; every 20-45 s kicks a ball about, chases a butterfly, smells a flower, digs something up, or yawns and stretches (below) |
 | you are away | naps, and says hello when you are back |
 
 A click goes to the agent it is pointing at (`agent.focus`); otherwise it pets it. Herdr
@@ -3476,6 +3476,34 @@ turns `done` into `idle` once you look at that agent, so looking is what ends th
   dropped: a magnifying glass for the bug hunt, which cannot be drawn legibly at 4 px a
   pixel (it read as a tiny robot), and a bulb inside the thought cloud, which does not fit.
   Twinkles fade all the way to 0, since a yellow held at a fifth is khaki.
+- **Idle is wandering plus five pastimes** (`PASTIMES`, `startPastime`, `pastimeTick`).
+  `this.act` is `{ kind: "wander", until }` while it wanders, and every 20-45 s (10-25 s
+  for the first) it does one pastime start to finish, never the same twice running, then
+  goes back to wandering. Each is a few `step`s timed by `nextAt`, drawn by the same
+  `renderActivity` as the work activities.
+
+  | | |
+  |---|---|
+  | `ball` | rolls in from the far side and stops short of Pip; Pip kicks it away from itself, it bounces off the edge and back, again, and the last kick sends it out |
+  | `butterfly` | flits about above its head; Pip follows underneath with its eyes up, jumping at it now and then, until it flies off the top |
+  | `flower` | grows out of the grass beside it, opens, Pip smells it (hearts), it fades |
+  | `dig` | crouched and bobbing, dirt flying out behind; a hole, and a gem or a star rises out of it to over its head, paws up |
+  | `yawn` | eyes shut and mouth open, then a stretch |
+
+  Five things came out of watching them, each worth keeping:
+  - **The ball game is kick-away-and-rebound because the sidebar is too narrow for
+    anything that gets Pip round the ball.** At 207 px wide Pip is a quarter of the
+    width. Walking round to the far side went through the ball, and a leap over it
+    landed on it whenever the ball was near the edge, which is where it usually stops.
+  - **A `.loop()` cannot be a one-off arc.** It is not timed from when it starts: a
+    leap written as one loop over the walk hopped twice. Two `.transition()`s with a
+    timer between them (up, then down) did land in time, which is how to do one.
+  - **The ball stops short of Pip**, on the side it came in from. Rolled to the middle
+    of the grass, it stopped on top of Pip.
+  - **The butterfly stays above Pip's head**, with lower wings as well as upper ones:
+    lower, it sat on Pip's face, and two flat wings read as a propeller.
+  - **The flower is `.p.p.` / `ppypp` / `.ppp.`.** A plus shape on a stem read as a
+    grave marker, and its colour is never teal, beside a green stem.
 - **Away is the screen locked, or no input for 5 minutes.**
   - Idle is hypridle's second 300 s listener, which keeps `$XDG_RUNTIME_DIR/pip.idle`.
     It needs a deploy, which restarts hypridle. On Wayland nothing else can see global
@@ -3493,9 +3521,11 @@ turns `done` into `idle` once you look at that agent, so looking is what ends th
     waits for the unlock. Nothing needs replaying: Herdr keeps `blocked` and `done` until
     you act, so whatever an agent did while you were gone is still on show.
 - **`herdr-app do pip.demo-knock`** (`demo-party`, `demo-work`, `demo-busy`, `demo-sleep`,
-  `demo-off`) previews a mood; `demo-busy` is three agents working, for the pace.
-  `pip.work-type` (`work-read`, `work-build`, `work-bugs`, `work-think`) switches activity,
-  or remembers it until work starts, so it can be sent before `demo-work`. Mod commands
+  `demo-off`) previews a mood; `demo-busy` is three agents working, for the pace, and
+  `demo-idle` is none at all. `pip.work-type` (`work-read`, `work-build`, `work-bugs`,
+  `work-think`) switches activity, or remembers it until work starts, so it can be sent
+  before `demo-work`; `pip.idle-ball` (`idle-butterfly`, `idle-flower`, `idle-dig`,
+  `idle-yawn`) does the same for idle, before `demo-idle`. Mod commands
   arrive through `nextCommand()`. The demo agents have no address, so a click pets.
 - **Testing:**
   - `herdr-app check ~/.config/herdr-app/mods/pip` loads the mod and renders it once,
