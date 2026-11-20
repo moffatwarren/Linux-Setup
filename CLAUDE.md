@@ -3408,7 +3408,7 @@ change). Nothing has to tell it anything:
 |---|---|
 | an agent is `blocked` | comes to the middle and knocks: paws on the glass, a rattle, a "Claude needs you!" sign in the theme's `blocked` colour, naming the space |
 | an agent is `done` | dances under bursts of confetti, with a "Claude's done!" sign in `done`'s colour |
-| any agent `working` | walks to a tiny desk and types at a laptop, sparks rising off the screen; faster with more agents working, and every half-minute or so it looks round at you or stretches |
+| any agent `working` | gets to work, and every 40-75 s walks off to do something else: types at a laptop, reads a book, stacks blocks, hunts a bug, or thinks until a lightbulb goes on (below) |
 | nothing going on | wanders, blinks, faces you |
 | you are away | naps, and says hello when you are back |
 
@@ -3457,6 +3457,25 @@ turns `done` into `idle` once you look at that agent, so looking is what ends th
   stretch with its paws up) stop the sparks, since its paws are off the keys. The stretch
   arms are not used for the party dance: its wag puts the tail in the same column and the
   two make one long bar.
+- **Working is five activities, and it moves between them** (`ACTIVITIES`,
+  `startActivity`). Each lasts 40-75 s, never the same one twice running, and work always
+  opens at the laptop. Each has a sprite constant, a case in `workTick` (decisions) and one
+  in `renderActivity` (drawing), all placed from Pip's own `this.x`, so a resize cannot
+  leave a prop behind. A prop is drawn see-through from the moment Pip sets off and faded in
+  by the redraw that ends the walk.
+
+  | | |
+  |---|---|
+  | `type` | the laptop above; breaks only happen here |
+  | `read` | a book held up, cover out, as wide as Pip from its row 5 down, so only the top row of the eyes shows and they read as looking down. A page flicks over the top every 4-6 s and the eyes go back to the left |
+  | `build` | a 3-2-1 pyramid beside it, a block dropped in every 2-3 s with a hop; a cheer (the stretch pose) at the top, then it fades and starts again. A block never takes the colour of one it touches, or the two read as one shape |
+  | `bugs` | a ladybug comes in from the far side and wanders the grass; Pip creeps after it crouched (the sleep pose's shorter sprite, eyes open), always facing it, and pounces after 3-5 moves. Facing the way it walked looked like running away from a bug coming towards it |
+  | `think` | eyes up at a cloud with three twinkling dots, then a lightbulb over its head and a hop |
+
+  More agents working makes all of it faster (`pace()`). Two things were tried and
+  dropped: a magnifying glass for the bug hunt, which cannot be drawn legibly at 4 px a
+  pixel (it read as a tiny robot), and a bulb inside the thought cloud, which does not fit.
+  Twinkles fade all the way to 0, since a yellow held at a fifth is khaki.
 - **Away is the screen locked, or no input for 5 minutes.**
   - Idle is hypridle's second 300 s listener, which keeps `$XDG_RUNTIME_DIR/pip.idle`.
     It needs a deploy, which restarts hypridle. On Wayland nothing else can see global
@@ -3474,8 +3493,10 @@ turns `done` into `idle` once you look at that agent, so looking is what ends th
     waits for the unlock. Nothing needs replaying: Herdr keeps `blocked` and `done` until
     you act, so whatever an agent did while you were gone is still on show.
 - **`herdr-app do pip.demo-knock`** (`demo-party`, `demo-work`, `demo-busy`, `demo-sleep`,
-  `demo-off`) previews a mood; `demo-busy` is three agents working, for the typing pace. Mod commands arrive through `nextCommand()`. The demo agents have no address, so a
-  click pets.
+  `demo-off`) previews a mood; `demo-busy` is three agents working, for the pace.
+  `pip.work-type` (`work-read`, `work-build`, `work-bugs`, `work-think`) switches activity,
+  or remembers it until work starts, so it can be sent before `demo-work`. Mod commands
+  arrive through `nextCommand()`. The demo agents have no address, so a click pets.
 - **Testing:**
   - `herdr-app check ~/.config/herdr-app/mods/pip` loads the mod and renders it once,
     with no timers and no async.

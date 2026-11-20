@@ -2,16 +2,19 @@
 //
 //   an agent needs you     comes to the glass and knocks, saying who
 //   an agent is done       dances under confetti until you look at it
-//   anything working       types at a tiny laptop, sparks rising off the screen; faster
-//                          with more agents at it, and now and then it looks round at
-//                          you or stretches
+//   anything working       gets to work, and every minute or so walks off to do
+//                          something else: types at a tiny laptop (sparks off the
+//                          screen), reads a book, stacks a pyramid of blocks, stalks
+//                          and pounces on a bug, or thinks until a lightbulb goes on.
+//                          All of it goes faster with more agents at it.
 //   nothing going on       wanders, blinks, watches you
 //   you are away           naps (screen locked, or no input for 5 minutes),
 //                          and says hello when you are back
 //
 // Click it to go to the agent that wants you; otherwise clicking pets it.
 // `herdr-app do pip.demo-knock` (demo-party, demo-work, demo-busy, demo-sleep, demo-off)
-// shows a mood without waiting for an agent.
+// shows a mood without waiting for an agent, and `pip.work-read` (work-type,
+// work-build, work-bugs, work-think) picks what it does while working.
 //
 // Herdr's own agent status drives all of it (`agents()`; "done" turns "idle"
 // once you look), so nothing has to tell Pip anything. It is drawn from
@@ -63,6 +66,42 @@ const DESK_TUCK = 1;
 // The two typing paws, in Pip's own pixels: just above the keyboard row.
 const WORK_PAWS = [{ col: 13, row: 6, period: 220 }, { col: 15, row: 6, period: 280 }];
 
+// ---- the other things it does while agents work ------------------------------------
+// Every 40-75 s it walks somewhere else and does something different (`startActivity`).
+const ACTIVITIES = ["type", "read", "build", "bugs", "think"];
+// read: a book held up with its cover to you, Pip peeking over the top, a paw on each
+// side ('b'). 'k' cover, 'K' spine, 'g' the title. As wide as Pip and drawn from its
+// row 5 down, so only the top row of the eyes shows, which makes them look down at it.
+const BOOK = [
+  "..kkkkkkkkkk..",
+  ".kkkkkKKkkkkk.",
+  "bkggkkKKkkkkkb",
+  ".kkkkkKKkkkkk.",
+  ".kkkkkKKkkkkk.",
+];
+const BOOK_ROW = 5;
+// build: a 3-2-1 pyramid beside it, one block at a time, in the order of the list.
+// Units are blocks of BLOCK pixels; y counts up from the grass.
+const BLOCK = 3;
+const STACK = [[0, 0], [1, 0], [2, 0], [0.5, 1], [1.5, 1], [1, 2]];
+const STACK_W = 3 * BLOCK;
+// bugs: a ladybug on the grass, head to the right ('f' head and legs, 'e' spot).
+const BUG = [".rrr..", "rerrrf", ".f.f.."];
+const BUG_W = BUG[0].length;
+const BUG_H = BUG.length;
+// think: a cloud up and to the right of its head, with three dots twinkling in it,
+// until a lightbulb goes on over its head instead. 'q' fill, 'Q' edge.
+const CLOUD = [
+  "..QQQQQQ...",
+  ".QqqqqqqQQ.",
+  "QqqqqqqqqqQ",
+  "QqqqqqqqqqQ",
+  ".QqqqqqqqQ.",
+  "..QQQQQQQ..",
+];
+const CLOUD_COL = 14;   // the cloud's left edge, in Pip's pixels
+const BULB = [".yyy.", "yyyyy", "yyyyy", "yyyyy", ".yyy.", ".sss.", "..s.."];
+
 function sprite({ eyes = "open", mouth = "small", look = 0, facing = 1, wag = false, lying = false, arms = false }) {
   const g = BODY.map((r) => r.split(""));
   const hole = (r, c) => {
@@ -76,6 +115,7 @@ function sprite({ eyes = "open", mouth = "small", look = 0, facing = 1, wag = fa
     else if (eyes === "closed") { hole(er + 1, c - 1); hole(er + 1, c); hole(er + 1, c + 1); }
     else if (eyes === "happy") { hole(er, c); hole(er + 1, c - 1); hole(er + 1, c + 1); }
     else if (eyes === "wide") { hole(er - 1, c); hole(er, c); hole(er + 1, c); }
+    else if (eyes === "up") { hole(er - 1, c); hole(er, c); }
   }
   if (mouth === "small") { hole(mr, m0); hole(mr, m1); }
   else if (mouth === "smile") { hole(mr, m0 - 1); hole(mr, m1 + 1); hole(mr + 1, m0); hole(mr + 1, m1); }
@@ -137,6 +177,7 @@ export default class Pip extends View {
     this.breakUntil = 0;         // a pause from typing: glancing at you, or a stretch
     this.breakKind = null;
     this.nextBreak = 0;
+    this.act = null;             // what it is doing while agents work: { kind, until, ... }
     this.ids = 0;
     this.mode = null;
     this.away = false;
@@ -154,6 +195,11 @@ export default class Pip extends View {
         const c = await nextCommand();
         if (c.startsWith("demo-")) {
           this.demo = c === "demo-off" ? null : c.slice(5);
+          cx.notify();
+        } else if (c.startsWith("work-") && ACTIVITIES.includes(c.slice(5))) {
+          // `herdr-app do pip.work-read` etc.: that activity now, or as soon as work starts.
+          if (this.mode === "work") this.startActivity(Date.now(), c.slice(5));
+          else this.wantAct = c.slice(5);
           cx.notify();
         }
       }
@@ -259,22 +305,15 @@ export default class Pip extends View {
         this.turnAt = now + 1000;
       }
       dirty = true;
-    } else if (this.mode === "work" && now >= this.walkUntil) {
-      // Typing, with a break every half a minute or so: a look round at you, or a
-      // stretch with its paws in the air. No sparks while its paws are off the keys.
-      if (this.breakUntil && now >= this.breakUntil) {
-        this.breakUntil = 0;
-        this.nextBreak = now + rand(25000, 50000);
+    } else if (this.mode === "work" && this.act) {
+      const a = this.act;
+      const arrived = now >= this.walkUntil;
+      // Time for something else, once it is not mid-walk, mid-break or mid-pounce.
+      if (now >= a.until && arrived && !this.breakUntil && !a.pouncing) {
+        this.startActivity(now);
         dirty = true;
-      } else if (!this.breakUntil && now >= this.nextBreak) {
-        this.breakKind = Math.random() < 0.6 ? "glance" : "stretch";
-        this.breakUntil = now + (this.breakKind === "stretch" ? 1800 : rand(2200, 3500));
-        dirty = true;
-      }
-      if (!this.breakUntil && now >= this.sparkAt) {
-        this.spark(cx, now);
-        this.sparkAt = now + rand(900, 1500);
-        dirty = true;
+      } else if (arrived || a.kind === "bugs") {
+        dirty = this.workTick(cx, now, a) || dirty;
       }
     } else if (this.mode === "idle" && now >= this.nextMove && this.x !== null) {
       // Wander: walk somewhere else, or turn and stand.
@@ -320,6 +359,15 @@ export default class Pip extends View {
     cx.timer.after(40, (cx) => { fresh.forEach((p) => (p.phase = 1)); cx.notify(); });
   }
 
+  // One-shot particles that drift from (x, y) to (x2, y2) and fade: sparks off the
+  // laptop, a page turning, a squashed bug. Drawn where they start, then given their
+  // targets 40 ms later for .transition to carry them there.
+  puff(cx, now, list) {
+    const fresh = list.map((p) => ({ id: ++this.ids, born: now, phase: 0, w: 3, h: 3, ms: 1000, ...p }));
+    this.sparks.push(...fresh);
+    cx.timer.after(40, (cx) => { fresh.forEach((p) => (p.phase = 1)); cx.notify(); });
+  }
+
   spark(cx, now) {
     const t = theme();
     const px = this.px();
@@ -328,18 +376,203 @@ export default class Pip extends View {
     const screenX = this.deskX() + 7 * px;
     const screenY = this.deskY();
     const n = Math.random() < (this.working > 1 ? 0.7 : 0.4) ? 2 : 1;
-    const fresh = [];
-    for (let i = 0; i < n; i++) {
+    this.puff(cx, now, Array.from({ length: n }, () => {
       const x = screenX + rand(-px, px * 1.5);
       const y = screenY + rand(-px, px);
-      fresh.push({
-        id: ++this.ids, born: now, phase: 0, color: pick(colors),
-        x, y, x2: x + rand(-10, 10), y2: y - rand(22, 38),
-        size: Math.random() < 0.5 ? 3 : 2, ms: rand(850, 1250),
-      });
+      const size = Math.random() < 0.5 ? 3 : 2;
+      return { color: pick(colors), x, y, x2: x + rand(-10, 10), y2: y - rand(22, 38), w: size, h: size, ms: rand(850, 1250) };
+    }));
+  }
+
+  // ---- work: what it does while agents work ------------------------------------------
+
+  // Faster with more agents at it: 1, 2, 3 or more.
+  pace() { return this.working >= 3 ? 0.55 : this.working === 2 ? 0.75 : 1; }
+
+  walkTo(x, now, speed) {
+    const dist = Math.abs(x - this.x);
+    if (dist < 1) return;
+    this.facing = x > this.x ? 1 : -1;
+    this.walkMs = Math.max(300, (dist / speed) * 1000);
+    this.walkUntil = now + this.walkMs;
+    this.x = x;
+  }
+
+  // How far an activity reaches to the right of Pip's left edge, in its pixels.
+  span(kind) {
+    if (kind === "type") return SW - DESK_TUCK + DESK_W;
+    if (kind === "build") return SW + 1 + STACK_W;
+    if (kind === "think") return CLOUD_COL + CLOUD[0].length;
+    return SW;
+  }
+
+  // Where Pip stands for an activity: the desk is in the middle, anything else is
+  // anywhere that leaves room for its prop.
+  spotFor(kind) {
+    if (kind === "type") return this.workX();
+    return rand(0, Math.max(0, this.w - this.span(kind) * this.px()));
+  }
+
+  // Something new, never the same thing twice running, and a walk over to do it.
+  startActivity(now, kind = null) {
+    kind ??= pick(ACTIVITIES.filter((k) => k !== this.act?.kind));
+    const a = { kind, until: now + rand(40000, 75000), nextAt: now + rand(1500, 2500) };
+    if (kind === "type") { this.breakUntil = 0; this.nextBreak = now + rand(20000, 40000); this.sparkAt = 0; }
+    if (kind === "read") Object.assign(a, { look: -1, lookAt: 0 });
+    if (kind === "build") Object.assign(a, { blocks: [], cheerUntil: 0, clearAt: 0 });
+    if (kind === "bugs") Object.assign(a, { bug: null, moves: 0, pounceAfter: 0, pouncing: false });
+    if (kind === "think") Object.assign(a, { nextAt: now + rand(6000, 10000), ahaUntil: 0 });
+    this.act = a;
+    this.walkTo(this.spotFor(kind), now, 60);
+  }
+
+  // One tick of the current activity. Returns whether anything changed.
+  workTick(cx, now, a) {
+    const px = this.px();
+    const t = theme();
+    switch (a.kind) {
+      case "type": {
+        // A break every half a minute or so: a look round at you, or a stretch with its
+        // paws in the air. No sparks while its paws are off the keys.
+        let dirty = false;
+        if (this.breakUntil && now >= this.breakUntil) {
+          this.breakUntil = 0;
+          this.nextBreak = now + rand(25000, 50000);
+          dirty = true;
+        } else if (!this.breakUntil && now >= this.nextBreak) {
+          this.breakKind = Math.random() < 0.6 ? "glance" : "stretch";
+          this.breakUntil = now + (this.breakKind === "stretch" ? 1800 : rand(2200, 3500));
+          dirty = true;
+        }
+        if (!this.breakUntil && now >= this.sparkAt) {
+          this.spark(cx, now);
+          this.sparkAt = now + rand(900, 1500);
+          dirty = true;
+        }
+        return dirty;
+      }
+      case "read": {
+        // Turn the page: a sheet flicks over the top from the spine, and the eyes go
+        // back to the left; halfway down the page they have moved to the right.
+        if (now >= a.nextAt) {
+          const x = this.x + 6 * px;
+          const y = this.baseY() + 3 * px;
+          this.puff(cx, now, [{ color: t.foreground ?? "#cdd6f4", x, y, x2: x - 4 * px, y2: y - px, w: px, h: 2 * px, ms: 450 }]);
+          a.look = -1;
+          a.lookAt = now + rand(1800, 2600) * this.pace();
+          a.nextAt = now + rand(4000, 6500) * this.pace();
+          return true;
+        }
+        if (a.lookAt && now >= a.lookAt) { a.look = 1; a.lookAt = 0; return true; }
+        return false;
+      }
+      case "build": {
+        // One block at a time, a hop for each; a cheer at the top, then they fade and
+        // it starts again.
+        if (a.clearAt && now >= a.clearAt) { a.blocks = []; a.clearAt = 0; a.nextAt = now + 1200; return true; }
+        if (a.cheerUntil && now >= a.cheerUntil) {
+          a.cheerUntil = 0;
+          a.blocks.forEach((b) => (b.fading = true));
+          a.clearAt = now + 700;
+          return true;
+        }
+        if (a.cheerUntil || a.clearAt || now < a.nextAt) return false;
+        if (a.blocks.length === STACK.length) { a.cheerUntil = now + 1800; return true; }
+        // Never the colour of a block it touches, or the two read as one shape. Five
+        // colours and at most three neighbours always leave a choice; not Pip's pink.
+        const slot = a.blocks.length;
+        const [bx, by] = STACK[slot];
+        const near = a.blocks.filter((o) => Math.abs(STACK[o.slot][0] - bx) <= 1 && Math.abs(STACK[o.slot][1] - by) <= 1)
+          .map((o) => o.color);
+        const colors = unique([t.ansi1, t.ansi2, t.ansi3, t.ansi4, t.ansi6].filter(Boolean));
+        const free = colors.filter((c) => !near.includes(c));
+        const b = { id: ++this.ids, slot, color: pick(free.length ? free : colors), phase: 0, fading: false };
+        a.blocks.push(b);
+        cx.timer.after(40, (cx) => { b.phase = 1; cx.notify(); });
+        this.petUntil = Math.max(this.petUntil, now + 450);
+        a.nextAt = now + rand(2000, 3200) * this.pace();
+        return true;
+      }
+      case "bugs":
+        return this.huntTick(cx, now, a);
+      case "think": {
+        // Eyes up at the cloud for a while, then a lightbulb and a happy hop.
+        if (a.ahaUntil && now >= a.ahaUntil) { a.ahaUntil = 0; a.nextAt = now + rand(7000, 12000) * this.pace(); return true; }
+        if (!a.ahaUntil && now >= a.nextAt) {
+          a.ahaUntil = now + 2200;
+          this.petUntil = Math.max(this.petUntil, now + 600);
+          return true;
+        }
+        return false;
+      }
     }
-    this.sparks.push(...fresh);
-    cx.timer.after(40, (cx) => { fresh.forEach((p) => (p.phase = 1)); cx.notify(); });
+    return false;
+  }
+
+  // bugs: a ladybug comes in from the side and wanders the grass. Pip creeps after it,
+  // crouched, keeping beside it; after a few moves it pounces, and the bug is gone.
+  huntTick(cx, now, a) {
+    const px = this.px();
+    const sw = SW * px;
+    const bw = BUG_W * px;
+    if (a.pouncing) return false;
+    if (a.bug && a.bug.until && now >= a.bug.until) { a.bug.until = 0; return true; }   // stops scuttling
+    if (now < a.nextAt || now < this.walkUntil) return false;
+    if (!a.bug) {
+      // Comes in from the side Pip is further from.
+      const fromLeft = this.x > this.w / 2;
+      a.bug = { id: ++this.ids, x: fromLeft ? -bw - 2 : this.w + 2, dir: fromLeft ? 1 : -1, ms: 0, until: 0 };
+      a.moves = 0;
+      a.pounceAfter = 3 + Math.floor(Math.random() * 3);
+      a.nextAt = now + 100;
+      return true;
+    }
+    if (a.moves >= a.pounceAfter) {
+      // Land on it, then squash it once there.
+      const target = Math.min(Math.max(0, a.bug.x + bw / 2 - sw / 2), this.w - sw);
+      this.walkTo(target, now, 160);
+      const leap = Math.max(200, this.walkUntil - now);   // walkTo does nothing if already there
+      this.petUntil = now + leap + 350;
+      a.pouncing = true;
+      const bug = a.bug;
+      cx.timer.after(leap, (cx) => {
+        if (this.act !== a || a.bug !== bug) return;
+        this.squash(cx, Date.now(), a);
+        cx.notify();
+      });
+      return true;
+    }
+    // Scuttle somewhere along the grass, mostly onwards, and Pip follows.
+    const lo = 4, hi = this.w - bw - 4;
+    let nx = a.bug.x + (Math.random() < 0.75 ? a.bug.dir : -a.bug.dir) * rand(18, 46);
+    if (a.bug.x < lo || a.bug.x > hi) nx = a.bug.x < lo ? rand(lo + 20, lo + 60) : rand(hi - 60, hi - 20);
+    nx = Math.min(Math.max(lo, nx), hi);
+    a.bug.dir = nx >= a.bug.x ? 1 : -1;
+    a.bug.ms = Math.max(400, (Math.abs(nx - a.bug.x) / 32) * 1000 * this.pace());
+    a.bug.until = now + a.bug.ms;
+    a.bug.x = nx;
+    // Keep beside it, on whichever side it is already on.
+    const left = this.x + sw / 2 < nx + bw / 2;
+    const stalk = left ? nx - sw - px : nx + bw + px;
+    this.walkTo(Math.min(Math.max(0, stalk), this.w - sw), now, 32 / this.pace());
+    a.moves++;
+    a.nextAt = now + Math.max(a.bug.ms, this.walkMs) + rand(500, 1300);
+    return true;
+  }
+
+  squash(cx, now, a) {
+    const t = theme();
+    const px = this.px();
+    const x0 = a.bug.x + (BUG_W * px) / 2;
+    const y0 = this.ground() - 2 * px;
+    const colors = [t.ansi1, t.ansi3, t.foreground].filter(Boolean);
+    this.puff(cx, now, Array.from({ length: 10 }, () => ({
+      color: pick(colors), x: x0, y: y0, x2: x0 + rand(-22, 22), y2: y0 - rand(6, 26), w: 3, h: 3, ms: rand(600, 900),
+    })));
+    if (Math.random() < 0.5) this.say(pick(["got it!", "squashed!", "bug fixed!"]), null, null, 1500);
+    a.bug = null;
+    a.pouncing = false;
+    a.nextAt = now + rand(1500, 3000);
   }
 
   pet(cx, now) {
@@ -357,12 +590,114 @@ export default class Pip extends View {
   px() { return this.w < 120 ? 2 : 4; }
   ground() { return this.h - 9; }                   // the grass line
   baseY() { return this.ground() - SH * this.px(); } // the critter's top when standing
-  // Pip at the desk, the pair centred together.
+  // Pip at the desk, the pair centred together. The desk is placed from wherever Pip
+  // is, so a resize cannot leave the two apart.
   workX() { return Math.max(0, (this.w - (SW - DESK_TUCK + DESK_W) * this.px()) / 2); }
-  deskX() { return this.workX() + (SW - DESK_TUCK) * this.px(); }
+  deskX() { return this.x + (SW - DESK_TUCK) * this.px(); }
   deskY() { return this.baseY() + (SH - DESK_H) * this.px(); }
 
   // ---- render ------------------------------------------------------------------------
+
+  // The prop for what it is doing while agents work, placed from Pip's own x.
+  renderActivity(a, { t, now, px, walking, typing, colors }) {
+    const out = [];
+    const x = this.x;
+    const top = this.baseY();
+    // A prop is drawn at its spot from the moment Pip sets off, see-through, and the
+    // redraw that ends the walk fades it in: it appears as Pip gets there.
+    const prop = (id, left, y, w, h) => div().id(id).absolute().left(left).top(y).w(w).h(h)
+      .opacity(walking ? 0 : 1).transition("opacity", { duration: 250 });
+    // Twinkling all the way out: a yellow held at a fifth is khaki.
+    const dot = (id, left, y, size, color, period) => div().id(id).absolute().left(left).top(y).w(size).h(size).bg(color)
+      .loop("opacity", { from: 0, to: 1, period });
+
+    switch (a.kind) {
+      case "type": {
+        const deskColors = {
+          t: t.dim ?? "#7f849c",
+          d: t.muted ?? "#a6adc8",
+          k: t.ansi8 ?? t.dim ?? "#585b70",
+          g: t.working ?? t.ansi3 ?? "#f9e2af",
+        };
+        out.push(prop("pip-desk", this.deskX(), this.deskY(), DESK_W * px, DESK_H * px)
+          .children(pixels(DESK_CHASSIS, deskColors, px, "dk"))
+          .child(div().id("pip-screen").absolute().left(0).top(0).w(DESK_W * px).h(DESK_H * px)
+            // A shimmer, not a pulse: yellow dimmed much further on a dark sidebar
+            // is khaki, the trap the aquarium's far fish fell into.
+            .loop("opacity", { from: 0.8, to: 1, period: 1600 })
+            .children(pixels(DESK_SCREEN, deskColors, px, "sc"))));
+        if (typing) {
+          const pace = this.pace();
+          WORK_PAWS.forEach((p, i) => out.push(
+            div().id(`wpaw${i}`).absolute().left(x + p.col * px).top(top + p.row * px).w(px).h(px)
+              .child(div().id(`wpaw${i}-m`).absolute().left(0).top(0).w(px).h(px).bg(colors.b)
+                .loop("top", { from: i ? -px : 0, to: i ? 0 : -px, period: Math.round(p.period * pace) }))));
+        }
+        break;
+      }
+      case "read": {
+        const bookColors = {
+          k: t.accent ?? t.ansi4 ?? "#89b4fa",
+          K: t.ring ?? t.ansi12 ?? "#b4befe",
+          g: t.working ?? t.ansi3 ?? "#f9e2af",
+          b: colors.b,
+        };
+        out.push(prop("pip-book", x, top + BOOK_ROW * px, SW * px, BOOK.length * px)
+          .children(pixels(BOOK, bookColors, px, "bk")));
+        break;
+      }
+      case "build": {
+        const sx = x + (SW + 1) * px;
+        const unit = BLOCK * px;
+        for (const b of a.blocks) {
+          const [bx, by] = STACK[b.slot];
+          const y = this.ground() - (by + 1) * unit;
+          // Dropped in from above, onto its place in the pyramid.
+          out.push(div().id(`blk${b.id}`).absolute().left(sx + bx * unit).w(unit).h(unit).bg(b.color)
+            .top(b.phase ? y : y - 20).opacity(b.phase && !b.fading ? 1 : 0)
+            .transition("top", { duration: 300, easing: "ease-in" })
+            .transition("opacity", { duration: 300 }));
+        }
+        break;
+      }
+      case "bugs": {
+        const bug = a.bug;
+        if (!bug) break;
+        const rows = bug.dir > 0 ? BUG : BUG.map((r) => [...r].reverse().join(""));
+        const bugColors = { r: t.ansi1 ?? "#f38ba8", e: t.chrome ?? "#11111b", f: t.dim ?? "#7f849c" };
+        let legs = div().id(`bug${bug.id}-legs`).absolute().left(0).top(0).w(BUG_W * px).h(BUG_H * px)
+          .children(pixels(rows, bugColors, px, `bug${bug.id}`));
+        if (now < bug.until) legs = legs.loop("top", { from: 0, to: -1, period: 140 });   // scuttling
+        out.push(div().id(`bug${bug.id}`).absolute().left(bug.x).top(this.ground() - BUG_H * px).w(BUG_W * px).h(BUG_H * px)
+          .transition("left", { duration: Math.max(1, Math.round(bug.ms)), easing: "linear" })
+          .child(legs));
+        break;
+      }
+      case "think": {
+        const glow = t.working ?? t.ansi3 ?? "#f9e2af";
+        if (!a.ahaUntil) {
+          const edge = t.input ?? t.border ?? "#45475a";
+          const cloudColors = { q: t.raised ?? "#313244", Q: edge };
+          let cloud = prop("pip-cloud", x + CLOUD_COL * px, top - 11 * px, CLOUD[0].length * px, CLOUD.length * px)
+            .children(pixels(CLOUD, cloudColors, px, "cl"));
+          [900, 1150, 1400].forEach((period, i) =>
+            (cloud = cloud.child(dot(`cdot${i}`, (3 + 2 * i) * px, 3 * px, px, t.muted ?? "#a6adc8", period))));
+          out.push(
+            prop("pip-trail0", x + 12 * px, top - px, px, px).bg(edge),
+            prop("pip-trail1", x + 13 * px, top - 4 * px, 2 * px, 2 * px).bg(edge),
+            cloud);
+        } else {
+          // The idea: a lightbulb over its head, twinkling.
+          out.push(div().id("pip-bulb").absolute().left(x + 5 * px).top(top - 9 * px).w(5 * px).h(BULB.length * px)
+            .children(pixels(BULB, { y: glow, s: t.muted ?? "#a6adc8" }, px, "bl")));
+          [[3, -8, 500], [11, -9, 650], [2, -4, 580], [12, -5, 720]].forEach(([c, r, period], i) =>
+            out.push(dot(`twk${i}`, x + c * px, top + r * px, px, glow, period)));
+        }
+        break;
+      }
+    }
+    return out;
+  }
 
   render(cx) {
     const t = theme();
@@ -384,48 +719,56 @@ export default class Pip extends View {
     const mode = needing.length ? "knock" : done.length ? "party" : away ? "sleep" : this.working ? "work" : "idle";
     if (mode !== this.mode) {
       if (mode === "party") this.burstAt = 0;
-      if (mode === "work") {
-        this.sparkAt = 0;
-        this.walkUntil = 0;
-        this.breakUntil = 0;
-        this.nextBreak = now + rand(20000, 40000);
-      }
       if (mode === "idle") this.nextMove = now + rand(1500, 3500);
       this.mode = mode;
+      // Work starts at the laptop, the one you know (or what `work-<kind>` asked for);
+      // the tick moves it on from there.
+      this.act = null;
+      if (mode === "work") {
+        this.walkUntil = 0;
+        this.startActivity(now, this.wantAct ?? "type");
+        this.wantAct = null;
+      }
     }
 
-    // Knocking, dancing and working happen in the middle.
+    // Knocking and dancing happen in the middle.
     const center = Math.max(0, (this.w - sw) / 2);
-    const workX = this.workX();
     let x = this.x;
     let walkMs = this.walkMs;
     if (mode === "knock" || mode === "party") {
       walkMs = Math.max(300, (Math.abs(center - this.x) / 90) * 1000);
       x = this.x = center;
-    } else if (mode === "work" && Math.abs(workX - this.x) > 1) {
-      walkMs = Math.max(300, (Math.abs(workX - this.x) / 90) * 1000);
-      this.facing = workX >= this.x ? 1 : -1;
-      this.walkMs = walkMs;
-      this.walkUntil = now + walkMs;
-      x = this.x = workX;
     }
     const walking = now < this.walkUntil;
     const petting = now < this.petUntil;
-    const atDesk = mode === "work" && !walking;
-    // It has arrived, so it faces the desk from now on, and a pet or a break that
-    // lets go of the keys does not turn it back the way it walked in.
-    if (atDesk) this.facing = 1;
-    const onBreak = atDesk && now < this.breakUntil;
-    const stretching = onBreak && this.breakKind === "stretch";
-    const typing = atDesk && !onBreak && !petting;
+
+    // What it is doing, once it has got there.
+    const act = mode === "work" ? this.act : null;
+    const at = act && !walking ? act.kind : null;
+    // At the desk or the blocks it faces them from now on, so a pet or a break does
+    // not turn it back the way it walked in.
+    if (at === "type" || at === "build") this.facing = 1;
+    const onBreak = at === "type" && now < this.breakUntil;
+    const cheering = at === "build" && now < act.cheerUntil;
+    const stretching = (onBreak && this.breakKind === "stretch") || cheering;
+    const typing = at === "type" && !onBreak && !petting;
+    const reading = at === "read";
+    const stalking = act?.kind === "bugs" && Boolean(act.bug) && !act.pouncing;
+    const pondering = at === "think" && !act.ahaUntil;
+    // Stalking, it keeps its eyes on the bug, even when backing off from one coming
+    // its way (facing the way it walked read as running from it).
+    if (stalking) this.facing = act.bug.x + (BUG_W * px) / 2 >= this.x + sw / 2 ? 1 : -1;
 
     let face;
     if (mode === "sleep") face = { eyes: "closed", mouth: "none", lying: true };
     else if (mode === "knock") face = { eyes: "wide", mouth: "open" };
     else if (mode === "party" || petting) face = { eyes: "happy", mouth: "smile", wag: true };
     else if (stretching) face = { eyes: "happy", mouth: "smile", arms: true };
+    else if (stalking) face = { eyes: this.blink ? "blink" : "open", mouth: "small", lying: true };   // crouched
+    else if (pondering) face = { eyes: "up", mouth: "small" };
+    else if (reading) face = { eyes: this.blink ? "blink" : "open", mouth: "none" };
     else face = { eyes: this.blink ? "blink" : "open", mouth: typing ? "small" : "smile" };
-    const look = typing ? 1 : walking ? this.facing : 0;
+    const look = typing ? 1 : reading ? act.look : stalking || walking ? this.facing : 0;
     const grid = sprite({ ...face, look, facing: this.facing });
     const colors = { b: t.ansi5 ?? "#f5c2e7", c: t.ansi1 ?? "#f38ba8" };
 
@@ -469,34 +812,10 @@ export default class Pip extends View {
     }
     children.push(body);
 
-    if (mode === "work") {
-      const deskColors = {
-        t: t.dim ?? "#7f849c",
-        d: t.muted ?? "#a6adc8",
-        k: t.ansi8 ?? t.dim ?? "#585b70",
-        g: t.working ?? t.ansi3 ?? "#f9e2af",
-      };
-      children.push(
-        div().id("pip-desk").absolute().left(this.deskX()).top(this.deskY()).w(DESK_W * px).h(DESK_H * px)
-          .children(pixels(DESK_CHASSIS, deskColors, px, "dk"))
-          .child(div().id("pip-screen").absolute().left(0).top(0).w(DESK_W * px).h(DESK_H * px)
-            // A shimmer, not a pulse: yellow dimmed much further on a dark sidebar
-            // is khaki, the trap the aquarium's far fish fell into.
-            .loop("opacity", { from: 0.8, to: 1, period: 1600 })
-            .children(pixels(DESK_SCREEN, deskColors, px, "sc")))
-      );
-      if (typing) {
-        // Faster with more agents at it: 1, 2, 3 or more.
-        const pace = this.working >= 3 ? 0.55 : this.working === 2 ? 0.75 : 1;
-        WORK_PAWS.forEach((p, i) => children.push(
-          div().id(`wpaw${i}`).absolute().left(workX + p.col * px).top(this.baseY() + p.row * px).w(px).h(px)
-            .child(div().id(`wpaw${i}-m`).absolute().left(0).top(0).w(px).h(px).bg(colors.b)
-              .loop("top", { from: i ? -px : 0, to: i ? 0 : -px, period: Math.round(p.period * pace) }))));
-      }
-    }
+    if (act) children.push(...this.renderActivity(act, { t, now, px, walking, typing, colors }));
 
     for (const p of this.sparks) {
-      children.push(div().id(`sp${p.id}`).absolute().w(p.size).h(p.size).bg(p.color)
+      children.push(div().id(`sp${p.id}`).absolute().w(p.w).h(p.h).bg(p.color)
         .left(p.phase ? p.x2 : p.x).top(p.phase ? p.y2 : p.y).opacity(p.phase ? 0 : 0.95)
         .transition("top", { duration: Math.round(p.ms), easing: "ease-out" })
         .transition("left", { duration: Math.round(p.ms), easing: "ease-out" })
@@ -540,6 +859,12 @@ export default class Pip extends View {
         this.w = size.width;
         this.h = size.height;
         this.x = Math.min(this.x ?? 0, Math.max(0, this.w - SW * this.px()));
+        // A spot picked for the old width may not leave room for the prop any more
+        // (the first activity is picked before the first layout): walk to a new one.
+        const kind = this.act?.kind;
+        if (kind === "type" || (kind && kind !== "bugs" && this.x + this.span(kind) * this.px() > this.w)) {
+          this.walkTo(this.spotFor(kind), Date.now(), 60);
+        }
         cx.notify();
       })
       .on_click((_event, cx) => {
