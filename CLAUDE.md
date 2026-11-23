@@ -3449,6 +3449,13 @@ turns `done` into `idle` once you look at that agent, so looking is what ends th
   cheeks, `ansi2` grass), so it follows the theme and needs no image files. Each sprite row
   is drawn as runs of one colour, not one element per pixel. The face is carved in as
   holes, so the eyes show the sidebar behind it.
+- **It measures its block without Herdr's zoom.** `on_size_change` reports the size with
+  the zoom in it, and everything Pip places is zoomed again, so `main.js` divides by
+  `settings().zoom`. Without that, at 120% Pip stood below the block's bottom edge, cut
+  off with the grass. It was found on Windows, where a fresh Herdr started at 120%. Here
+  `settings.json` pins `zoom` at 1.0, which hid it; the zoom keys would have shown it
+  until the next deploy reset the zoom. The fix is verified on Windows at 100% and 120%,
+  not yet on this machine.
 - **All motion is native; the timers only decide.** `.loop()` does the hops, the knock
   rattle and the pulsing paws, `.frames()` the "z Z", and `.transition()` the walking and
   every one-shot effect. A confetti burst is drawn at its start and given its landing spot
@@ -3533,6 +3540,13 @@ turns `done` into `idle` once you look at that agent, so looking is what ends th
   - Typing your password clears the idle marker but the guard is still held, so the hello
     waits for the unlock. Nothing needs replaying: Herdr keeps `blocked` and `done` until
     you act, so whatever an agent did while you were gone is still on show.
+  - **On Windows** (`window().platform` is `"windows"`) there is no hypridle or `lock.sh`.
+    WarrenTool's tray app keeps `%LOCALAPPDATA%\WarrenTool\pip.away` while the PC is
+    locked, the screensaver is running or nothing has been touched for 5 minutes, and
+    clears it when it starts. `setupAway` watches that one file, with no guard. It is
+    found from `home()`, since Folder Redirection never moves `AppData\Local`, so nothing
+    is `exec`'d there. Verified with the marker made by hand: Pip napped within 2 s and
+    said "welcome back!" when it went.
 - **`herdr-app do pip.demo-knock`** (`demo-party`, `demo-work`, `demo-busy`, `demo-sleep`,
   `demo-off`) previews a mood; `demo-busy` is three agents working, for the pace, and
   `demo-idle` is none at all. `pip.work-type` (`work-read`, `work-build`, `work-bugs`,
@@ -3567,6 +3581,10 @@ turns `done` into `idle` once you look at that agent, so looking is what ends th
 - **It replaced a kitty-window version (`littlebuddy`)**, which needed its own Claude Code
   hooks to learn what Herdr already knows. That version was never committed or deployed,
   so nothing is in `ORPHANS` for it, and its hooks are gone from `~/.claude/settings.json`.
+- **The same three files ship in [WarrenTool](https://github.com/moffatwarren/WarrenTool)**
+  (`herdr-app/`), whose `install.bat` puts Pip into Herdr on Windows the way
+  `deploy_configs` and `use_herdr_pip_layout` do here. Keep them identical in both repos:
+  a change to `main.js` here goes there too, and the other way round.
 
 `vulkan-icd-loader` is in `PACMAN_PKGS` because the app `dlopen()`s `libvulkan.so.1`
 rather than linking it, so nothing depends on the loader for Herdr's sake (`ldd` lists

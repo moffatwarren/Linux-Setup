@@ -26,7 +26,7 @@
 
 import { View, div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { agents, run, theme, exec, readTextFile, nextCommand } from "herdr";
+import { agents, run, theme, settings, exec, readTextFile, nextCommand, home, window as appWindow } from "herdr";
 
 // ---- the sprite --------------------------------------------------------------
 // '.' empty, 'b' body, 'c' cheek / inner ear. The face is carved in as 'o'
@@ -240,16 +240,24 @@ export default class Pip extends View {
   // ---- away: screen locked, or no input for 5 minutes ----------------------------
 
   async setupAway(cx) {
-    try {
-      const r = await exec("sh", ["-c", 'printf "%s\\n%s" "$XDG_RUNTIME_DIR" "$WAYLAND_DISPLAY"']);
-      const [rt, wd] = r.stdout.split("\n");
-      if (!rt) return;
-      // hypridle.conf keeps this marker while you have not touched anything for 5 minutes.
-      // lock.sh holds an flock on the guard for the whole of a lock (its hyprlock
-      // fallback too); the kernel drops it if the script dies, so nothing goes stale.
-      this.watch = { idle: `${rt}/pip.idle`, guard: `${rt}/aquarium-lock-${wd || "wayland"}.guard`, key: null, keyAt: 0 };
-    } catch {
-      return;
+    if (appWindow().platform === "windows") {
+      // WarrenTool's tray app (WarrenTool repo, src\WarrenTool.cs: AwayMarker) keeps this
+      // marker while the PC is locked, the screensaver is running, or nothing has been
+      // touched for 5 minutes, and clears it when it starts. Folder Redirection never moves
+      // AppData\Local, so the profile is enough to find it with no program to start.
+      this.watch = { idle: `${home()}\\AppData\\Local\\WarrenTool\\pip.away`, guard: null };
+    } else {
+      try {
+        const r = await exec("sh", ["-c", 'printf "%s\\n%s" "$XDG_RUNTIME_DIR" "$WAYLAND_DISPLAY"']);
+        const [rt, wd] = r.stdout.split("\n");
+        if (!rt) return;
+        // hypridle.conf keeps this marker while you have not touched anything for 5 minutes.
+        // lock.sh holds an flock on the guard for the whole of a lock (its hyprlock
+        // fallback too); the kernel drops it if the script dies, so nothing goes stale.
+        this.watch = { idle: `${rt}/pip.idle`, guard: `${rt}/aquarium-lock-${wd || "wayland"}.guard`, key: null, keyAt: 0 };
+      } catch {
+        return;
+      }
     }
     cx.timer.every(2000, (cx) => cx.spawn(async (cx) => this.checkAway(cx)));
   }
@@ -279,7 +287,8 @@ export default class Pip extends View {
   async checkAway(cx) {
     let away;
     try {
-      away = (await readTextFile(this.watch.idle)) !== null || (await this.locked());
+      // On Windows the one marker covers the lock too: there is no guard.
+      away = (await readTextFile(this.watch.idle)) !== null || (this.watch.guard !== null && (await this.locked()));
     } catch {
       return;
     }
@@ -1180,8 +1189,11 @@ export default class Pip extends View {
 
     return div().id("pip").relative().size_full().overflow_hidden().cursor_pointer()
       .on_size_change((size, cx) => {
-        this.w = size.width;
-        this.h = size.height;
+        // The size comes with Herdr's zoom in it, and everything placed here is zoomed again:
+        // at 120% Pip stood below the block's bottom edge, cut off with the grass.
+        const zoom = Number(settings().zoom) || 1;
+        this.w = size.width / zoom;
+        this.h = size.height / zoom;
         this.x = Math.min(this.x ?? 0, Math.max(0, this.w - SW * this.px()));
         // A spot picked for the old width may not leave room for the prop any more
         // (the first activity is picked before the first layout): walk to a new one.
