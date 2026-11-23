@@ -723,11 +723,20 @@ claim to ask about a choice that no longer existed.
 `Pill.qml` is the shared rounded-module background, and `Theme.qml` is a `pragma Singleton`
 holding the Catppuccin Mocha palette.
 
-**The layout:** workspaces and media on the left; the clock alone in the middle; the
-status modules on the right. **The clock is the exact centre of the bar**, so it is
-anchored to `horizontalCenter` on its own rather than placed in a `Row`. The date and the
-weather used to sit beside it, and both moved into its drop-down — see **The clock menu**
-below.
+**The layout:** workspaces and media on the left; the clock in the middle, with the
+date (`Nov 23`) to its right; the status modules on the right. **The time is the exact
+centre of the bar**, so the clock is anchored to `horizontalCenter` on its own rather
+than placed in a `Row`. The weather used to sit beside it and moved into its drop-down —
+see **The clock menu** below.
+
+**The pill hugs the time and the date, and `Bar.qml` offsets it by `timeShift`** — half
+of the date plus its gap — so the time, not the pill, lands on the centre line. The
+earlier date beside the time centred the *group*, which put the time off-centre by half
+the date's width. Padding the pill out symmetrically would centre the time with no
+offset, but the open-menu highlight would then carry an empty date-sized stretch on the
+left. Measured on the 3440 px monitor: the time's ink centre is within a pixel of the
+bar's centre line. A weekday on the left was tried and dropped in favour of the date
+alone.
 
 **The media is on the left, not beside the clock, because its width is unbounded.** It
 was briefly to the right of the clock, when the weather sat on the clock's other side. A
@@ -742,9 +751,12 @@ so no other module is affected.
 
 **The clock is the one bold module.** The time is drawn bold at `fontSize + 2`, so
 `ClockPill` draws its own `Text` through `contentWidth` rather than a label, which is one
-regular font at one size. A module that draws its own content has to apply
-`contentOffset` itself, as that `Text` does — 0 today, since the uneven padding that lined
-the date up with the weather went with them.
+regular font at one size. The date is bold too, at `fontSize`, a step darker than the
+time (`Qt.darker(blue, 1.2)`), and it sits on the time's baseline because two sizes
+centred on each other leave the smaller text floating above the line. It reads the
+midnight-truncated `today`, so it changes once a day rather than once a second. A module that draws its own content has to apply `contentOffset` itself, as the
+time does — 0 today, since the uneven padding that lined the date up with the weather
+went with them.
 
 **`qs ipc call bar refresh` rebuilds every `Bar`**, and it is the only IPC target that
 does not belong to a module. `shell.qml` holds a `barsLoaded` flag that the `Variants`
@@ -982,11 +994,12 @@ menu it duplicates, and `AudioPill` tracked `Pipewire.defaultAudioSource` in its
 `PwObjectTracker` only for that panel — the label reads the sink alone, and `AudioService`
 already tracks every node the menu draws.
 
-**The clock menu.** `ClockMenu.qml` is the clock's **left-click dropdown**, and it is the only place the date
-and the weather appear. Both used to be on the bar beside the time — the date inside
-`ClockPill`, the weather as a `WeatherPill` with a forecast menu of its own and the
-calendar as the clock's menu — and both moved in here, so the bar carries the time alone
-and one click answers what day, what time and what weather. It is three `MenuCard`s in one
+**The clock menu.** `ClockMenu.qml` is the clock's **left-click dropdown**, and it is the only place the weather
+appears. The weather used to be on the bar beside the time, as a `WeatherPill` with a
+forecast menu of its own, and the calendar was the clock's menu. Both moved in here, so
+one click answers what day, what time and what weather. The date went with them for a
+while and is back on the bar now, to the right of the time (see **The layout**
+above). It is three `MenuCard`s in one
 `MenuPopup` frame:
 
 | card | holds |

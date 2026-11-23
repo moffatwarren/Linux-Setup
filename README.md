@@ -88,8 +88,8 @@ values into the repo — review with `git diff` before committing.
 `Hyprland_Setup/hypr/modules/binds.lua` is the full list, and `SUPER+K` puts a
 readable copy of it on screen.
 
-The middle of the bar is just the time. Clicking it opens one menu with the
-rest: where you are, the date and the time zone at the top, with a line across
+The middle of the bar is the time, with the date to its right. Clicking it
+opens one menu with the rest: where you are, the date and the time zone at the top, with a line across
 the day showing sunrise, sunset and where the sun is now; the month below that;
 and at the bottom the weather now, in large type, with the next 24 hours as a
 temperature line under it (the condition and time every three hours), then

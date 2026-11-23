@@ -62,11 +62,13 @@ PanelWindow {
     }
 
     // The clock is the exact centre of the bar, anchored on its own rather
-    // than placed in a Row, so nothing beside it can move it. The date and the
-    // weather that used to hang off its right edge are in its drop-down now.
+    // than placed in a Row, so nothing beside it can move it. The date hangs
+    // off the time's right edge, and the offset moves the pill right by half
+    // the date's width, so the time and not the pill lands on the centre line.
     ClockPill {
         id: clock
         anchors.horizontalCenter: parent.horizontalCenter
+        anchors.horizontalCenterOffset: clock.timeShift
         anchors.verticalCenter: parent.verticalCenter
     }
 
