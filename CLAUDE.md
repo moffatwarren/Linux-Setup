@@ -2975,7 +2975,7 @@ this module exists to make, so zero is a dimmed closed box rather than nothing a
 
 The lock is a pixel-art fish tank in Catppuccin Mocha pastels on pure black, **one tank
 across every monitor** (fish swim from screen to screen), visited now and then by a shark
-or a scuba diver, with a clock and password box on every screen. **hyprlock is no longer what locks this
+(sometimes a great white) or a scuba diver, with a clock and password box on every screen. **hyprlock is no longer what locks this
 machine, but it must stay installed**: it is the fallback, and its PAM service and its
 `hyprlock.conf` are both still in use (below).
 
@@ -2989,10 +2989,10 @@ is `Hyprland_Setup/aquarium/`, which `CONFIGS` deploys to `~/.config/aquarium`:
 | `Lock.qml` | the `WlSessionLock`, and quitting once unlocked |
 | `LockContext.qml` | what the monitors share: password, PAM, idle state |
 | `LockSurface.qml` | one monitor: its stretch of the tank, the clock, the password box |
-| `Ocean.qml` | the one simulation every monitor shares: fish, jellies, crabs, shark, diver |
+| `Ocean.qml` | the one simulation every monitor shares: fish, jellies, crabs, sharks, diver |
 | `Aquarium.qml` / `PixelSprite.qml` | one screen's view of the `Ocean`; neither knows about locking |
 | `make_sprites.py` | generates `sprites/`, stdlib only; the PNGs are committed |
-| `preview.qml`, `preview-all.qml` | the tank with no lock: a window (S shark, D diver), or every monitor for one visit |
+| `preview.qml`, `preview-all.qml` | the tank with no lock: a window (S shark, B great white, D diver), or every monitor for one visit |
 | `lock-test.qml`, `lock-test.sh` | the lock with a timer that unlocks it; see **Testing a lock** |
 
 It runs as its own `qs -p` instance, never inside the bar, so restarting the bar cannot
@@ -3112,7 +3112,13 @@ screen comes in on the next.
   negative x, a portrait 1440x2560, a 2560x1080 ultrawide and a 4K; a vertical stack; and
   800x600. Nothing left the water and the shark always left the tank. A vertical stack is
   treated as if its screens stood side by side, so the fish cross from the right edge of
-  one to the left edge of the next.
+  one to the left edge of the next. Re-run on the same layouts plus 3440x1440 when the
+  great white came in, with half the visits big: each shark stayed between the surface and
+  the sand, was the only one drawn, and always left.
+  **A fish's turn can carry it fully past the outer glass for a moment** (up to ~40 px),
+  because a turn is a glide down to a crawl. That is how it has always behaved: the same
+  harness on the code from before the great white counted as many such ticks, and none of
+  them were fish fleeing.
 - **The roster is dealt for the whole width.** The fish count is per 480 tank pixels of
   *all* the screens, and there are two tetra schools per screen's worth, so two screens
   carry as many fish between them as they did as two tanks.
@@ -3126,7 +3132,7 @@ screen comes in on the next.
   so `place()` reads sizes from `views[0]`'s Repeaters. This happens after the models are
   assigned, when every view has instantiated them.
 
-**The shark** (`shark_*.png`, 62x27, the largest sprite) is a visitor. Its first visit
+**The shark** (`shark_*.png`, 62x27) is a visitor. Its first visit
 comes 20–60 s in, and later ones every 60–150 s (`sharkFirst`/`sharkGap`). It comes in
 through the glass on one side and crosses every screen at 22 tank px/s, about 45 s across
 two 1440p monitors. It may double back once, and only while it is in the middle half, so
@@ -3140,6 +3146,32 @@ frightened fish darts: it flips on the spot instead of slowing down to turn, swi
 school, and the school re-forms once the panic (1.2–2.2 s after the last scare) wears off.
 Fish at the back of the tank flee too, but the shark does not hunt them. A fish cornered
 against the glass stays inside and escapes by depth. Jellyfish and crabs ignore the shark.
+
+**A quarter of the shark's visits are a great white instead** (`shark_big_*.png`, 104x49,
+the largest sprite; `bigSharkChance`). It is drawn at its own size in `make_sprites.py`,
+not scaled up from the shark: a 2x sprite would make every one of its pixels four of the
+tank's, which is the resampling the tank never does. It has a darker back than the shark
+(`overlay0` against `overlay2`), so the two cannot be taken for each other at a glance,
+and its white belly meets the back along a jagged line, with gills, a black eye and teeth.
+It is still the shark's visit, so the two never meet, the diver takes turns with it the
+same way, and it uses the same timings. Everything else is in `sharkKinds`, one row per
+shark:
+
+| | shark | great white |
+|---|---|---|
+| cruise / lunge (px/s) | 22 / 50 | 18 / 40 |
+| fear zone ahead / behind / above and below | 70 / 24 / 30 | 100 / 32 / 40 |
+| a frightened fish darts up or down | 24–44 | 32–56 |
+| hunts a fish up to … ahead, … off its line | 110 / 50 | 150 / 70 |
+| tail beat / bob | x1 / 1.5 px | x0.7 / 2 px |
+
+It takes about 50 s to cross the 3440x1440 monitor here. Over two simulated hours with
+the real timings on that monitor, 9–12 of about 50 shark visits were the great white:
+one every 10–13 minutes.
+
+`setSharkKind()` sets the size before `enterShark()` places anything, since where it
+starts outside the glass depends on its width. `Aquarium.qml` has one sprite per shark and
+hides the one not in use, as it does for the diver's poses.
 
 **The diver** is the other visitor. Its first visit comes 45–120 s in, and later ones
 every 150–300 s (`diverFirst`/`diverGap`). It has two poses: `diver_rise_*` (21x32,
@@ -3173,10 +3205,12 @@ gap came back every time before the other got in: the first version gave one 17 
 and the other none in a 22-minute run. Over two simulated hours with the real timings:
 47 shark visits, 23 diver visits, never both at once.
 
-To see them: `qs -p …/preview.qml` and press **S** or **D**. `preview-all.qml` brings the
-shark in after 3–5 s and quits after a minute; with `AQUARIUM_VISITOR=diver` it brings
-the diver instead and quits after 100 s. `lock-test.qml` has
-`qs ipc -p …/lock-test.qml call locktest shark` (or `diver`).
+To see them: `qs -p …/preview.qml` and press **S**, **B** (the great white) or **D**.
+Neither preview leaves the shark to chance: S is always the shark and B the great white.
+`preview-all.qml` brings the shark in after 3–5 s and quits after a minute; with
+`AQUARIUM_VISITOR=bigshark` it brings the great white and quits after 90 s, and with
+`AQUARIUM_VISITOR=diver` the diver, quitting after 100 s. `lock-test.qml` has
+`qs ipc -p …/lock-test.qml call locktest shark` (or `bigshark`, or `diver`).
 
 Idle: 10 s after the last key or mouse movement the clock and box fade and the cursor hides,
 and a half-typed password is cleared. `SystemClock` ticks every second though the display

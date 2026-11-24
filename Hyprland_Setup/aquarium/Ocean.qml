@@ -28,8 +28,22 @@ Item {
     // How long, in seconds, before the shark first shows up, and between its visits.
     property var sharkFirst: [20, 60]
     property var sharkGap: [60, 150]
-    readonly property real sharkCruise: 22
-    readonly property real sharkLunge: 50
+
+    // How often a visit is the great white rather than the usual shark. It is a shark's
+    // visit either way, so the two never meet, and the diver takes turns with both.
+    property real bigSharkChance: 0.25
+
+    // The two sharks. Speeds are tank pixels a second. The fear zone (scare) reaches
+    // `ahead` in front of the shark, `behind` it and `beside` above and below, and a fish
+    // in it darts `escape` up or down; preyFor looks `reach` ahead of the snout and
+    // `spread` either side of its line. The great white is twice the size, so all of that
+    // is wider, and it is slower in the water, with a slower beat of its tail.
+    readonly property var sharkKinds: ({
+        small: { cruise: 22, lunge: 50, ahead: 70, behind: 24, beside: 30, escape: [24, 44],
+                 reach: 110, spread: 50, beat: 1, bob: 1.5 },
+        big: { cruise: 18, lunge: 40, ahead: 100, behind: 32, beside: 40, escape: [32, 56],
+               reach: 150, spread: 70, beat: 0.7, bob: 2 },
+    })
 
     // The same for the diver. The two visitors take turns: neither comes in while the
     // other is in the water, and each leaves the other a quiet spell after it goes.
@@ -56,9 +70,12 @@ Item {
     property var fish: []
     property var jellies: []
     property var crabs: []
+    // `big` and `kind` say which shark this visit is, and w and h are its size, set on the
+    // way in from the two measured sprites. `want` is a preview asking for one of them.
     property var shark: ({ active: false, wait: 0, x: 0, y: 0, ty: 0, dir: 1, v: 0, burst: 0,
                            rest: 0, timer: 0, turns: 0, turning: false, phase: 0, frame: 0,
-                           drawY: 0, w: 0, h: 0 })
+                           drawY: 0, w: 0, h: 0, big: false, kind: null, want: "",
+                           smallW: 0, smallH: 0, bigW: 0, bigH: 0 })
     // The diver is tracked by its centre, because its two poses are different shapes:
     // x, y, w and h are the current pose's box, worked out from it each tick.
     property var diver: ({ active: false, wait: 0, mode: "", pose: "rise", cx: 0, cy: 0,
@@ -244,9 +261,13 @@ Item {
         for (let i = 0; i < crabs.length; i++)
             crabs[i].w = view.crabItem(i).width;
 
-        shark.w = view.sharkItem().width;
-        shark.h = view.sharkItem().height;
+        shark.smallW = view.sharkItem(false).width;
+        shark.smallH = view.sharkItem(false).height;
+        shark.bigW = view.sharkItem(true).width;
+        shark.bigH = view.sharkItem(true).height;
+        setSharkKind(shark, false);
         shark.active = false;
+        shark.want = "";
         shark.wait = rand(sharkFirst[0], sharkFirst[1]);
 
         diver.swimW = view.diverItem("swim").width;
@@ -280,10 +301,13 @@ Item {
         }
     }
 
-    // Brings a visitor in now, or as soon as the other one has gone. For the previews.
-    function summonShark() {
-        if (built && !shark.active)
+    // Brings a visitor in now, or as soon as the other one has gone. For the previews,
+    // which ask for one shark or the other rather than leaving it to chance.
+    function summonShark(big) {
+        if (built && !shark.active) {
             shark.wait = 0;
+            shark.want = big ? "big" : "small";
+        }
     }
     function summonDiver() {
         if (built && !diver.active)
@@ -338,13 +362,13 @@ Item {
     // away. The zone reaches much further in front of the shark than behind it, so fish
     // scatter ahead of it and close up again in its wake.
     function scare(f) {
-        const s = shark;
+        const s = shark, k = s.kind;
         if (!s.active)
             return;
         const dx = f.x + f.w / 2 - (s.x + s.w / 2);
         const dy = f.y + f.h / 2 - (s.y + s.h / 2);
-        const rx = s.w / 2 + (Math.sign(dx) === s.dir ? 70 : 24);
-        const ry = s.h / 2 + 30;
+        const rx = s.w / 2 + (Math.sign(dx) === s.dir ? k.ahead : k.behind);
+        const ry = s.h / 2 + k.beside;
         if ((dx * dx) / (rx * rx) + (dy * dy) / (ry * ry) > 1)
             return;
 
@@ -354,7 +378,8 @@ Item {
         if (f.panic <= 0 || away !== f.fleeDir || up !== f.fleeUp) {
             f.fleeDir = away;
             f.fleeUp = up;
-            f.ty = clamp(f.y + (up ? -1 : 1) * rand(24, 44), 8, Math.max(8, floorTop - f.h));
+            f.ty = clamp(f.y + (up ? -1 : 1) * rand(k.escape[0], k.escape[1]), 8,
+                         Math.max(8, floorTop - f.h));
         }
         f.panic = rand(1.2, 2.2);
     }
@@ -456,18 +481,29 @@ Item {
     // It is a visitor, not a resident: it waits off to one side, cruises in through the
     // glass, crosses the whole width of every screen, and leaves by the far side. It
     // never catches anything. It does drift towards the nearest fish ahead and now and
-    // then lunges, which is what sends them scattering.
+    // then lunges, which is what sends them scattering. Now and then the visit is a great
+    // white instead (sharkKinds.big), which does all the same things on a bigger scale.
 
     function sharkTop() { return 16; }
     function sharkBottom() { return Math.max(16, floorTop - shark.h - 4); }
 
+    function setSharkKind(s, big) {
+        s.big = big;
+        s.kind = big ? sharkKinds.big : sharkKinds.small;
+        s.w = big ? s.bigW : s.smallW;
+        s.h = big ? s.bigH : s.smallH;
+    }
+
     function enterShark(s) {
+        // Decided before anything is placed, since where it starts depends on its size.
+        setSharkKind(s, s.want ? s.want === "big" : Math.random() < bigSharkChance);
+        s.want = "";
         s.active = true;
         s.dir = Math.random() < 0.5 ? 1 : -1;
         s.x = s.dir > 0 ? -s.w - 4 : worldWidth + 4;
         s.y = rand(sharkTop(), sharkBottom());
         s.ty = s.y;
-        s.v = sharkCruise;
+        s.v = s.kind.cruise;
         s.burst = 0;
         s.rest = rand(2, 5);
         s.timer = rand(3, 7);
@@ -487,7 +523,7 @@ Item {
                 continue;
             const ahead = (f.x + f.w / 2 - snout) * s.dir;
             const off = Math.abs(f.y + f.h / 2 - mid);
-            if (ahead < 0 || ahead > 110 || off > 50)
+            if (ahead < 0 || ahead > s.kind.reach || off > s.kind.spread)
                 continue;
             if (ahead + off * 2 < bestScore) {
                 bestScore = ahead + off * 2;
@@ -530,7 +566,7 @@ Item {
         s.rest -= dt;
 
         // A turn is a long glide down to a crawl and a flip; a fish's stops dead.
-        const target = s.turning ? 0 : s.burst > 0 ? sharkLunge : sharkCruise;
+        const target = s.turning ? 0 : s.burst > 0 ? s.kind.lunge : s.kind.cruise;
         s.v += (target - s.v) * (s.burst > 0 ? 0.25 : 0.05);
         if (s.turning && s.v < 6) {
             s.dir = -s.dir;
@@ -539,9 +575,9 @@ Item {
         s.x += s.dir * s.v * dt;
         s.y += (s.ty - s.y) * (s.burst > 0 ? 0.05 : 0.02);
 
-        s.phase += dt * (1 + s.v * 0.12);
+        s.phase += dt * (1 + s.v * 0.12) * s.kind.beat;
         s.frame = [0, 1, 0, 2][Math.floor(s.phase) % 4];
-        s.drawY = s.y + Math.sin(clock * 0.7) * 1.5;
+        s.drawY = s.y + Math.sin(clock * 0.7) * s.kind.bob;
 
         if ((s.dir > 0 && s.x > worldWidth + 8) || (s.dir < 0 && s.x < -s.w - 8))
             leave(s, sharkGap, diver);

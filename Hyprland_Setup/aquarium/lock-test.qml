@@ -36,7 +36,11 @@ Scope {
 
         // The visitors' first visits are a minute or two away; these bring one in now.
         function shark(): void {
-            lock.ocean.summonShark();
+            lock.ocean.summonShark(false);
+        }
+
+        function bigshark(): void {
+            lock.ocean.summonShark(true);
         }
 
         function diver(): void {

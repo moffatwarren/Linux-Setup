@@ -61,7 +61,7 @@ Item {
     }
     function jellyItem(i) { return jellyView.itemAt(i); }
     function crabItem(i) { return crabView.itemAt(i); }
-    function sharkItem() { return sharkSprite; }
+    function sharkItem(big) { return big ? bigSharkSprite : sharkSprite; }
     function diverItem(pose) { return pose === "swim" ? diverSwim : diverRise; }
 
     function build() {
@@ -178,12 +178,15 @@ Item {
             if (item) show(ocean.crabs[i], item, tankHeight - 17 - item.height);
         }
 
+        // One sprite per shark, as for the diver's poses; only this visit's is shown.
         const s = ocean.shark;
+        const shark = sharkItem(s.big);
+        sharkItem(!s.big).visible = false;
         if (s.active) {
-            show(s, sharkSprite, Math.round(s.drawY * yScale));
-            sharkSprite.flip = s.dir < 0;
+            show(s, shark, Math.round(s.drawY * yScale));
+            shark.flip = s.dir < 0;
         } else {
-            sharkSprite.visible = false;
+            shark.visible = false;
         }
 
         // One sprite per pose; only the one it is in is shown.
@@ -364,6 +367,12 @@ Item {
         PixelSprite {
             id: sharkSprite
             name: "shark"
+            frames: 3
+            visible: false
+        }
+        PixelSprite {
+            id: bigSharkSprite
+            name: "shark_big"
             frames: 3
             visible: false
         }
