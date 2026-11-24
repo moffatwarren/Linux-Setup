@@ -135,7 +135,13 @@ nvidia_stats() {
     [ -n "$nv_name" ] && add_str gpu_name "$nv_name"
 
     [[ $nv_busy =~ ^[0-9]+$ ]] && add gpu_pct "$nv_busy"
-    [[ $nv_temp =~ ^[0-9]+$ ]] && [ "$nv_temp" -gt 0 ] && add gpu_temp "$((nv_temp * 1000))"
+    # Degrees to millidegrees. Driver 615 printed a whole number; 620 prints a
+    # fraction (31.79), which a whole-number pattern silently dropped.
+    if [[ $nv_temp =~ ^([0-9]+)(\.([0-9]+))?$ ]]; then
+        frac="${BASH_REMATCH[3]}000"
+        nv_temp=$(( BASH_REMATCH[1] * 1000 + 10#${frac:0:3} ))
+        [ "$nv_temp" -gt 0 ] && add gpu_temp "$nv_temp"
+    fi
     if [[ $nv_vused =~ ^[0-9]+$ ]] && [[ $nv_vtotal =~ ^[0-9]+$ ]] && [ "$nv_vtotal" -gt 0 ]; then
         add vram_used "$((nv_vused * 1024 * 1024))"
         add vram_total "$((nv_vtotal * 1024 * 1024))"

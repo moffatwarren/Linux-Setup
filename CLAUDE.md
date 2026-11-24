@@ -410,14 +410,20 @@ content, and no other fullscreen app was tested.
 
 The cost is that a fullscreen HDR game no longer switches the monitor to HDR by itself.
 
-### NVIDIA 620 breaks every login, and the driver is held back
+### NVIDIA 620.70.06 broke every login, and 620.73.04 does not
 
 The 2026-11-11 update (NVIDIA 615.78.08 → 620.70.06, kernel 7.3.1 → 7.3.3, Hyprland
 0.57.1 → 0.57.2) made every login a frozen black screen with an oversized cursor. No
 config change fixed it. The machine was recovered by booting the pre-update snapshot,
 and its NVIDIA card was then replaced with an AMD one (see **GPU drivers follow the
-hardware**). On an NVIDIA machine the fix is to **stay on driver 615**. Nothing in this
-repo works around 620.
+hardware**). Nothing in this repo works around 620.
+
+**The card went back in on 2026-11-24 and 620.73.04 logs in fine.** `setup_gpu_drivers`
+installed the `nvidia-open-dkms` profile, which brought driver 620.73.04 with kernel
+7.3.5, Hyprland still 0.57.2. A real SDDM login came up first time, and the kernel
+logged no flip timeout, no `-22` and no `nv_flip` warning. The hold had already been
+released by the AMD swap, and none is in place now. The rest of this section is kept
+for the next driver that brings the bug back.
 
 **Driver 620 loses page-flip events, and a bare config reproduces it.** A minimal config
 (one catch-all monitor rule and a background colour) failed the same way, so nothing in
@@ -458,8 +464,8 @@ then hands it back. On the default atomic path it showed exactly the failure a r
 did. On the legacy path it passed while a real login failed. So a pass from a TTY means
 "not obviously broken", and only an SDDM login confirms a fix.
 
-**The hold is `IgnorePkg` in `/etc/pacman.conf`**, which this repo does not deploy, so
-it is per machine. It has to include the kernel, because each NVIDIA module package is
+**If a hold is needed again, it is `IgnorePkg` in `/etc/pacman.conf`**, which this repo
+does not deploy, so it is per machine. It has to include the kernel, because each NVIDIA module package is
 built for one exact kernel, and the module for 7.3.3 is 620:
 
 ```
@@ -474,8 +480,8 @@ driver, so on unchanged NVIDIA hardware it never runs `chwd -i`. Once no NVIDIA 
 driver is left, it takes the twelve names out of `IgnorePkg` itself (see **GPU drivers
 follow the hardware**).
 
-**Retry once a driver newer than 620.70.06 is released.** Remove the line, update, and log
-in. If the screen goes black, switch to a TTY with `Ctrl+Alt+F3` instead of rebooting:
+**The retry is how a hold comes off, and 620.73.04 passed it.** Remove the line, update,
+and log in. If the screen goes black, switch to a TTY with `Ctrl+Alt+F3` instead of rebooting:
 Hyprland's log is in `$XDG_RUNTIME_DIR/hypr/*/hyprland.log`, and a reboot wipes it.
 `journalctl -k -b -1` survives a reboot, and its flip-timeout lines are enough to show
 that the same bug is back.
@@ -492,10 +498,12 @@ that the same bug is back.
 - **`/home` is its own subvolume (`@home`), so a rollback leaves it alone.** This repo and
   `~/.config` keep whatever was deployed before the rollback.
 
-**Never settled:** whether driver 620 or Hyprland 0.57.2 was the cause. The card was
-swapped for an AMD one before 0.57.2 was tried on driver 615. 0.57.2 runs fine on AMD,
-which says nothing about NVIDIA, so the hold stays written up here for the next NVIDIA
-machine.
+**Hyprland 0.57.2 was not the cause on its own.** The same 0.57.2 build fails on
+620.70.06 with kernel 7.3.3 and works on 620.73.04 with kernel 7.3.5. The driver and the
+kernel cannot be told apart from here, because each NVIDIA module package is built for
+one exact kernel and they update together. The working boot still logs one `Infoframe
+changed on CRTC 0 (hdr=1 …)` line, 6 s after the driver loads, and nothing after it. That
+line was always a symptom, as the HDR workaround above showed.
 
 ### `SUPER+CTRL+Z` swaps the two monitors left-to-right
 
@@ -1553,9 +1561,12 @@ Two things that make that rule work, both of which cost a wrong attempt first:
   `HD-Audio Generic` and `device.name` carries the slot
   (`alsa_card.pci-0000_07_00.1`) — a value true of one machine, which is what **Nothing
   is machine-specific any more** exists to keep out of a committed file. The pattern
-  `~.*HDMI.*` over the product name picks out GPU HDMI audio on AMD, Intel and NVIDIA
-  alike and cannot reach an analog card; on a machine with no such device it matches
-  nothing and does nothing.
+  `~.*HDMI.*` over the product name picks out AMD's GPU HDMI audio and cannot reach an
+  analog card; on a machine with no such device it matches nothing and does nothing.
+  **It does not match NVIDIA's, and does not need to.** The RTX 5070 Ti's audio function
+  is `GB203 High Definition Audio Controller`, and the device carries no
+  `api.alsa.use-ucm` (checked with `pw-dump`, 2026-11-24). That card already comes up on
+  ACP, as one `hdmi-stereo` sink. Intel's has not been checked.
 
 `reload_session` restarts wireplumber for the same reason it restarts the bar and
 hypridle: the `.conf.d` is read once at startup, so without it a changed rule waits for
@@ -4071,7 +4082,39 @@ modules in. The reboot after it:
 - had the bar's `system-stats.sh` read the AMD card, not the iGPU: `Navi 48 [Radeon RX
   9070/9070 XT/9070 GRE]`, with its load, VRAM, temperature and power.
 
-**Not yet verified:** suspend and resume on the AMD card.
+**Verified the other way too** (2026-11-24: the AMD card out, the RTX 5070 Ti back in):
+
+- `chwd -i nvidia-open-dkms` installed driver 620.73.04 and the module packages for both
+  kernels (`linux-cachyos-nvidia-open`, `linux-cachyos-lts-nvidia-open`), with
+  `libva-nvidia-driver` and `egl-wayland`. Nothing held it back: the AMD swap had released
+  the hold. See **NVIDIA 620.70.06 broke every login** for why that was fine this time.
+- `chwd -r amd` removed six packages, and `gpu_remove` put three back:
+  `linux-firmware-amdgpu` (required by `linux-firmware`, found by the dry run),
+  `gst-plugin-va` (listed by the Intel profile) and `cachyos-drm-awaiter` (listed by the
+  NVIDIA profile).
+- The NVIDIA profile wrote only `10-chwd-kms.conf`, which takes the `kms` hook out. It no
+  longer writes the `10-chwd.conf` that forced the nvidia modules into the initramfs last
+  time.
+- Every installed package's dependencies are satisfied (the same `pacman -T` check), and
+  `--gpu-check` afterwards printed "drivers match the hardware".
+
+The first boot after it loaded nvidia 620.73.04, with `modeset` and `fbdev` both `Y`, and
+loaded no nouveau. An SDDM login brought Hyprland 0.57.2 up on DP-3 at 3440x1440, 160 Hz.
+`env.lua` set `LIBVA_DRIVER_NAME` and `__GLX_VENDOR_LIBRARY_NAME`. Look for them in a
+child's environment, such as quickshell's. **Hyprland's own `/proc/<pid>/environ` never
+shows them**, because it holds the environment Hyprland was started with, before
+`hl.env` ran. Brave's GPU process loaded `nvidia_drv_video.so`.
+
+One regression, fixed: `nvidia-smi` on 620 prints `temperature.gpu` with a fraction
+(`31.79`). `system-stats.sh` accepted whole numbers only, so the power-profile menu
+silently lost its GPU temperature row.
+
+**Not yet verified:** suspend and resume on driver 620.73.04. `nvidia-suspend`,
+`nvidia-resume` and `nvidia-hibernate` are all disabled, and `/proc/driver/nvidia/params`
+reports `UseKernelSuspendNotifiers: 1`, which hands suspend to the kernel's own notifiers
+instead of those units. Do not enable the units on the strength of "disabled" alone. A
+real suspend through `lock.sh` settles it. Suspend on the AMD card was never verified
+before it came out.
 
 ## Services (`enable_services`)
 
