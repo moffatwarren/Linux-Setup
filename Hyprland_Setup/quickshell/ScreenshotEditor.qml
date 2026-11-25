@@ -32,6 +32,13 @@ import QtQuick
 // tint -- see drawOp), which an empty `live` layer cannot show. So its preview
 // copies `paper` once per stroke and blends onto that copy, and what is shown
 // while dragging is what gets committed.
+//
+// Zoom (the wheel, on the pointer) enlarges the capture inside the same stage
+// rather than growing the window, from the whole shot up to 1600%, by whole
+// steps above 100% and sampled nearest-neighbour there, so every pixel of the
+// capture is an even square. A right-drag or the floating scroll bars move it
+// about. Zoomed in, Copy takes only what the stage shows, at the zoom it is
+// shown at -- see viewCrop(). The same feature as WarrenTool's editor.
 PanelWindow {
     id: root
 
@@ -63,6 +70,36 @@ PanelWindow {
     // "copy" / "save" while an export waits for `paper` to finish painting.
     property string pendingExport: ""
 
+    // Zoom, in screen pixels per pixel of the capture, from `fit` (the whole
+    // shot) up to 16. Above 1 the steps are whole numbers, so every pixel
+    // shows as an even square: at 1.5 some would be one screen pixel wide and
+    // some two. Logical pixels, strictly -- on a fractionally scaled monitor
+    // the squares would not come out even, and every monitor here is scale 1.
+    readonly property var zoomSteps: [0.25, 1 / 3, 0.5, 2 / 3, 1, 2, 3, 4, 6, 8, 12, 16]
+    readonly property real maxZoom: 16
+    // 0 is "fit", which then follows `fit` if the capture or the screen changes.
+    property real zoomSet: 0
+    readonly property real zoom: root.zoomSet > 0
+                                 ? Math.max(root.fit, Math.min(root.maxZoom, root.zoomSet))
+                                 : root.fit
+    readonly property bool zoomed: root.zoom > root.fit
+
+    // How far into the enlarged capture the stage's top-left corner is, in
+    // screen pixels. Whole pixels, or the squares would not land on the
+    // screen's evenly. panX/panY are what was asked for; viewX/viewY that,
+    // clamped to the capture at the current zoom, which is what is drawn.
+    property real panX: 0
+    property real panY: 0
+    readonly property int maxPanX: Math.max(0, Math.floor(root.imgW * root.zoom - stage.width))
+    readonly property int maxPanY: Math.max(0, Math.floor(root.imgH * root.zoom - stage.height))
+    readonly property int viewX: Math.max(0, Math.min(root.maxPanX, root.panX))
+    readonly property int viewY: Math.max(0, Math.min(root.maxPanY, root.panY))
+    // Right-dragging the capture around.
+    property bool panning: false
+
+    // The pixelate marquee being dragged, in image pixels, or null.
+    property var marquee: null
+
     readonly property var tools: [
         { id: "pen",         glyph: "󰲶", key: Qt.Key_1 },          // md-pencil_outline
         { id: "highlighter", glyph: "󰙒", key: Qt.Key_2 }, // md-marker
@@ -78,7 +115,8 @@ PanelWindow {
     readonly property var swatches: [Theme.red, Theme.peach, Theme.yellow, Theme.green,
                                      Theme.blue, Theme.mauve, Theme.lavender, Theme.crust]
 
-    // How far the capture is scaled down to fit on screen (never up).
+    // How far the capture is scaled down to fit on screen (never up): the
+    // zoom that shows the whole shot, and the least there is.
     readonly property real fit: {
         if (root.imgW <= 0 || root.imgH <= 0) return 1;
         const sw = root.screen ? root.screen.width : 1920;
@@ -88,7 +126,10 @@ PanelWindow {
     }
 
     // Sizes are chosen on screen, so they are divided by the fit: a 5 looks
-    // like a 5 however far a 4K capture had to be shrunk to be shown.
+    // like a 5 however far a 4K capture had to be shrunk to be shown. By the
+    // fit, not the zoom: a stroke is part of the picture, so zooming enlarges
+    // it with everything else, and one drawn at 800% is the same size in the
+    // capture as one drawn with the whole shot showing.
     readonly property real strokeWidth: Math.max(1, root.size / root.fit)
     // A highlighter has to cover a line of text, so it is far wider than the
     // pen at the same size: 21px at the default 5.
@@ -122,6 +163,11 @@ PanelWindow {
         root.draft = null;
         root.textAt = null;
         root.pendingExport = "";
+        root.marquee = null;
+        root.panning = false;
+        root.zoomSet = 0;
+        root.panX = 0;
+        root.panY = 0;
         root.imgW = 0;
         root.imgH = 0;
         root.source = path.startsWith("file://") ? path : "file://" + path;
@@ -198,8 +244,82 @@ PanelWindow {
                                      "Could not write " + out]);
             return;
         }
-        Quickshell.execDetached([root.script, "--" + kind, out]);
+        Quickshell.execDetached([root.script, "--" + kind, out]
+                                .concat(kind === "copy" ? root.viewCrop() : []));
         root.close();
+    }
+
+    // Zoomed in, Copy copies what the stage shows rather than the whole shot:
+    // the part in view, at the zoom it is shown at -- or at full size between
+    // fitting and 100%, where the stage shows it shrunk. Save always saves the
+    // whole shot. screenshot.sh cuts the view out of the full-size export, from
+    // what this returns: the crop of the capture covering the view, in its own
+    // pixels, and above 100% the factor to enlarge that by (a square per
+    // pixel) and the crop of the result the stage shows. That comes out pixel
+    // for pixel as the screen does because the view's offset is a whole number
+    // of screen pixels (panTo) and the stage sits on a whole pixel. Empty with
+    // the whole shot showing, which copies it all, as before.
+    function viewCrop(): var {
+        if (!root.zoomed) return [];
+        const z = root.zoom, w = stage.width, h = stage.height;
+        const x0 = Math.floor(root.viewX / z), y0 = Math.floor(root.viewY / z);
+        const x1 = Math.min(root.imgW, Math.ceil((root.viewX + w) / z));
+        const y1 = Math.min(root.imgH, Math.ceil((root.viewY + h) / z));
+        const crop = (x1 - x0) + "x" + (y1 - y0) + "+" + x0 + "+" + y0;
+        if (z <= 1) return [crop];
+        return [crop, String(z), w + "x" + h + "+" + (root.viewX - x0 * z) + "+" + (root.viewY - y0 * z)];
+    }
+
+    // ---- zoom --------------------------------------------------------------
+
+    // Zooms to `next`, keeping the pixel of the capture at (ax, ay) -- a
+    // point in the stage -- where it is on screen.
+    function setZoom(next: real, ax: real, ay: real): void {
+        if (root.imgW <= 0) return;
+        const ix = (root.viewX + ax) / root.zoom;
+        const iy = (root.viewY + ay) / root.zoom;
+        next = Math.max(root.fit, Math.min(root.maxZoom, next));
+        root.zoomSet = next > root.fit ? next : 0;
+        root.panTo(ix * root.zoom - ax, iy * root.zoom - ay);
+    }
+
+    function panTo(x: real, y: real): void {
+        root.panX = Math.round(Math.max(0, Math.min(root.maxPanX, x)));
+        root.panY = Math.round(Math.max(0, Math.min(root.maxPanY, y)));
+    }
+
+    // The next step in or out from `from`. A step that would land just short
+    // of fitting the whole shot fits it instead, and one barely past `from`
+    // (a fit of 0.49 against the 0.5 step) is skipped.
+    function stepZoom(from: real, dir: int): real {
+        const steps = root.zoomSteps;
+        if (dir > 0) {
+            for (const s of steps) if (s > from * 1.05) return s;
+            return root.maxZoom;
+        }
+        for (let i = steps.length - 1; i >= 0; i--)
+            if (steps[i] < from / 1.05) return steps[i] < root.fit * 1.05 ? root.fit : steps[i];
+        return root.fit;
+    }
+
+    // The toolbar's buttons and Ctrl+= / Ctrl+-: on the middle of the view.
+    function zoomBy(dir: int): void {
+        root.setZoom(root.stepZoom(root.zoom, dir), stage.width / 2, stage.height / 2);
+    }
+
+    function fitView(): void {
+        root.setZoom(root.fit, 0, 0);
+    }
+
+    // Ctrl+= / Ctrl+- / Ctrl+0, for both key handlers, so they work while
+    // typing too. Ahead of the bare + and -, which are the stroke size.
+    function zoomKey(event: var): bool {
+        if (!(event.modifiers & Qt.ControlModifier)) return false;
+        if (event.key === Qt.Key_Equal || event.key === Qt.Key_Plus) root.zoomBy(1);
+        else if (event.key === Qt.Key_Minus) root.zoomBy(-1);
+        else if (event.key === Qt.Key_0) root.fitView();
+        else return false;
+        return true;
     }
 
     // ---- drawing ---------------------------------------------------------
@@ -368,7 +488,8 @@ PanelWindow {
         Keys.onPressed: event => {
             const ctrl = event.modifiers & Qt.ControlModifier;
             const shift = event.modifiers & Qt.ShiftModifier;
-            if (event.key === Qt.Key_Escape) root.close();
+            if (root.zoomKey(event)) {}
+            else if (event.key === Qt.Key_Escape) root.close();
             else if (ctrl && event.key === Qt.Key_Z) shift ? root.redo() : root.undo();
             else if (ctrl && event.key === Qt.Key_Y) root.redo();
             else if (ctrl && event.key === Qt.Key_C) root.exportAs("copy");
@@ -393,7 +514,10 @@ PanelWindow {
         // Everything but the image: title row, toolbar and the gaps around them.
         readonly property int chromeHeight: titleRow.height + toolbar.height + pad * 3 + 10
 
-        anchors.centerIn: parent
+        // Centred on a whole pixel, as the stage inside it is: half a pixel
+        // out and the zoomed squares come out uneven.
+        x: Math.round((parent.width - width) / 2)
+        y: Math.round((parent.height - height) / 2)
         width: Math.max(toolbar.implicitWidth, stage.width) + pad * 2
         height: chromeHeight + Math.max(stage.height, 120)
         radius: 16
@@ -437,7 +561,8 @@ PanelWindow {
                 anchors.rightMargin: 12
                 anchors.verticalCenter: parent.verticalCenter
                 text: root.imgW + " × " + root.imgH
-                      + "     1–7 tools   Ctrl+Z undo   Ctrl+C / Enter copy   Ctrl+S save   Esc close"
+                      + "     1–7 tools   Wheel zoom   Right-drag pan   Ctrl+Z undo"
+                      + "   Ctrl+C / Enter copy   Ctrl+S save   Esc close"
                 color: Theme.overlay0
                 elide: Text.ElideRight
                 font.family: Theme.fontFamily
@@ -582,6 +707,44 @@ PanelWindow {
                     hoverColor: Theme.red
                     onClicked: root.clearAll()
                 }
+
+                Separator {}
+
+                ToolButton {
+                    glyph: "󰛬" // md-magnify_minus_outline
+                    enabled: root.zoomed
+                    onClicked: root.zoomBy(-1)
+                }
+
+                // The zoom; a click on it fits the whole shot again (Ctrl+0).
+                Rectangle {
+                    width: 50
+                    height: 32
+                    radius: 7
+                    color: zoomMouse.containsMouse && root.zoomed ? Theme.surface0 : "transparent"
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: Math.round(root.zoom * 100) + "%"
+                        color: Theme.text
+                        font.family: Theme.fontFamily
+                        font.pixelSize: Theme.fontSize
+                    }
+
+                    MouseArea {
+                        id: zoomMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: root.zoomed ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: root.fitView()
+                    }
+                }
+
+                ToolButton {
+                    glyph: "󰛭" // md-magnify_plus_outline
+                    enabled: root.imgW > 0 && root.zoom < root.maxZoom
+                    onClicked: root.zoomBy(1)
+                }
             }
 
             Row {
@@ -618,10 +781,66 @@ PanelWindow {
             radius: 6
             color: Theme.mantle
 
+            // The wheel zooms anywhere in here, so the capture need not be
+            // aimed at, and a right-drag moves it about. It lies under the
+            // stage, which lets both through: the drawing MouseArea takes only
+            // the left button and has no wheel handler.
+            MouseArea {
+                id: panArea
+
+                // Wheel movement short of a whole notch.
+                property real rest: 0
+                // Where a right-drag began, and the view's offset then.
+                property point grabAt
+                property point startView
+
+                anchors.fill: parent
+                acceptedButtons: Qt.RightButton
+                cursorShape: root.panning ? Qt.ClosedHandCursor : Qt.ArrowCursor
+
+                // On the pointer: what is under it stays under it.
+                onWheel: wheel => {
+                    // The drag holds on to the offset it started from.
+                    if (root.panning || wheel.angleDelta.y === 0) return;
+                    // A touchpad sends a notch in slivers; they add up to one.
+                    if ((panArea.rest > 0) !== (wheel.angleDelta.y > 0)) panArea.rest = 0;
+                    panArea.rest += wheel.angleDelta.y;
+                    const notches = Math.trunc(panArea.rest / 120);
+                    if (notches === 0) return;
+                    panArea.rest -= notches * 120;
+                    let next = root.zoom;
+                    for (let i = 0; i < Math.abs(notches); i++) next = root.stepZoom(next, notches);
+                    const p = panArea.mapToItem(stage, wheel.x, wheel.y);
+                    root.setZoom(next, Math.max(0, Math.min(stage.width, p.x)),
+                                       Math.max(0, Math.min(stage.height, p.y)));
+                }
+
+                onPressed: mouse => {
+                    if (root.draft || (root.maxPanX <= 0 && root.maxPanY <= 0)) {
+                        mouse.accepted = false;
+                        return;
+                    }
+                    root.panning = true;
+                    panArea.grabAt = Qt.point(mouse.x, mouse.y);
+                    panArea.startView = Qt.point(root.viewX, root.viewY);
+                }
+                onPositionChanged: mouse => {
+                    if (root.panning)
+                        root.panTo(panArea.startView.x - (mouse.x - panArea.grabAt.x),
+                                   panArea.startView.y - (mouse.y - panArea.grabAt.y));
+                }
+                onReleased: root.panning = false
+                onCanceled: root.panning = false
+            }
+
+            // The size of the whole shot at every zoom: zooming enlarges the
+            // capture inside it rather than the window.
             Item {
                 id: stage
 
-                anchors.centerIn: parent
+                // On a whole pixel, as the view's offset is.
+                x: Math.round((parent.width - width) / 2)
+                y: Math.round((parent.height - height) / 2)
                 width: Math.round(root.imgW * root.fit)
                 height: Math.round(root.imgH * root.fit)
                 clip: true
@@ -631,9 +850,11 @@ PanelWindow {
                 Item {
                     id: layers
 
+                    x: -root.viewX
+                    y: -root.viewY
                     width: root.imgW
                     height: root.imgH
-                    scale: root.fit
+                    scale: root.zoom
                     transformOrigin: Item.TopLeft
 
                     Canvas {
@@ -650,6 +871,8 @@ PanelWindow {
                         }
 
                         anchors.fill: parent
+                        // Crisp squares from 100% up, smooth shrinking below.
+                        smooth: root.zoom < 1
                         renderTarget: Canvas.Image
                         onImageLoaded: paper.repaintAll()
 
@@ -684,6 +907,7 @@ PanelWindow {
                         property var backdrop: null
 
                         anchors.fill: parent
+                        smooth: root.zoom < 1
                         renderTarget: Canvas.FramebufferObject
                         renderStrategy: Canvas.Cooperative
 
@@ -721,26 +945,40 @@ PanelWindow {
                                 ctx.drawImage(live.backdrop, 0, 0);
                                 ctx.restore();
                             }
-                            if (op.tool !== "pixelate") {
-                                root.drawOp(ctx, op);
-                                return;
-                            }
-                            // A mosaic is drawn for real only on release; the
-                            // drag shows the region it will cover.
-                            const r = root.norm(op);
-                            ctx.fillStyle = "rgba(17,17,27,0.35)";
-                            ctx.fillRect(r.x, r.y, r.w, r.h);
-                            ctx.strokeStyle = Theme.text;
-                            ctx.lineWidth = 1 / root.fit;
-                            ctx.strokeRect(r.x, r.y, r.w, r.h);
+                            // Pixelate's drag is the marquee below.
+                            if (op.tool !== "pixelate") root.drawOp(ctx, op);
                         }
+                    }
+
+                    // A mosaic is drawn for real only on release; the drag
+                    // shows the region it will cover. A Rectangle, not lines on
+                    // `live`: that canvas is at the capture's resolution, so a
+                    // one-screen-pixel outline on it at 1600% would be a faint
+                    // 16px band. Here it stays one screen pixel at any zoom.
+                    Rectangle {
+                        visible: root.marquee !== null
+                        x: root.marquee ? root.marquee.x : 0
+                        y: root.marquee ? root.marquee.y : 0
+                        width: root.marquee ? root.marquee.w : 0
+                        height: root.marquee ? root.marquee.h : 0
+                        color: "#5911111b"
+                        border.color: Theme.text
+                        border.width: 1 / root.zoom
+                        // Or the width is rounded in this item's own units,
+                        // where 1/16 is 0, and no border is drawn at all.
+                        border.pixelAligned: false
                     }
 
                     MouseArea {
                         anchors.fill: parent
-                        cursorShape: root.tool === "text" ? Qt.IBeamCursor : Qt.CrossCursor
+                        cursorShape: root.panning ? Qt.ClosedHandCursor
+                                   : root.tool === "text" ? Qt.IBeamCursor : Qt.CrossCursor
 
                         onPressed: mouse => {
+                            if (root.panning) {
+                                mouse.accepted = false;
+                                return;
+                            }
                             root.commitText();
                             const x = mouse.x, y = mouse.y;
                             if (root.tool === "text") {
@@ -760,6 +998,7 @@ PanelWindow {
                             else
                                 root.draft = { tool: root.tool, color: root.penColor, width: root.strokeWidth,
                                                block: root.blockPx, x1: x, y1: y, x2: x, y2: y };
+                            if (root.tool === "pixelate") root.marquee = root.norm(root.draft);
                             live.requestPaint();
                         }
 
@@ -784,12 +1023,14 @@ PanelWindow {
                                                         y - p[p.length - 2].y) >= op.width / 2;
                             } else if (p) p.push({ x: x, y: y });
                             else { op.x2 = x; op.y2 = y; }
+                            if (op.tool === "pixelate") root.marquee = root.norm(op);
                             live.requestPaint();
                         }
 
                         onReleased: {
                             const op = root.draft;
                             root.draft = null;
+                            root.marquee = null;
                             live.backdrop = null;
                             live.requestPaint();
                             if (!op) return;
@@ -834,10 +1075,38 @@ PanelWindow {
                                 root.textAt = null;
                                 keys.forceActiveFocus();
                                 event.accepted = true;
+                            } else if (root.zoomKey(event)) {
+                                event.accepted = true;
                             }
                         }
                     }
                 }
+            }
+
+            // Scroll bars floating over the stage's right and bottom edges
+            // rather than taking room beside it, so the stage is the same size
+            // at every zoom. They show only zoomed in; the corner is left free.
+            PanBar {
+                vertical: true
+                x: stage.x + stage.width - width
+                y: stage.y
+                width: 10
+                height: stage.height - 10
+                value: root.viewY
+                range: root.maxPanY
+                page: stage.height
+                onScrolled: to => root.panTo(root.viewX, to)
+            }
+
+            PanBar {
+                x: stage.x
+                y: stage.y + stage.height - height
+                width: stage.width - 10
+                height: 10
+                value: root.viewX
+                range: root.maxPanX
+                page: stage.width
+                onScrolled: to => root.panTo(to, root.viewY)
             }
         }
     }
@@ -890,6 +1159,71 @@ PanelWindow {
             hoverEnabled: true
             cursorShape: tb.enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
             onClicked: if (tb.enabled) tb.clicked()
+        }
+    }
+
+    // A thin scroll bar for the zoomed capture: a rounded thumb, and a click
+    // either side of it pages, as on any scroll bar. `value` and `range` are
+    // the view's offset and how far it can go, `page` the stage's length, all
+    // in screen pixels. It only reports where to go; the editor moves the view.
+    component PanBar: Item {
+        id: bar
+
+        property bool vertical: false
+        property real value: 0
+        property real range: 0
+        property real page: 0
+
+        signal scrolled(real to)
+
+        readonly property real track: bar.vertical ? bar.height : bar.width
+        readonly property real thumbLength: Math.min(bar.track,
+                                                     Math.max(24, bar.track * bar.page / (bar.page + bar.range)))
+        readonly property real thumbAt: bar.range > 0 ? (bar.track - bar.thumbLength) * bar.value / bar.range : 0
+        readonly property real pointer: bar.vertical ? barMouse.mouseY : barMouse.mouseX
+        readonly property bool overThumb: barMouse.containsMouse && bar.pointer >= bar.thumbAt
+                                          && bar.pointer < bar.thumbAt + bar.thumbLength
+
+        visible: bar.range > 0
+
+        MouseArea {
+            id: barMouse
+
+            // Where along the thumb it was taken, or -1 for a page click.
+            property real held: -1
+
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.ArrowCursor
+
+            onPressed: mouse => {
+                const at = bar.vertical ? mouse.y : mouse.x;
+                if (at >= bar.thumbAt && at < bar.thumbAt + bar.thumbLength) {
+                    barMouse.held = at - bar.thumbAt;
+                } else {
+                    barMouse.held = -1;
+                    bar.scrolled(bar.value + (at < bar.thumbAt ? -bar.page : bar.page));
+                }
+            }
+            onPositionChanged: mouse => {
+                if (barMouse.held < 0 || !barMouse.pressed) return;
+                const at = (bar.vertical ? mouse.y : mouse.x) - barMouse.held;
+                bar.scrolled(at / Math.max(1, bar.track - bar.thumbLength) * bar.range);
+            }
+            onReleased: barMouse.held = -1
+            onCanceled: barMouse.held = -1
+        }
+
+        Rectangle {
+            x: bar.vertical ? 2 : bar.thumbAt + 2
+            y: bar.vertical ? bar.thumbAt + 2 : 2
+            width: (bar.vertical ? bar.width : bar.thumbLength) - 4
+            height: (bar.vertical ? bar.thumbLength : bar.height) - 4
+            radius: 3
+            color: Theme.subtext0
+            border.width: 1
+            border.color: Theme.crust
+            opacity: barMouse.held >= 0 ? 1 : (bar.overThumb ? 0.85 : 0.6)
         }
     }
 

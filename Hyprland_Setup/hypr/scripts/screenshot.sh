@@ -7,7 +7,11 @@
 #   --open <image>   open an existing image in the editor as if it had just
 #                    been captured; "-" reads it from stdin
 #                                                           (the clipboard's right-click)
-#   --copy <png>     put an image on the clipboard          (the editor's Copy)
+#   --copy <png> [<crop> [<times> <view>]]
+#                    put an image on the clipboard          (the editor's Copy)
+#                    Zoomed in, only what the editor shows: <crop> (WxH+X+Y)
+#                    out of <png>, and above 100% that enlarged <times> over,
+#                    a square per pixel, and then <view> of the result
 #   --save <png>     copy it into ~/Pictures/Screenshots    (the editor's Save)
 #
 # The editor renders the annotated image to a file and hands it back here, so
@@ -22,7 +26,8 @@ OUTDIR="$HOME/Pictures/Screenshots"
 # per capture, because the editor's Canvas caches a loaded image by URL and a
 # reused path would show the previous screenshot. Earlier ones go first.
 new_capture() {
-  rm -f "$RUNDIR"/screenshot-capture-*.png "$RUNDIR"/screenshot-edited-*.png
+  rm -f "$RUNDIR"/screenshot-capture-*.png "$RUNDIR"/screenshot-edited-*.png \
+        "$RUNDIR"/screenshot-view-*.png
   echo "$RUNDIR/screenshot-capture-$(date +%s%N).png"
 }
 
@@ -40,9 +45,27 @@ edit() {
 
 case "${1:-}" in
   --copy)
-    wl-copy --type image/png < "$2"
+    img=$2
+    what="The image is on the clipboard"
+    # The editor works the crop out (ScreenshotEditor.qml's viewCrop) and
+    # this cuts it. -sample is nearest-neighbour, so a whole-number <times>
+    # makes each pixel the same square the editor drew it as.
+    if [ -n "${3:-}" ]; then
+      img="$RUNDIR/screenshot-view-$(date +%s%N).png"
+      if [ -n "${4:-}" ]; then
+        cut=(-crop "$3" +repage -sample "$((100 * $4))%" -crop "$5" +repage)
+      else
+        cut=(-crop "$3" +repage)
+      fi
+      if ! magick "$2" "${cut[@]}" "png:$img" 2>/dev/null; then
+        notify-send -a Screenshot "Screenshot failed" "Could not cut out the part in view"
+        exit 1
+      fi
+      what="The part in view is on the clipboard"
+    fi
+    wl-copy --type image/png < "$img"
     # No -i: the theme's symbolic icons are invisible on the toast card.
-    notify-send -a Screenshot "Screenshot copied" "The image is on the clipboard"
+    notify-send -a Screenshot "Screenshot copied" "$what"
     exit 0
     ;;
   --save)

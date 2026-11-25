@@ -75,7 +75,7 @@ values into the repo — review with `git diff` before committing.
 | `SUPER+K` | this keybind list, on screen |
 | `SUPER+D` | default apps — which one opens links, code, video, images, folders |
 | `SUPER+N` / `SUPER+SHIFT+N` | notification centre / mute notifications |
-| `SUPER+S` / `SUPER+ALT+S` | screenshot a region into the annotation editor / copy a region's text (OCR), or its QR code's link |
+| `SUPER+S` / `SUPER+ALT+S` | screenshot a region into the annotation editor (the wheel zooms, right-drag pans) / copy a region's text (OCR), or its QR code's link |
 | `SUPER+CTRL+S` | record a region — press again to stop |
 | `SUPER+L` / `SUPER+SHIFT+L` | lock / lock and suspend |
 | `SUPER+O` | next audio output |

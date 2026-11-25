@@ -2771,15 +2771,20 @@ modelled on WarrenTool's Windows one. It replaced swappy: `swappy/` is out of
 
 The toolbar is pen, highlighter, arrow, rectangle, ellipse, text and pixelate; eight
 swatches (the seven accents plus `crust`, the one that shows on a white page); a size from
-1 to 20; undo, redo and clear; then Save and Copy. Keys: `1`–`7` pick a tool, `-`/`+` the
-size, `Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`, `Ctrl+C` or Enter copies, `Ctrl+S` saves,
-Delete clears, Escape closes. WarrenTool's OCR tool is not here — that is `SUPER+ALT+S`.
+1 to 20; undo, redo and clear; zoom out, the zoom (a click fits the whole shot) and zoom
+in; then Save and Copy. Keys: `1`–`7` pick a tool, `-`/`+` the size, `Ctrl+=` / `Ctrl+-`
+zoom and `Ctrl+0` fits, `Ctrl+Z` / `Ctrl+Shift+Z` / `Ctrl+Y`, `Ctrl+C` or Enter copies,
+`Ctrl+S` saves, Delete clears, Escape closes. The wheel zooms on the pointer and a
+right-drag moves the zoomed shot (see **Zoom** below). WarrenTool's OCR tool is not
+here — that is `SUPER+ALT+S`.
 
 Copy and Save render the annotated image to `$XDG_RUNTIME_DIR/screenshot-edited-*.png`
 and hand it back to `screenshot.sh --copy` / `--save`, which own `wl-copy` and
 `~/Pictures/Screenshots` (swappy's old `save_dir`), so no shell string is built in QML.
-Both close the editor. The backdrop deliberately does **not** close it on a click,
-unlike the other overlays — one stray click is not worth losing the annotations to.
+Both close the editor. Zoomed in, Copy passes `--copy` the part in view as well, and the
+script cuts it out (below); Save always saves the whole shot. The backdrop deliberately
+does **not** close it on a click, unlike the other overlays — one stray click is not
+worth losing the annotations to.
 
 Things that took measuring, all against quickshell 0.3.2:
 
@@ -2822,10 +2827,74 @@ Things that took measuring, all against quickshell 0.3.2:
   new — which is the usual export — and waiting on it made Save silently do nothing.
 - **Every capture gets a unique filename**: the Canvas caches a loaded image by URL, so
   a reused path would show the previous screenshot. The script deletes earlier
-  captures and exports before each new one.
+  captures and exports before each new one. It matters to a test harness too: opening
+  the same path twice leaves the size probe's `source` unchanged, so it never reports a
+  size and the editor sits at 0x0 — copy the test image to a fresh name per run.
 - With no bar running, `qs ipc call` still exits 0 ("Target not found"), so the script
   checks `pgrep -x quickshell` first and otherwise copies the raw capture to the
   clipboard rather than losing it.
+
+### Zoom
+
+WarrenTool's zoom, ported (its commit `d2c9183`). Zoom is **screen pixels per pixel of the
+capture**, from `fit` (the whole shot, the least there is) up to 1600%, in WarrenTool's
+steps — 25, 33, 50, 67, 100, then **whole numbers only** (2, 3, 4, 6, 8, 12, 16) so every
+pixel is an even square; a step landing just short of fitting fits instead. **The stage
+keeps its size**: `layers` is scaled by the zoom and moved by the view's offset inside a
+clipped `stage`, so the card never grows. The wheel zooms on the pointer (the capture's
+pixel under it stays under it), a touchpad's slivers add up to a 120 notch, and the
+toolbar buttons and `Ctrl+=`/`Ctrl+-` zoom on the middle. A right-drag pans, and so do two
+hand-drawn scroll bars (`PanBar`) floating over the stage's right and bottom edges, shown
+only zoomed in, with a click either side of the thumb paging.
+
+**Stroke sizes stay divided by `fit`, not by the zoom.** A stroke is part of the picture:
+zooming enlarges it with everything else, and one drawn at 800% is the same size in the
+capture as one drawn with the whole shot showing — which is also what WarrenTool does.
+The markup is raster at the capture's resolution here (WarrenTool's is vector), so zoomed
+in it is as blocky as the capture under it, and so is the copy.
+
+What makes the squares even and the copy exact:
+
+- **The canvases are `smooth: false` from 100% up**, which makes their texture
+  nearest-neighbour; below 100% they stay smooth, as before.
+- **Everything is on whole pixels.** The view offset is rounded (`panTo`), and the card
+  and the stage are centred with `Math.round` rather than `anchors.centerIn`, which puts
+  an odd-sized difference on a half pixel.
+- **Copy cuts the view out of the full-size export with `magick`**, not with a grab.
+  `viewCrop()` returns the crop of the capture covering the view and, above 100%, the
+  factor and the second crop; `screenshot.sh --copy <png> <crop> <times> <view>` runs
+  `-crop … -sample <times*100>% -crop …`. `-sample` is point sampling, so a whole-number
+  factor replicates each pixel exactly as the screen does. Between fit and 100% it is the
+  crop alone, at full size. **Verified against `grim` of the stage** with random-noise
+  captures, where any pixel out of place shows: 0 pixels differ at 200%, 600% and 1600%
+  on 800x500 (including a 1600% view that starts mid-square, `+11+7`) and at 200% and 600%
+  on 4000x2500; the between-fit copy equals its crop of the export exactly.
+- **Logical pixels, strictly.** On a fractionally scaled monitor a 200% square would be
+  2.5 device pixels and the squares would not be even. Every monitor here is scale 1, so
+  this is a note, not a defence.
+
+Two traps:
+
+- **The wheel and the right-drag live on a `MouseArea` *under* the stage**, and that only
+  works because the drawing `MouseArea` takes the left button alone and has no `onWheel`:
+  a `MouseArea` with no wheel handler leaves the event unaccepted, and a press of a button
+  it does not accept goes on to the next item down. Give the drawing area a wheel handler
+  or the right button and the zoom or the pan silently stops.
+- **The pixelate marquee is a `Rectangle`, and it needs `border.pixelAligned: false`.**
+  It used to be lines on `live`, but that canvas is at the capture's resolution, so at
+  1600% a one-screen-pixel line there is a faint 16px band. A `Rectangle` in `layers` with
+  `border.width: 1 / zoom` is one screen pixel at any zoom — except that `pixelAligned`
+  (on by default) rounds the width in the item's own units, where 1/16 is 0, and Qt then
+  draws **no border at all**, with no warning. Measured both ways: no outline, then a
+  one-pixel `Theme.text` line on the drag's corner at 1600%.
+
+**To test it**, run a copy of the editor in its own `qs -p` with `WlrKeyboardFocus.None`
+(so it cannot take the session's keyboard), `wl-copy`/`notify-send` shimmed onto `PATH`,
+and an `IpcHandler` driving QtTest's `TestEvent` (`import QtTest`): its `mouseWheel`,
+`mousePress`, `mouseMove` and `mouseRelease` go through Qt's real event delivery, which
+is the part a direct call to `setZoom` would not test. Then `grim` the stage and
+`magick compare -metric AE` it against the copy, leaving out the 10px the scroll bars
+cover.
 
 **`screenshot.sh --open <image>` opens an existing image as if it had just been
 captured**, and `-` reads it from stdin. The clipboard history's right-click on an
